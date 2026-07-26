@@ -44,6 +44,7 @@ export function stoneUnits(spec: DesignSpec): { count: number; caratEach: number
       ? { count: spec.bracelet.linkCount, caratEach: ct / Math.max(spec.bracelet.linkCount, 1) }
       : { count: 0, caratEach: 0 }
     case 'necklace': return spec.necklace.hasPendant ? { count: 1, caratEach: ct } : { count: 0, caratEach: 0 }
+    case 'body':     return { count: 0, caratEach: 0 }   // gem ends are priced with the piece, not as set stones
   }
 }
 

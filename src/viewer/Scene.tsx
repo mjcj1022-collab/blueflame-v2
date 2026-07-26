@@ -15,6 +15,7 @@ import type { VertexTool } from '../state/modeler'
 import { captureHandle, downloadHeroPng, downloadSpinGif } from './capture'
 import { subdivideSoup, smoothSoup } from '../lib/sculpt'
 import { CameraTryOn } from '../ui/CameraTryOn'
+import { SuggestBar } from '../ui/SuggestBar'
 
 function Turntable({ on, children }: { on: boolean; children: React.ReactNode }) {
   const ref = useRef<THREE.Group>(null)
@@ -103,7 +104,7 @@ function CaptureRig() {
   return null
 }
 
-export function Scene() {
+export function Scene({ suggest = false }: { suggest?: boolean } = {}) {
   const spec = useDesign(s => s.spec)
   const wire = useDesign(s => s.viewWire)
   const toggleWire = useDesign(s => s.toggleWire)
@@ -304,6 +305,7 @@ export function Scene() {
       {top && <div className="topview-note">Drag to look straight down — the plan view shows the setting and profile.</div>}
       {editNote && <div className="topview-note">{editNote}</div>}
       {ar && <CameraTryOn onClose={() => setAr(false)} />}
+      {suggest && <SuggestBar />}
     </div>
   )
 }

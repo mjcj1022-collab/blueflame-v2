@@ -4,6 +4,7 @@ import { shapeById, stoneMm, settingById, type SettingType } from '../catalog'
 import { sizeToDiameter } from './sizing'
 import { isHidden } from './features'
 import { bodyVolumeMm3 } from './body'
+import { motifVolumeMm3 } from './motif'
 
 const headOn = (spec: DesignSpec) => stoneOnPiece(spec) && !isHidden(spec, 'head')
 
@@ -138,12 +139,10 @@ function necklaceVolume(spec: DesignSpec): VolumeBreakdown {
   const links = isHidden(spec, 'chain') ? 0 : wireVolume(length * MM_PER_INCH, gauge) * 2.2 * 0.45
   let head = 0
   if (!isHidden(spec, 'head')) {
-    if (motif === 'celtic') {
-      // Interlaced knot medallion: a tube of length ≈ 2·π·Rk·2.2 (a trefoil's wrap).
+    if (motif && motif !== 'none') {
+      // A decorative motif medallion sized to the neckline radius.
       const R = (length * MM_PER_INCH) / (2 * Math.PI)
-      const knotR = Math.max(R * 0.16, 6)
-      const tube = Math.max(gauge * 0.7, 1.2)
-      head = wireVolume(2 * Math.PI * knotR * 2.2, tube * 2)
+      head = motifVolumeMm3(motif, Math.max(R * 0.16, 6), gauge)
     } else if (spec.necklace.hasPendant) {
       head = headVolume(settingById(spec.setting.typeId), centerStoneWidth(spec))
     }

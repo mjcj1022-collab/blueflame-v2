@@ -131,7 +131,7 @@ export default function App() {
       <div className="app">
         {mode === 'design' ? (
           <>
-            <Scene />
+            <Scene suggest />
             <aside className="panel">
               <div className="panel-scroll">
                 <Controls />

@@ -4,6 +4,7 @@ import { Pendant } from './Pendant'
 import { Earrings } from './Earrings'
 import { Bracelet } from './Bracelet'
 import { Necklace } from './Necklace'
+import { BodyJewelry } from './BodyJewelry'
 
 const TWO_PI = Math.PI * 2
 
@@ -24,6 +25,11 @@ export function displayScale(spec: DesignSpec): number {
     case 'necklace': {
       const R = (spec.necklace.length * 25.4) / TWO_PI
       return 12 / R
+    }
+    case 'body': {
+      // Small mm-scale pieces; frame to a target extent regardless of style.
+      const extent = Math.max(spec.body.size, spec.body.ballSize * 2, 6)
+      return 14 / extent
     }
   }
 }
@@ -47,6 +53,7 @@ export function Piece({ spec }: { spec: DesignSpec }) {
       {spec.category === 'earring' && <Earrings spec={spec} />}
       {spec.category === 'bracelet' && <Bracelet spec={spec} />}
       {spec.category === 'necklace' && <Necklace spec={spec} />}
+      {spec.category === 'body' && <BodyJewelry spec={spec} />}
     </group>
   )
 }

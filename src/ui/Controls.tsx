@@ -5,6 +5,7 @@ import { useWorkspace } from '../state/workspace'
 import { parseDesign } from '../lib/nlDesign'
 import { NECKLACE_STYLES } from '../lib/necklaceChain'
 import { BODY_STYLES } from '../lib/body'
+import { MOTIFS } from '../lib/motif'
 import { ALLOYS, SHAPES, STONES, SETTINGS, TEMPLATES, FINISHES, shapeById, stoneMm, alloyById, birthstoneMonth, stoneById, finishById, settingById, isGradeable, gradeMultiplier, gradeLabel, CUT_GRADES, COLOR_GRADES, CLARITY_GRADES, FLUOR_GRADES, CERT_LABS, type Alloy, type Grade } from '../catalog'
 import { sizeToDiameter, sizeToCircumference, formatSize, fitAdvice, sizeConversions } from '../lib/sizing'
 import { guardrails, computePrice } from '../lib/pricing'
@@ -280,7 +281,7 @@ function BraceletControls() {
 }
 
 function NecklaceControls() {
-  const { spec, setNecklace } = useDesign()
+  const { spec, setNecklace, reveal } = useDesign()
   const n = spec.necklace
   const labels: [number, string][] = [[14, 'Choker'], [16, 'Choker'], [18, 'Princess'], [20, 'Matinee'], [24, 'Opera'], [30, 'Rope']]
   const label = labels.reduce((acc, [len, name]) => n.length >= len ? name : acc, 'Collar')
@@ -301,10 +302,11 @@ function NecklaceControls() {
         <button className="opt" aria-pressed={n.hasPendant} onClick={() => setNecklace({ hasPendant: true })}>With pendant</button>
       </div>
       <div className="row" style={{ marginTop: 16 }}><label htmlFor="n-motif">Motif</label></div>
-      <div className="opts c2">
-        <button className="opt" aria-pressed={(n.motif ?? 'none') === 'none'} onClick={() => setNecklace({ motif: 'none' })}>None</button>
-        <button className="opt" aria-pressed={n.motif === 'celtic'} onClick={() => setNecklace({ motif: 'celtic' })}>Celtic knot</button>
-      </div>
+      <select id="n-motif" className="lib-name" style={{ width: '100%' }} value={n.motif ?? 'none'}
+        onChange={e => { const v = e.target.value as typeof n.motif; setNecklace({ motif: v }); if (v && v !== 'none') reveal('head') }}>
+        <option value="none">None (plain chain / stone pendant)</option>
+        {MOTIFS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+      </select>
     </Group>
   )
 }

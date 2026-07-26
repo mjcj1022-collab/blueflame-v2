@@ -572,3 +572,19 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .aistudio-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .aistudio-reset{flex:0 0 auto;background:none;border:1px solid var(--rule-dark);color:#9AA1A4;font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 10px;border-radius:5px;cursor:pointer}
 .aistudio-reset:hover{color:#fff;border-color:var(--slate)}
+
+/* suggest bar — a compact AI "next move" nudge pinned to the bottom of the builder */
+.suggestbar{position:absolute;left:50%;transform:translateX(-50%);bottom:56px;z-index:3;pointer-events:auto;max-width:min(560px,calc(100% - 40px))}
+.suggestbar-ask{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;background:rgba(14,17,19,.86);border:1px solid var(--rule-dark);color:var(--karat-lt);padding:9px 15px;border-radius:20px;cursor:pointer;backdrop-filter:blur(4px);transition:border-color .15s,color .15s}
+.suggestbar-ask:hover:not(:disabled){border-color:var(--karat);color:#fff}
+.suggestbar-ask:disabled{opacity:.6;cursor:default}
+.suggestbar-tip{display:flex;align-items:center;gap:10px;background:rgba(14,17,19,.92);border:1px solid var(--karat);border-radius:12px;padding:10px 12px 10px 14px;backdrop-filter:blur(5px);box-shadow:0 8px 26px rgba(0,0,0,.4)}
+.sb-mark{color:var(--karat-lt);font-size:14px;flex:0 0 auto}
+.sb-text{color:#E6EAEB;font-size:12.5px;line-height:1.45}
+.sb-chips{display:flex;gap:5px;flex-wrap:wrap}
+.sb-chips i{font-style:normal;font-family:var(--mono);font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--karat-lt);border:1px solid var(--rule-dark);border-radius:10px;padding:2px 7px}
+.sb-apply{flex:0 0 auto;background:var(--karat);border:1px solid var(--karat);color:#141414;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;border-radius:14px;cursor:pointer}
+.sb-apply:hover{background:var(--karat-lt);border-color:var(--karat-lt)}
+.sb-x{flex:0 0 auto;background:none;border:none;color:#8A9295;font-size:16px;line-height:1;cursor:pointer;padding:0 2px}
+.sb-x:hover{color:#fff}
+@media(max-width:1040px){.suggestbar{bottom:16px}}

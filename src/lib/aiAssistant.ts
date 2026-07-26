@@ -2,6 +2,7 @@ import { ALLOYS, SHAPES, STONES, SETTINGS, FINISHES } from '../catalog'
 import { NO_STONE, type ProductCategory, type FinishId, type NecklaceMotif, type NecklaceStyle, type BandProfile, type BraceletKind, type BodyStyle } from '../spec/types'
 import { NECKLACE_STYLES } from './necklaceChain'
 import { BODY_STYLES } from './body'
+import { MOTIFS, MOTIF_IDS } from './motif'
 import { api } from './api'
 import { useDesign } from '../state/design'
 
@@ -58,7 +59,7 @@ export function buildSystemPrompt(): string {
     `settingId: ${list(SETTINGS)}`,
     `finish: ${list(FINISHES)}`,
     'carat: number 0.05–20. size: US ring size 2–16.',
-    'motif: "celtic" for a Celtic/knotwork necklace (renders an interlaced knot medallion on the chain), else "none". Use "celtic" whenever the request mentions a Celtic knot, knotwork, trinity/triquetra, or an interlaced/woven design — and set category to "necklace".',
+    `motif (a medallion on a necklace): ${MOTIFS.map(([id, name]) => `${id} (${name})`).join(', ')}, or "none". Set category to "necklace" and pick the motif whenever the request names one — e.g. Celtic/knotwork/triquetra→celtic, cross/crucifix→cross, infinity/eternity→infinity, heart→heart, halo→halo, cluster→cluster, flower/floral→floral.`,
     '--- Dimensional fields — set these to shape the real geometry, not just the category: ---',
     'RING: bandWidth (mm, 1–12, e.g. a wide band is 6–8), bandProfile (round, flat, dshape, knife).',
     `NECKLACE: chainStyle (${NECKLACE_STYLES.map(([id]) => id).join(', ')}), necklaceLength (inches, 14–30; 16=choker, 18=princess, 24=opera).`,
@@ -132,7 +133,7 @@ export function normalizeAiDesign(raw: unknown): AiDesignPatch | null {
   if (typeof r.finish === 'string' && FINISH_IDS.has(r.finish)) out.finish = r.finish as FinishId
   if (num(r.carat)) out.carat = clamp(r.carat, 0.05, 20)
   if (num(r.size)) out.size = clamp(r.size, 2, 16)
-  if (r.motif === 'celtic' || r.motif === 'none') out.motif = r.motif
+  if (typeof r.motif === 'string' && MOTIF_IDS.has(r.motif)) out.motif = r.motif as NecklaceMotif
   // Dimensional / per-category fields, each range-clamped or enum-checked.
   if (num(r.bandWidth)) out.bandWidth = clamp(r.bandWidth, 1, 12)
   if (typeof r.bandProfile === 'string' && BAND_PROFILES.has(r.bandProfile)) out.bandProfile = r.bandProfile as BandProfile
@@ -157,7 +158,7 @@ function describe(d: AiDesignPatch | null): string[] {
   if (d.settingId) m.push(SETTINGS.find(s => s.id === d.settingId)?.name ?? d.settingId)
   if (d.size) m.push(`size ${d.size}`)
   if (d.finish) m.push(FINISHES.find(f => f.id === d.finish)?.name ?? d.finish)
-  if (d.motif === 'celtic') m.push('Celtic knot')
+  if (d.motif && d.motif !== 'none') m.push(MOTIFS.find(([id]) => id === d.motif)?.[1] ?? d.motif)
   if (d.bandWidth) m.push(`${d.bandWidth} mm band`)
   if (d.bandProfile) m.push(`${d.bandProfile} profile`)
   if (d.chainStyle) m.push(`${d.chainStyle} chain`)
@@ -174,9 +175,13 @@ function describe(d: AiDesignPatch | null): string[] {
  *  piece, so we don't switch tabs — the render just updates in place. */
 export function applyAiDesign(d: AiDesignPatch): void {
   const s = useDesign.getState()
+  // The AI is defining a fresh piece — clear any leftover "hidden" flags from a
+  // previous design so nothing it builds (a motif in the head slot, a new band)
+  // ends up invisible. This was a real trap: a hidden 'head' hid the whole motif.
+  s.clearHidden()
   // A Celtic knot only makes sense on a necklace — force the category so the
   // motif has somewhere to render even if the model forgot to set it.
-  if (d.motif === 'celtic' && !d.category) s.setCategory('necklace')
+  if ((d.motif && d.motif !== 'none') && !d.category) s.setCategory('necklace')
   if (d.category) s.setCategory(d.category)
   if (d.alloyId) s.setAlloy(d.alloyId)
   if (d.shapeId) s.setShape(d.shapeId)

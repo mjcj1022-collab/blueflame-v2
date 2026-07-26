@@ -38,6 +38,7 @@ interface DesignStore {
   setEarring: (patch: Partial<DesignSpec['earring']>) => void
   setBracelet: (patch: Partial<DesignSpec['bracelet']>) => void
   setNecklace: (patch: Partial<DesignSpec['necklace']>) => void
+  setBody: (patch: Partial<DesignSpec['body']>) => void
   setAlloy: (id: string) => void
   setRhodium: (on: boolean) => void
   setTwoTone: (on: boolean) => void
@@ -56,6 +57,8 @@ interface DesignStore {
   setEngraving: (patch: Partial<DesignSpec['engraving']>) => void
   setFit: (fit: FitProfile) => void
   toggleHidden: (key: string) => void
+  reveal: (key: string) => void
+  clearHidden: () => void
   load: (spec: DesignSpec) => void
   toggleUnit: () => void
   toggleCompare: () => void
@@ -134,6 +137,7 @@ export const useDesign = create<DesignStore>((rawSet, get) => {
   setEarring: patch => set(s => ({ spec: { ...s.spec, earring: { ...s.spec.earring, ...patch } } })),
   setBracelet: patch => set(s => ({ spec: { ...s.spec, bracelet: { ...s.spec.bracelet, ...patch } } })),
   setNecklace: patch => set(s => ({ spec: { ...s.spec, necklace: { ...s.spec.necklace, ...patch } } })),
+  setBody: patch => set(s => ({ spec: { ...s.spec, body: { ...s.spec.body, ...patch } } })),
   setAlloy: id => set(s => ({ spec: { ...s.spec, metal: { ...s.spec.metal, alloyId: id } } })),
   setRhodium: (on: boolean) => set(s => ({ spec: { ...s.spec, metal: { ...s.spec.metal, rhodium: on } } })),
   setTwoTone: (on: boolean) => set(s => ({ spec: { ...s.spec, metal: { ...s.spec.metal, twoTone: on, headAlloyId: s.spec.metal.headAlloyId ?? (s.spec.metal.alloyId === '14ky' ? '14kw' : '14ky') } } })),
@@ -157,6 +161,11 @@ export const useDesign = create<DesignStore>((rawSet, get) => {
     const hidden = cur.includes(key) ? cur.filter(k => k !== key) : [...cur, key]
     return { spec: { ...s.spec, hidden } }
   }),
+  reveal: key => set(s => {
+    const cur = s.spec.hidden ?? []
+    return cur.includes(key) ? { spec: { ...s.spec, hidden: cur.filter(k => k !== key) } } : s
+  }),
+  clearHidden: () => set(s => ((s.spec.hidden?.length ?? 0) ? { spec: { ...s.spec, hidden: [] } } : s)),
   load: spec => set({ spec: {
     ...DEFAULT_SPEC, ...spec,
     ring: { ...DEFAULT_SPEC.ring, ...spec.ring },

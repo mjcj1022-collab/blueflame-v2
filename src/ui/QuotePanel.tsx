@@ -9,6 +9,7 @@ import { money, gToDwt } from '../lib/units'
 import { CATEGORY_LABEL, type DesignSpec } from '../spec/types'
 import { Checkout, checkoutConfigured } from './Checkout'
 import { LIVE_SPOT, SYMBOL_TO_SPOT } from '../lib/spot'
+import { BODY_STYLES } from '../lib/body'
 
 function geometryLines(spec: DesignSpec): string[] {
   const alloy = alloyById(spec.metal.alloyId)
@@ -52,6 +53,18 @@ function geometryLines(spec: DesignSpec): string[] {
         `  Pendant           ${spec.necklace.hasPendant ? 'Yes' : 'None'}`,
         `  Hallmark          ${alloy.hallmark}`
       ]
+    case 'body': {
+      const styleName = BODY_STYLES.find(([id]) => id === spec.body.style)?.[1] ?? spec.body.style
+      const ring = spec.body.style === 'cbr' || spec.body.style === 'circular' || spec.body.style === 'septum'
+      return [
+        'BODY JEWELRY',
+        `  Style             ${styleName}`,
+        `  Gauge             ${spec.body.gauge.toFixed(1)} mm`,
+        `  ${ring ? 'Inner diameter   ' : spec.body.style === 'plug' ? 'Plug diameter    ' : 'Wearable length  '} ${spec.body.size.toFixed(1)} mm`,
+        `  Ends              ${spec.body.ballSize.toFixed(1)} mm`,
+        `  Hallmark          ${alloy.hallmark}`
+      ]
+    }
   }
 }
 

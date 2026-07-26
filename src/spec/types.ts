@@ -76,8 +76,8 @@ export interface BraceletGeo {
 
 /** Necklace / chain, optionally carrying a pendant. */
 export type NecklaceStyle = 'cable' | 'curb' | 'rope' | 'figaro' | 'bead'
-/** Decorative motif hung on the chain. 'celtic' renders an interlaced knot medallion. */
-export type NecklaceMotif = 'none' | 'celtic'
+/** Decorative motif hung on the chain, rendered as a medallion pendant. */
+export type NecklaceMotif = 'none' | 'celtic' | 'cross' | 'infinity' | 'heart' | 'halo' | 'cluster' | 'floral'
 export interface NecklaceGeo {
   length: number        // inches
   gauge: number         // mm, chain wire gauge
@@ -99,6 +99,10 @@ export type BodyStyle =
   | 'septum'     // septum clicker
   | 'labret'     // labret / flat-back stud
   | 'plug'       // double-flared plug (stretched lobe)
+  | 'hoop'       // seamless / continuous hoop ring
+  | 'tunnel'     // hollow ear tunnel (eyelet)
+  | 'taper'      // stretching taper (cone)
+  | 'spike'      // barbell with conical spike ends
 export interface BodyGeo {
   style: BodyStyle
   gauge: number     // mm, shaft / wire diameter (1.6 mm = 14g, 1.2 mm = 16g)

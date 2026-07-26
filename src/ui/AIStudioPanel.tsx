@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAiChat } from '../state/aiChat'
 
 const SUGGESTIONS = [
@@ -18,9 +18,19 @@ const SUGGESTIONS = [
 export function AIStudioPanel() {
   const { enabled, messages, input, image, busy, error, checkEnabled, setInput, setImage, send, reset } = useAiChat()
   const scroller = useRef<HTMLDivElement>(null)
+  const [elapsed, setElapsed] = useState(0)
 
   useEffect(() => { void checkEnabled() }, [checkEnabled])
   useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' }) }, [messages, busy])
+
+  // Count up while the model works, so a slow first request (a sleeping server can
+  // take up to a minute to wake) visibly progresses instead of looking frozen.
+  useEffect(() => {
+    if (!busy) { setElapsed(0); return }
+    setElapsed(1)
+    const t = setInterval(() => setElapsed(s => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [busy])
 
   const pickImage = (file: File) => {
     const r = new FileReader()
@@ -69,7 +79,7 @@ export function AIStudioPanel() {
                 </div>
               </div>
             ))}
-            {busy && <div className="ai-msg assistant"><div className="ai-bubble ai-typing">Designing…</div></div>}
+            {busy && <div className="ai-msg assistant"><div className="ai-bubble ai-typing">Designing… {elapsed}s{elapsed > 8 ? ' · waking the server can take up to a minute' : ''}</div></div>}
           </div>
 
           {error && <div className="ai-err">{error}</div>}

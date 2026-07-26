@@ -16,6 +16,9 @@ export interface AiRequest { system?: string; messages: AiMessage[]; image?: str
 
 const provider = () => (process.env.AI_PROVIDER || 'anthropic').toLowerCase()
 const key = () => process.env.AI_API_KEY || ''
+// Default to a current, non-deprecated model. The Claude API dropped "-latest"
+// aliases and retired claude-3-5-sonnet, so an old default 404s; claude-sonnet-4-6
+// is the current balanced choice. Override per-shop with AI_MODEL on the server.
 const model = () => process.env.AI_MODEL || (provider() === 'openai' ? 'gpt-4o-mini' : 'claude-sonnet-4-6')
 
 export const aiEnabled = (): boolean => !!key()

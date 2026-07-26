@@ -49,12 +49,17 @@ export const useAiChat = create<AiChatStore>((set, get) => ({
     const history: ChatTurn[] = [...st.messages, userMsg].map(m => ({ role: m.role, content: m.content }))
     const img = st.image
     set({ messages: [...st.messages, userMsg], input: '', image: null, busy: true, error: null })
+    console.log('[AI] sending request:', content || '(image only)')
     try {
       const res = await askAssistant(history, img)
       if (res.disabled) { set({ enabled: false, busy: false }); return }
-      set(s => ({ messages: [...s.messages, { role: 'assistant', content: res.reply, matched: res.matched }], busy: false, enabled: true }))
+      // Note when the model replied but changed nothing, so the render staying put
+      // reads as an intentional answer rather than a silent failure.
+      const note = res.design ? undefined : ['no change to the piece']
+      set(s => ({ messages: [...s.messages, { role: 'assistant', content: res.reply, matched: res.matched?.length ? res.matched : note }], busy: false, enabled: true }))
       if (res.design) applyAiDesign(res.design as AiDesignPatch)
     } catch (e) {
+      console.error('[AI] request failed:', e)
       set({ error: e instanceof Error ? e.message : 'The assistant could not be reached.', busy: false })
     }
   },
