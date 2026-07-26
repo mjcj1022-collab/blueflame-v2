@@ -7,6 +7,9 @@ import { paveSpots, type PaveMode } from '../lib/pave'
 import { stoneMm, shapeById } from '../catalog'
 import { gemDiameterMm, surfaceTopAt, objectTop } from '../lib/setting'
 import { haloRadius, channelRailSpots, type RailAlong } from '../lib/construction'
+import { textureSoup, type TextureStyle } from '../lib/texture'
+import { milgrainSpots, milgrainCount, bridgePath } from '../lib/finishing'
+import { paveSpots as paveSpotsFn } from '../lib/pave'
 
 export interface PaveFillOptions {
   count: number
@@ -197,6 +200,11 @@ interface ModelerStore {
   addHalo: (gemId: string, count: number, smallCarat: number) => number
   addChannelRails: (opts: ChannelRailOptions) => boolean
   flushSet: (gemId: string) => boolean
+  textureMesh: (id: string, style: TextureStyle, amp: number, scale: number) => boolean
+  addMilgrain: (center: [number, number, number], radius: number, beadDia: number) => number
+  bridgeWire: (aId: string, bId: string, wire: number) => boolean
+  piercePattern: (id: string, count: number, mode: 'row' | 'ring', span: number, dia: number, axis: 'x' | 'y' | 'z') => number
+  addSignet: (id: string, width: number, length: number, thickness: number) => boolean
   select: (id: string | null) => void
   setMode: (mode: TransformMode) => void
   setAlloy: (id: string) => void
@@ -729,6 +737,96 @@ export const useModeler = create<ModelerStore>((set, get) => {
         return o
       }),
     }))
+    return true
+  },
+
+  /** Displace a metal part's surface with a hammered / stipple / Florentine texture. */
+  textureMesh: (id, style, amp, scale) => {
+    const src = get().objects.find(o => o.id === id)
+    if (!src) return false
+    const bv = bakedVertices(src)
+    if (bv.length < 9) return false
+    record()
+    const out = textureSoup(bv, style, amp, scale)
+    set(s => ({ objects: s.objects.map(o => o.id === id ? { ...o, kind: 'mesh', vertices: out, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 } : o) }))
+    return true
+  },
+
+  /** Ring a rim with milgrain beads. */
+  addMilgrain: (center, radius, beadDia) => {
+    if (radius <= 0 || beadDia <= 0) return 0
+    const count = milgrainCount(radius, beadDia)
+    const spots = milgrainSpots(radius, count, center[1], center[0], center[2])
+    if (!spots.length) return 0
+    record()
+    const beads: SculptObject[] = spots.map((sp, i) => ({
+      id: newId(), name: `Milgrain ${i + 1}`, kind: 'sphere',
+      position: sp.position, rotation: [0, 0, 0], scale: [1, 1, 1], size: beadDia,
+      material: 'metal', color: GOLD,
+    }))
+    set(s => ({ objects: [...s.objects, ...beads], selectedId: beads[0].id }))
+    return count
+  },
+
+  /** Sweep a wire between two parts — a gallery rail or connecting bridge. */
+  bridgeWire: (aId, bId, wire) => {
+    const a = get().objects.find(o => o.id === aId)
+    const b = get().objects.find(o => o.id === bId)
+    if (!a || !b || aId === bId) return false
+    const path = bridgePath(a.position, b.position)
+    const verts = strokeTubeVertices(path, Math.max(0.1, wire) / 2)
+    if (!verts.length) return false
+    record()
+    const tube: SculptObject = { id: newId(), name: 'Bridge wire', kind: 'mesh', vertices: verts, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0, material: 'metal', color: GOLD }
+    set(s => ({ objects: [...s.objects, tube], selectedId: tube.id }))
+    return true
+  },
+
+  /** Pierce a row or ring of clean holes through a part (galleries, filigree). */
+  piercePattern: (id, count, mode, span, dia, axis) => {
+    const src = get().objects.find(o => o.id === id)
+    if (!src || count < 1 || dia <= 0) return 0
+    const bv = bakedVertices(src)
+    if (bv.length < 9) return 0
+    let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
+    for (let i = 0; i + 2 < bv.length; i += 3) {
+      minX = Math.min(minX, bv[i]); maxX = Math.max(maxX, bv[i])
+      minY = Math.min(minY, bv[i + 1]); maxY = Math.max(maxY, bv[i + 1])
+      minZ = Math.min(minZ, bv[i + 2]); maxZ = Math.max(maxZ, bv[i + 2])
+    }
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, cz = (minZ + maxZ) / 2
+    const length = Math.max(maxX - minX, maxY - minY, maxZ - minZ) * 1.6 + 4
+    const rotation: [number, number, number] = axis === 'x' ? [0, 0, Math.PI / 2] : axis === 'z' ? [Math.PI / 2, 0, 0] : [0, 0, 0]
+    // hole centres laid out in the plane perpendicular to the drill axis
+    const spots = paveSpotsFn({ count, diameter: dia, gap: Math.max(0.2, dia), mode: mode === 'ring' ? 'ring' : 'row', center: [cx, cy, cz], radius: mode === 'ring' && span > 0 ? span : undefined })
+    record()
+    let acc: SculptObject = { ...src, kind: 'mesh', vertices: bv, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 }
+    let cut = 0
+    for (const sp of spots) {
+      // map the pavé XZ layout onto the plane perpendicular to the chosen axis
+      const p: [number, number, number] = axis === 'y' ? [sp.position[0], cy, sp.position[2]]
+        : axis === 'x' ? [cx, sp.position[2], sp.position[0]]
+          : [sp.position[0], sp.position[2], cz]
+      const drill: SculptObject = { id: 'pierce', name: 'pierce', kind: 'cylinder', position: p, rotation, scale: [dia / 2, length / 2, dia / 2], size: 2, material: 'metal', color: 0 }
+      try { const v = booleanOp(acc, drill, 'subtract'); if (v.length) { acc = { ...acc, vertices: v }; cut++ } } catch { /* skip */ }
+    }
+    if (!cut) return 0
+    set(s => ({ objects: s.objects.map(o => o.id === id ? { ...o, kind: 'mesh', vertices: acc.vertices, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 } : o) }))
+    return cut
+  },
+
+  /** Add a flat oval signet face on top of a part, for engraving. */
+  addSignet: (id, width, length, thickness) => {
+    const src = get().objects.find(o => o.id === id)
+    if (!src || width <= 0 || length <= 0) return false
+    const [tx, ty, tz] = objectTop(src)
+    record()
+    const signet: SculptObject = {
+      id: newId(), name: 'Signet face', kind: 'cylinder',
+      position: [tx, ty + thickness / 2, tz], rotation: [0, 0, 0],
+      scale: [width, thickness, length], size: 1, material: 'metal', color: GOLD,
+    }
+    set(s => ({ objects: [...s.objects, signet], selectedId: signet.id }))
     return true
   },
 

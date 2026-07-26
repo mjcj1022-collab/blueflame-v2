@@ -220,7 +220,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -238,6 +238,11 @@ export function ModelerPanel() {
   const [halo, setHalo] = useState({ count: 12, carat: 0.03 })
   const [rails, setRails] = useState<{ length: number; innerGap: number; height: number; thickness: number; along: RailAlong }>({ length: 12, innerGap: 2.2, height: 2, thickness: 0.8, along: 'x' })
   const [keepCutter, setKeepCutter] = useState(false)
+  const [tex, setTex] = useState<{ style: 'hammered' | 'stipple' | 'florentine'; amp: number; scale: number }>({ style: 'hammered', amp: 0.15, scale: 1.2 })
+  const [mil, setMil] = useState({ radius: 4, beadDia: 0.5 })
+  const [pierce, setPierce] = useState<{ count: number; mode: 'row' | 'ring'; span: number; dia: number; axis: 'x' | 'y' | 'z' }>({ count: 6, mode: 'ring', span: 4, dia: 1, axis: 'y' })
+  const [signet, setSignet] = useState({ width: 10, length: 12, thickness: 1.5 })
+  const [wire, setWire] = useState(1)
   const [saveName, setSaveName] = useState('')
   const [saved, setSaved] = useState<SavedSculpt[]>(() => sculptLibrary.list())
   const [dfm, setDfm] = useState<{ id: string; r: DfmReport } | null>(null)
@@ -421,6 +426,11 @@ export function ModelerPanel() {
     if (addChannelRails({ center: [c[0], c[1], c[2]], length: rails.length, innerGap: rails.innerGap, height: rails.height, thickness: rails.thickness, along: rails.along }))
       flash('Added channel rails — drop a row of stones between them.')
   }
+  const doTexture = () => { if (sel && textureMesh(sel.id, tex.style, tex.amp, tex.scale)) flash(`Applied ${tex.style} texture to ${sel.name}.`); else flash('Select a part to texture.') }
+  const doMilgrain = () => { const c = sel ? sel.position : [0, 0, 0] as [number, number, number]; const n = addMilgrain([c[0], c[1], c[2]], mil.radius, mil.beadDia); flash(n ? `Added a ${n}-bead milgrain ring.` : 'Set a radius and bead size.') }
+  const doBridge = () => { const b = objects.find(o => o.id === otherId); if (sel && b && bridgeWire(sel.id, b.id, wire)) flash(`Bridged ${sel.name} → ${b.name}.`); else flash('Select a part and pick a second in the Boolean list.') }
+  const doPierce = () => { if (!sel) { flash('Select a part to pierce.'); return } const n = piercePattern(sel.id, pierce.count, pierce.mode, pierce.span, pierce.dia, pierce.axis); flash(n ? `Pierced ${n} holes through ${sel.name}.` : 'Piercing missed the part — adjust span/diameter.') }
+  const doSignet = () => { if (sel && addSignet(sel.id, signet.width, signet.length, signet.thickness)) flash('Added a signet face on top.'); else flash('Select a part first.') }
   const copySchedule = () => {
     const txt = stoneScheduleText(stoneSchedule(objects))
     navigator.clipboard?.writeText(txt).then(() => flash('Stone schedule copied.'), () => flash('Could not copy.'))
@@ -792,6 +802,41 @@ export function ModelerPanel() {
           <div className="row"><label>Thickness mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.2} step={0.1} value={rails.thickness} onChange={e => setRails(r => ({ ...r, thickness: Math.max(0.2, +e.target.value) }))} /></div>
           <button className="opt" style={{ width: '100%', marginTop: 4 }} onClick={doRails}>Add channel rails</button>
           <p className="disc">Two flanking walls for a channel setting, centred on the selected part. Drop a Row pavé between them and the stones sit in the channel.</p>
+
+          <h4 style={{ marginTop: 20 }}>Surface texture</h4>
+          <div className="opts" style={{ marginBottom: 6 }}>
+            {(['hammered', 'stipple', 'florentine'] as const).map(st => <button key={st} className="opt" aria-pressed={tex.style === st} onClick={() => setTex(t => ({ ...t, style: st }))}>{st[0].toUpperCase() + st.slice(1)}</button>)}
+          </div>
+          <div className="row"><label>Depth mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.02} step={0.02} value={tex.amp} onChange={e => setTex(t => ({ ...t, amp: Math.max(0.02, +e.target.value) }))} /></div>
+          <div className="row"><label>Feature mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.2} step={0.1} value={tex.scale} onChange={e => setTex(t => ({ ...t, scale: Math.max(0.2, +e.target.value) }))} /></div>
+          <button className="opt" style={{ width: '100%', marginTop: 4 }} onClick={doTexture}>Texture this part</button>
+
+          <h4 style={{ marginTop: 18 }}>Milgrain, signet &amp; wire</h4>
+          <div className="row"><label>Milgrain R mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.5} step={0.5} value={mil.radius} onChange={e => setMil(m => ({ ...m, radius: Math.max(0.5, +e.target.value) }))} /></div>
+          <div className="row"><label>Bead Ø mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.2} step={0.1} value={mil.beadDia} onChange={e => setMil(m => ({ ...m, beadDia: Math.max(0.2, +e.target.value) }))} /></div>
+          <div className="row"><label>Signet W×L mm</label><span style={{ display: 'flex', gap: 4 }}><input className="lib-name" style={{ width: 44 }} type="number" min={1} step={0.5} value={signet.width} onChange={e => setSignet(s2 => ({ ...s2, width: Math.max(1, +e.target.value) }))} /><input className="lib-name" style={{ width: 44 }} type="number" min={1} step={0.5} value={signet.length} onChange={e => setSignet(s2 => ({ ...s2, length: Math.max(1, +e.target.value) }))} /></span></div>
+          <div className="row"><label>Signet thick mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.3} step={0.1} value={signet.thickness} onChange={e => setSignet(s2 => ({ ...s2, thickness: Math.max(0.3, +e.target.value) }))} /></div>
+          <div className="opts c2" style={{ marginTop: 4 }}>
+            <button className="opt" onClick={doMilgrain}>Add milgrain ring</button>
+            <button className="opt" onClick={doSignet}>Add signet face</button>
+          </div>
+          <div className="opts c2" style={{ marginTop: 6 }}>
+            <button className="opt" onClick={doBridge}>Bridge wire → Boolean pick</button>
+            <div className="row" style={{ margin: 0 }}><label>Wire Ø</label><input className="lib-name" style={{ width: 48 }} type="number" min={0.2} step={0.1} value={wire} onChange={e => setWire(Math.max(0.2, +e.target.value))} /></div>
+          </div>
+
+          <h4 style={{ marginTop: 18 }}>Pierce holes</h4>
+          <div className="opts c2" style={{ marginBottom: 6 }}>
+            <button className="opt" aria-pressed={pierce.mode === 'row'} onClick={() => setPierce(p => ({ ...p, mode: 'row' }))}>Row</button>
+            <button className="opt" aria-pressed={pierce.mode === 'ring'} onClick={() => setPierce(p => ({ ...p, mode: 'ring' }))}>Ring</button>
+          </div>
+          <div className="row"><label>Holes</label><input className="lib-name" style={{ width: 64 }} type="number" min={1} value={pierce.count} onChange={e => setPierce(p => ({ ...p, count: Math.max(1, +e.target.value) }))} /></div>
+          <div className="row"><label>Hole Ø mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.2} step={0.1} value={pierce.dia} onChange={e => setPierce(p => ({ ...p, dia: Math.max(0.2, +e.target.value) }))} /></div>
+          <div className="row"><label>{pierce.mode === 'ring' ? 'Ring R mm' : 'Spacing mm'}</label><input className="lib-name" style={{ width: 64 }} type="number" min={0} step={0.5} value={pierce.span} onChange={e => setPierce(p => ({ ...p, span: Math.max(0, +e.target.value) }))} /></div>
+          <div className="opts" style={{ marginTop: 4 }}>
+            {(['x', 'y', 'z'] as const).map(ax => <button key={ax} className="opt" aria-pressed={pierce.axis === ax} onClick={() => setPierce(p => ({ ...p, axis: ax }))}>{ax.toUpperCase()}</button>)}
+          </div>
+          <button className="opt" style={{ width: '100%', marginTop: 8 }} onClick={doPierce}>Pierce pattern</button>
 
           <h4 style={{ marginTop: 20 }}>Pavé / channel fill</h4>
           <div className="opts c2" style={{ marginBottom: 8 }}>
