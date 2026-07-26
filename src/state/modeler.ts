@@ -5,6 +5,7 @@ import { bakedGeometry } from '../lib/sculpt'
 import { allPresets, addUserPreset, removeUserPreset, cloneSketch, type SketchPreset } from '../lib/sketchPresets'
 import { paveSpots, type PaveMode } from '../lib/pave'
 import { stoneMm, shapeById } from '../catalog'
+import { gemDiameterMm, surfaceTopAt, objectTop } from '../lib/setting'
 
 export interface PaveFillOptions {
   count: number
@@ -18,6 +19,8 @@ export interface PaveFillOptions {
   arcDeg?: number
   cutSeats?: boolean
   baseId?: string
+  /** Drop each stone onto the actual surface of the base part (raycast down). */
+  snapToSurface?: boolean
 }
 
 export type PrimitiveKind = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'tube'
@@ -177,6 +180,10 @@ interface ModelerStore {
   arrayCircular: (id: string, count: number) => void
   arrayLinear: (id: string, count: number, spacing: number) => void
   paveFill: (opts: PaveFillOptions) => number
+  fitHead: (gemId: string, prongs: number) => boolean
+  fitBezel: (gemId: string) => boolean
+  drillHole: (id: string, axis: 'x' | 'y' | 'z', diameter: number) => boolean
+  addBail: (id: string, ringMm?: number) => boolean
   select: (id: string | null) => void
   setMode: (mode: TransformMode) => void
   setAlloy: (id: string) => void
@@ -509,6 +516,17 @@ export const useModeler = create<ModelerStore>((set, get) => {
     if (!spots.length) return 0
     record()
 
+    // Drop each stone onto the real surface of the base part, if asked, so the
+    // run follows a curved band instead of floating at the anchor height.
+    const snapBase = opts.snapToSurface && opts.baseId ? get().objects.find(o => o.id === opts.baseId && o.material === 'metal') : undefined
+    if (snapBase) {
+      const bv = bakedVertices(snapBase)
+      for (const s of spots) {
+        const y = surfaceTopAt(s.position[0], s.position[2], bv)
+        if (y !== null) s.position[1] = y
+      }
+    }
+
     // Carve a seat under each stone out of the chosen metal part, if asked.
     let seated = 0
     const base = opts.cutSeats && opts.baseId ? get().objects.find(o => o.id === opts.baseId && o.material === 'metal') : undefined
@@ -540,6 +558,92 @@ export const useModeler = create<ModelerStore>((set, get) => {
       selectedId: gems[0].id,
     }))
     return opts.cutSeats && base ? seated : spots.length
+  },
+
+  /** Drop a correctly-sized prong head onto a selected gem — auto-matched to its
+   *  girdle so the maker doesn't hand-tune stoneW/position. */
+  fitHead: (gemId, prongs) => {
+    const gem = get().objects.find(o => o.id === gemId && o.material === 'gem')
+    if (!gem) return false
+    const stoneW = gemDiameterMm(gem)
+    const h = Math.max(3, stoneW * 0.62)
+    record()
+    const head: SculptObject = {
+      id: newId(), name: `${prongs}-prong head`, kind: 'head',
+      // seat the gallery just below the gem's girdle
+      position: [gem.position[0], gem.position[1] - h * 0.15, gem.position[2]],
+      rotation: [0, 0, 0], scale: [1, 1, 1], size: 6,
+      material: 'metal', color: GOLD, params: { prongs: Math.max(3, Math.round(prongs)), stoneW, height: h },
+    }
+    set(s => ({ objects: [...s.objects, head], selectedId: head.id }))
+    return true
+  },
+
+  /** Wrap a selected gem in a bezel rim sized to its girdle. */
+  fitBezel: gemId => {
+    const gem = get().objects.find(o => o.id === gemId && o.material === 'gem')
+    if (!gem) return false
+    const stoneW = gemDiameterMm(gem)
+    const height = Math.max(2, stoneW * 0.5)
+    record()
+    const bezel: SculptObject = {
+      id: newId(), name: 'Bezel', kind: 'bezel',
+      position: [gem.position[0], gem.position[1] - height * 0.35, gem.position[2]],
+      rotation: [0, 0, 0], scale: [1, 1, 1], size: 6,
+      material: 'metal', color: GOLD, params: { stoneW, height, wall: Math.max(0.4, stoneW * 0.09) },
+    }
+    set(s => ({ objects: [...s.objects, bezel], selectedId: bezel.id }))
+    return true
+  },
+
+  /** Drill a clean through-hole along an axis (sprue/drain/finger holes) by
+   *  subtracting a long cylinder from the part. */
+  drillHole: (id, axis, diameter) => {
+    const src = get().objects.find(o => o.id === id)
+    if (!src || diameter <= 0) return false
+    const bv = bakedVertices(src)
+    if (bv.length < 9) return false
+    let minX = Infinity, minY = Infinity, minZ = Infinity, maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
+    for (let i = 0; i + 2 < bv.length; i += 3) {
+      minX = Math.min(minX, bv[i]); maxX = Math.max(maxX, bv[i])
+      minY = Math.min(minY, bv[i + 1]); maxY = Math.max(maxY, bv[i + 1])
+      minZ = Math.min(minZ, bv[i + 2]); maxZ = Math.max(maxZ, bv[i + 2])
+    }
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, cz = (minZ + maxZ) / 2
+    const span = Math.max(maxX - minX, maxY - minY, maxZ - minZ) * 1.6 + 4
+    // a cylinder is built along Y; rotate to lie along the chosen axis
+    const rotation: [number, number, number] = axis === 'x' ? [0, 0, Math.PI / 2] : axis === 'z' ? [Math.PI / 2, 0, 0] : [0, 0, 0]
+    // size maps to the primitive cylinder's overall scale; tune so radius≈diameter/2
+    const drill: SculptObject = {
+      id: 'drill', name: 'drill', kind: 'cylinder', position: [cx, cy, cz], rotation,
+      scale: [diameter / 2, span / 2, diameter / 2], size: 2, material: 'metal', color: 0,
+    }
+    record()
+    try {
+      const base: SculptObject = { ...src, kind: 'mesh', vertices: bv, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 }
+      const v = booleanOp(base, drill, 'subtract')
+      if (!v.length) return false
+      set(s => ({ objects: s.objects.map(o => o.id === id ? { ...o, kind: 'mesh', vertices: v, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 } : o) }))
+      return true
+    } catch { return false }
+  },
+
+  /** Hang a bail (a torus loop) off the top of a part — for pendants and charms. */
+  addBail: (id, ringMm = 3.5) => {
+    const src = get().objects.find(o => o.id === id)
+    if (!src) return false
+    const [tx, ty, tz] = objectTop(src)
+    record()
+    const bail: SculptObject = {
+      id: newId(), name: 'Bail', kind: 'torus',
+      // sit the loop just above the top point, standing in the XY plane so its
+      // hole runs horizontally (front-to-back) — a chain passes straight through
+      position: [tx, ty + ringMm * 0.85, tz], rotation: [0, 0, 0],
+      scale: [ringMm / 3, ringMm / 3, ringMm / 3], size: 3,
+      material: 'metal', color: GOLD,
+    }
+    set(s => ({ objects: [...s.objects, bail], selectedId: bail.id }))
+    return true
   },
 
   select: id => set(s => (id === s.selectedId ? { selectedId: id } : { selectedId: id, selectedVertex: null })),

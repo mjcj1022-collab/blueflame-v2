@@ -218,7 +218,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -230,7 +230,9 @@ export function ModelerPanel() {
   const [lat, setLat] = useState({ width: 18, height: 12, thickness: 1.4, count: 28, strut: 1.0, seed: 1 })
   const [chn, setChn] = useState({ links: 10, radius: 3, wire: 0.7 })
   const [count, setCount] = useState(8)
-  const [pave, setPave] = useState<{ count: number; carat: number; gap: number; mode: PaveMode; radius: number; arcDeg: number; cutSeats: boolean }>({ count: 12, carat: 0.02, gap: 0.2, mode: 'ring', radius: 9, arcDeg: 360, cutSeats: true })
+  const [pave, setPave] = useState<{ count: number; carat: number; gap: number; mode: PaveMode; radius: number; arcDeg: number; cutSeats: boolean; snap: boolean }>({ count: 12, carat: 0.02, gap: 0.2, mode: 'ring', radius: 9, arcDeg: 360, cutSeats: true, snap: true })
+  const [headProngs, setHeadProngs] = useState(6)
+  const [drill, setDrill] = useState<{ axis: 'x' | 'y' | 'z'; dia: number }>({ axis: 'y', dia: 1.2 })
   const [saveName, setSaveName] = useState('')
   const [saved, setSaved] = useState<SavedSculpt[]>(() => sculptLibrary.list())
   const [dfm, setDfm] = useState<{ id: string; r: DfmReport } | null>(null)
@@ -389,17 +391,24 @@ export function ModelerPanel() {
 
   const doPave = () => {
     if (!sel) { flash('Select the band (or any part) to anchor the pavé on.'); return }
-    const seating = pave.cutSeats && sel.material === 'metal'
+    const onMetal = sel.material === 'metal'
+    const seating = pave.cutSeats && onMetal
+    const snapping = pave.snap && onMetal
     const n = paveFill({
       count: pave.count, mode: pave.mode, carat: pave.carat, gap: pave.gap,
       center: [sel.position[0], sel.position[1], sel.position[2]],
       radius: pave.mode === 'ring' && pave.radius > 0 ? pave.radius : undefined,
       arcDeg: pave.arcDeg,
-      cutSeats: seating, baseId: seating ? sel.id : undefined,
+      cutSeats: seating, snapToSurface: snapping, baseId: onMetal ? sel.id : undefined,
     })
     if (!n) { flash('Nothing placed — check the count.'); return }
-    flash(seating ? `Placed ${pave.count} stones and carved ${n} seats into ${sel.name}.` : `Placed ${pave.count} stones.`)
+    flash(seating ? `Placed ${pave.count} stones and carved ${n} seats into ${sel.name}.` : `Placed ${pave.count} stones${snapping ? ' onto the surface' : ''}.`)
   }
+
+  const doFitHead = () => { if (sel && fitHead(sel.id, headProngs)) flash(`Added a ${headProngs}-prong head sized to the stone.`); else flash('Select a gem first.') }
+  const doFitBezel = () => { if (sel && fitBezel(sel.id)) flash('Wrapped the stone in a bezel.'); else flash('Select a gem first.') }
+  const doDrill = () => { if (sel && drillHole(sel.id, drill.axis, drill.dia)) flash(`Drilled a ${drill.dia} mm hole through ${sel.name}.`); else flash('Drill failed on this geometry.') }
+  const doBail = () => { if (sel && addBail(sel.id)) flash('Added a bail to the top.'); else flash('Select a part first.') }
 
   const metalCount = objects.filter(o => o.material === 'metal').length
   const fuse = () => {
@@ -764,8 +773,30 @@ export function ModelerPanel() {
           <div className="row"><label>Gap mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0} step={0.05} value={pave.gap} onChange={e => setPave(p => ({ ...p, gap: Math.max(0, +e.target.value) }))} /></div>
           {pave.mode === 'ring' && <div className="row"><label>Radius mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0} step={0.5} value={pave.radius} onChange={e => setPave(p => ({ ...p, radius: Math.max(0, +e.target.value) }))} title="0 = auto-fit the stones into a closed ring" /></div>}
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={pave.cutSeats} onChange={e => setPave(p => ({ ...p, cutSeats: e.target.checked }))} /> Carve a seat under each stone{sel.material !== 'metal' ? ' (select a metal part)' : ''}</label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={pave.snap} onChange={e => setPave(p => ({ ...p, snap: e.target.checked }))} /> Drop stones onto the part's surface</label>
           <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={doPave}>Fill pavé</button>
           <p className="disc">Drops {pave.count} evenly-spaced stones {pave.mode === 'ring' ? 'around a ring' : 'in a straight run'}, anchored on the selected part.{pave.cutSeats && sel.material === 'metal' ? ' A seat is cut under each into this part.' : ''}</p>
+
+          {sel.material === 'gem' && (<>
+            <h4 style={{ marginTop: 20 }}>Set this stone</h4>
+            <div className="row"><label>Prongs</label><input className="lib-name" style={{ width: 64 }} type="number" min={3} max={8} value={headProngs} onChange={e => setHeadProngs(Math.max(3, Math.min(8, +e.target.value)))} /></div>
+            <div className="opts c2" style={{ marginTop: 4 }}>
+              <button className="opt" onClick={doFitHead}>Fit prong head</button>
+              <button className="opt" onClick={doFitBezel}>Fit bezel</button>
+            </div>
+            <p className="disc">Adds a head or bezel auto-sized to this stone's girdle and centred on it.</p>
+          </>)}
+
+          <h4 style={{ marginTop: 20 }}>Drill &amp; bail</h4>
+          <div className="row"><label>Hole Ø mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.2} step={0.1} value={drill.dia} onChange={e => setDrill(d => ({ ...d, dia: Math.max(0.2, +e.target.value) }))} /></div>
+          <div className="opts" style={{ marginTop: 4 }}>
+            {(['x', 'y', 'z'] as const).map(ax => <button key={ax} className="opt" aria-pressed={drill.axis === ax} onClick={() => setDrill(d => ({ ...d, axis: ax }))}>{ax.toUpperCase()}</button>)}
+          </div>
+          <div className="opts c2" style={{ marginTop: 8 }}>
+            <button className="opt" onClick={doDrill}>Drill through-hole</button>
+            <button className="opt" onClick={doBail}>Add bail / loop</button>
+          </div>
+          <p className="disc">Drill bores a clean hole along the chosen axis (sprue, drainage or finger holes). Bail hangs a loop off the top for a pendant.</p>
         </div>
       )}
 
