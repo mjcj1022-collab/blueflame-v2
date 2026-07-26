@@ -623,7 +623,7 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .aistudio-reset:hover{color:#fff;border-color:var(--slate)}
 
 /* suggest bar — a compact AI "next move" nudge pinned to the bottom of the builder */
-.suggestbar{position:absolute;left:50%;transform:translateX(-50%);bottom:110px;z-index:3;pointer-events:auto;max-width:min(560px,calc(100% - 40px))}
+.suggestbar{position:absolute;left:50%;transform:translateX(-50%);top:16px;z-index:4;pointer-events:auto;max-width:min(560px,calc(100% - 40px))}
 .suggestbar-ask{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;background:rgba(28,21,13,.86);border:1px solid var(--rule-dark);color:var(--karat-lt);padding:9px 15px;border-radius:20px;cursor:pointer;backdrop-filter:blur(4px);transition:border-color .15s,color .15s}
 .suggestbar-ask:hover:not(:disabled){border-color:var(--karat);color:#fff}
 .suggestbar-ask:disabled{opacity:.6;cursor:default}
