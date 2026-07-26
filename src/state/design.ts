@@ -48,6 +48,7 @@ interface DesignStore {
   setShape: (id: string) => void
   setStone: (id: string) => void
   setCarat: (ct: number) => void
+  setSeat: (v: number) => void
   setGrading: (patch: Partial<DesignSpec['center']['grading']>) => void
   setCert: (patch: Partial<DesignSpec['center']['cert']>) => void
   setSetting: (id: string) => void
@@ -147,6 +148,7 @@ export const useDesign = create<DesignStore>((rawSet, get) => {
   setShape: id => set(s => ({ spec: { ...s.spec, center: { ...s.spec.center, shapeId: id } } })),
   setStone: id => set(s => ({ spec: { ...s.spec, center: { ...s.spec.center, stoneTypeId: id } } })),
   setCarat: ct => set(s => ({ spec: { ...s.spec, center: { ...s.spec.center, carat: ct } } })),
+  setSeat: v => set(s => ({ spec: { ...s.spec, center: { ...s.spec.center, seat: v } } })),
   setGrading: patch => set(s => ({ spec: { ...s.spec, center: { ...s.spec.center, grading: { ...s.spec.center.grading, ...patch } } } })),
   setCert: patch => set(s => ({ spec: { ...s.spec, center: { ...s.spec.center, cert: { ...s.spec.center.cert, ...patch } } } })),
   setSetting: id => set(s => ({ spec: { ...s.spec, setting: { typeId: id } } })),

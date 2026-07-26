@@ -9,6 +9,10 @@ import { sculptLibrary, type SavedSculpt } from '../lib/sculptLibrary'
 import { sculptHandoff, sculptRestore, SculptHandoffError } from '../lib/sculptHandoff'
 import { api, apiConfigured } from '../lib/api'
 import { analyzeMesh, type DfmReport } from '../lib/dfm'
+import { HEATMAP_MIN_WALL } from '../lib/heatmap'
+import { seatReport, type SeatReport } from '../lib/seatCheck'
+import { modelerToObj, blueFlameMtl } from '../lib/cadExport'
+import type { PaveMode } from '../lib/pave'
 import { repairMesh } from '../lib/meshRepair'
 import { sculptTechSheet, sculptQuote } from '../lib/sculptDoc'
 import { textToPdf, bodyAfterTitle } from '../lib/pdf'
@@ -214,7 +218,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -222,9 +226,11 @@ export function ModelerPanel() {
   const [seatTarget, setSeatTarget] = useState('')
   const [targetG, setTargetG] = useState('')
   const [bal, setBal] = useState<BalanceReport | null>(null)
+  const [seatRep, setSeatRep] = useState<SeatReport | null>(null)
   const [lat, setLat] = useState({ width: 18, height: 12, thickness: 1.4, count: 28, strut: 1.0, seed: 1 })
   const [chn, setChn] = useState({ links: 10, radius: 3, wire: 0.7 })
   const [count, setCount] = useState(8)
+  const [pave, setPave] = useState<{ count: number; carat: number; gap: number; mode: PaveMode; radius: number; arcDeg: number; cutSeats: boolean }>({ count: 12, carat: 0.02, gap: 0.2, mode: 'ring', radius: 9, arcDeg: 360, cutSeats: true })
   const [saveName, setSaveName] = useState('')
   const [saved, setSaved] = useState<SavedSculpt[]>(() => sculptLibrary.list())
   const [dfm, setDfm] = useState<{ id: string; r: DfmReport } | null>(null)
@@ -381,6 +387,20 @@ export function ModelerPanel() {
     } catch { flash('Boolean failed on this geometry.') }
   }
 
+  const doPave = () => {
+    if (!sel) { flash('Select the band (or any part) to anchor the pavé on.'); return }
+    const seating = pave.cutSeats && sel.material === 'metal'
+    const n = paveFill({
+      count: pave.count, mode: pave.mode, carat: pave.carat, gap: pave.gap,
+      center: [sel.position[0], sel.position[1], sel.position[2]],
+      radius: pave.mode === 'ring' && pave.radius > 0 ? pave.radius : undefined,
+      arcDeg: pave.arcDeg,
+      cutSeats: seating, baseId: seating ? sel.id : undefined,
+    })
+    if (!n) { flash('Nothing placed — check the count.'); return }
+    flash(seating ? `Placed ${pave.count} stones and carved ${n} seats into ${sel.name}.` : `Placed ${pave.count} stones.`)
+  }
+
   const metalCount = objects.filter(o => o.material === 'metal').length
   const fuse = () => {
     if (metalCount < 2) { flash('Need at least two metal parts to fuse.'); return }
@@ -394,6 +414,18 @@ export function ModelerPanel() {
     if (!objects.length) { flash('Nothing to export.'); return }
     const blob = new Blob([modelerToStl(objects)], { type: 'model/stl' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `blue-flame-sculpt-${Date.now()}.stl`; a.click(); URL.revokeObjectURL(a.href)
+  }
+
+  const download = (text: string, name: string, mime: string) => {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: mime })); a.download = name; a.click(); URL.revokeObjectURL(a.href)
+  }
+  const exportObj = () => {
+    if (!objects.length) { flash('Nothing to export.'); return }
+    const stamp = Date.now()
+    download(modelerToObj(objects), `blue-flame-sculpt-${stamp}.obj`, 'model/obj')
+    // The OBJ names blue-flame.mtl; ship it too so parts arrive with their colours.
+    download(blueFlameMtl(), 'blue-flame.mtl', 'text/plain')
+    flash('Exported OBJ + MTL — parts and materials arrive separate in CAD.')
   }
 
   const techSheet = () => {
@@ -492,6 +524,17 @@ export function ModelerPanel() {
               <input type="checkbox" checked={snap} onChange={toggleSnap} />
               Snap to grid<small>0.5 mm · 15°</small>
             </label>
+            <label className="filter-row" style={{ marginTop: 8 }}>
+              <input type="checkbox" checked={heatmap} onChange={toggleHeatmap} />
+              Wall-thickness map<small>colour metal by thickness</small>
+            </label>
+            {heatmap && (
+              <div className="heat-legend">
+                <span><i style={{ background: '#D62E29' }} />Too thin &lt;{HEATMAP_MIN_WALL} mm</span>
+                <span><i style={{ background: '#DB9E3D' }} />Marginal</span>
+                <span><i style={{ background: '#4DB36B' }} />Healthy</span>
+              </div>
+            )}
           </>
         ) : editMode === 'vertex' ? (
           <>
@@ -530,8 +573,9 @@ export function ModelerPanel() {
             <button className="opt" onClick={applyResizeToWeight} disabled={!objects.length}>Set g</button>
           </span>
         </div>
-        <div className="opts" style={{ marginTop: 8 }}>
+        <div className="opts c2" style={{ marginTop: 8 }}>
           <button className="opt tpl" onClick={checkBalance} title="Center of mass — will the ring sit still or rotate on the finger?">Check balance ⚖</button>
+          <button className="opt tpl" onClick={() => setSeatRep(seatReport(objects))} title="Do the prongs/bezel cover the girdle and hold the stone?">Check stone seat 💎</button>
         </div>
         {bal && (
           <div className={`dfm bal-${bal.verdict}`}>
@@ -542,6 +586,19 @@ export function ModelerPanel() {
             </div>
             <p className={`dfm-line ${bal.verdict === 'balanced' ? 'pass' : bal.verdict === 'slight' ? 'warn' : 'fail'}`}>
               <b>{bal.verdict === 'balanced' ? 'Balanced' : bal.verdict === 'slight' ? 'Slightly off-axis' : bal.verdict === 'topheavy' ? 'Top-heavy' : 'Empty'}</b> — {bal.note}
+            </p>
+          </div>
+        )}
+        {seatRep && (
+          <div className="dfm">
+            {seatRep.level !== 'none' && (
+              <div className="dfm-metrics">
+                <span>girdle cover {Math.round(seatRep.coverage * 100)}%</span>
+                <span>over girdle {seatRep.aboveGirdle.toFixed(2)} mm</span>
+              </div>
+            )}
+            <p className={`dfm-line ${seatRep.level === 'pass' ? 'pass' : seatRep.level === 'warn' ? 'warn' : seatRep.level === 'fail' ? 'fail' : ''}`}>
+              <b>{seatRep.level === 'pass' ? 'Secure' : seatRep.level === 'warn' ? 'Marginal' : seatRep.level === 'fail' ? 'Not held' : 'Stone seat'}</b> — {seatRep.note}
             </p>
           </div>
         )}
@@ -696,6 +753,19 @@ export function ModelerPanel() {
           <div className="opts" style={{ marginTop: 8 }}>
             {OPS.map(([op, label]) => <button key={op} className="opt" onClick={() => doBoolean(op)}>{label}</button>)}
           </div>
+
+          <h4 style={{ marginTop: 20 }}>Pavé / channel fill</h4>
+          <div className="opts c2" style={{ marginBottom: 8 }}>
+            <button className="opt" aria-pressed={pave.mode === 'row'} onClick={() => setPave(p => ({ ...p, mode: 'row' }))}>Row / channel</button>
+            <button className="opt" aria-pressed={pave.mode === 'ring'} onClick={() => setPave(p => ({ ...p, mode: 'ring' }))}>Ring / eternity</button>
+          </div>
+          <div className="row"><label>Stones</label><input className="lib-name" style={{ width: 64 }} type="number" min={1} max={200} value={pave.count} onChange={e => setPave(p => ({ ...p, count: Math.max(1, +e.target.value) }))} /></div>
+          <div className="row"><label>Stone ct</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.005} step={0.01} value={pave.carat} onChange={e => setPave(p => ({ ...p, carat: Math.max(0.005, +e.target.value) }))} /></div>
+          <div className="row"><label>Gap mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0} step={0.05} value={pave.gap} onChange={e => setPave(p => ({ ...p, gap: Math.max(0, +e.target.value) }))} /></div>
+          {pave.mode === 'ring' && <div className="row"><label>Radius mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0} step={0.5} value={pave.radius} onChange={e => setPave(p => ({ ...p, radius: Math.max(0, +e.target.value) }))} title="0 = auto-fit the stones into a closed ring" /></div>}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={pave.cutSeats} onChange={e => setPave(p => ({ ...p, cutSeats: e.target.checked }))} /> Carve a seat under each stone{sel.material !== 'metal' ? ' (select a metal part)' : ''}</label>
+          <button className="primary" style={{ width: '100%', marginTop: 8 }} onClick={doPave}>Fill pavé</button>
+          <p className="disc">Drops {pave.count} evenly-spaced stones {pave.mode === 'ring' ? 'around a ring' : 'in a straight run'}, anchored on the selected part.{pave.cutSeats && sel.material === 'metal' ? ' A seat is cut under each into this part.' : ''}</p>
         </div>
       )}
 
@@ -749,7 +819,7 @@ export function ModelerPanel() {
       <PartsLibrary />
 
       <div className="panel-block quote">
-        <div className="qact"><button className="primary" onClick={exportStl}>Export STL</button><button className="ghost" onClick={quotePdf}>Quote PDF</button><button className="ghost" onClick={techSheet}>Tech sheet</button></div>
+        <div className="qact"><button className="primary" onClick={exportStl}>Export STL</button><button className="ghost" onClick={exportObj} title="Named parts + metal/gem groups, for ZBrush / Blender / Matrix / RhinoGold">Export OBJ</button><button className="ghost" onClick={quotePdf}>Quote PDF</button><button className="ghost" onClick={techSheet}>Tech sheet</button></div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={fuse} disabled={metalCount < 2}>Fuse metal</button></div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={clear}>Clear all</button></div>
         {metalCount >= 2 && <p className="disc">Fuse unions all {metalCount} metal parts into one watertight solid for printing (gems untouched).</p>}

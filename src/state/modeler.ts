@@ -3,6 +3,22 @@ import { bakedVertices, subdivideSoup, smoothSoup, twistSoup, taperSoup, bendSou
 import { textVertices, curvedTextVertices } from '../lib/text3d'
 import { bakedGeometry } from '../lib/sculpt'
 import { allPresets, addUserPreset, removeUserPreset, cloneSketch, type SketchPreset } from '../lib/sketchPresets'
+import { paveSpots, type PaveMode } from '../lib/pave'
+import { stoneMm, shapeById } from '../catalog'
+
+export interface PaveFillOptions {
+  count: number
+  mode: PaveMode
+  carat: number
+  gap: number
+  shapeId?: string
+  center?: [number, number, number]
+  y?: number
+  radius?: number
+  arcDeg?: number
+  cutSeats?: boolean
+  baseId?: string
+}
 
 export type PrimitiveKind = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'tube'
 export type JewelryKind = 'shank' | 'gem' | 'head' | 'bezel'
@@ -108,6 +124,7 @@ interface ModelerStore {
   alloyId: string
   snap: boolean
   measuring: boolean
+  heatmap: boolean
   symmetry: boolean
   surfaceOp: SurfaceOp
   brush: number
@@ -134,6 +151,7 @@ interface ModelerStore {
   wrapTextOnBand: (targetId: string, text: string, font: string, op: SurfaceOp, angleDeg?: number, inside?: boolean) => boolean
   toggleSnap: () => void
   toggleMeasuring: () => void
+  toggleHeatmap: () => void
   mirror: (id: string) => void
   centerObject: (id: string) => void
   dropToFloor: (id: string) => void
@@ -158,6 +176,7 @@ interface ModelerStore {
   duplicate: (id: string) => void
   arrayCircular: (id: string, count: number) => void
   arrayLinear: (id: string, count: number, spacing: number) => void
+  paveFill: (opts: PaveFillOptions) => number
   select: (id: string | null) => void
   setMode: (mode: TransformMode) => void
   setAlloy: (id: string) => void
@@ -183,6 +202,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
   alloyId: '14ky',
   snap: false,
   measuring: false,
+  heatmap: false,
   symmetry: false,
   surfaceOp: 'emboss',
   brush: 0.6,
@@ -321,6 +341,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
 
   toggleSnap: () => set(s => ({ snap: !s.snap })),
   toggleMeasuring: () => set(s => ({ measuring: !s.measuring })),
+  toggleHeatmap: () => set(s => ({ heatmap: !s.heatmap })),
 
   mirror: id => {
     const src = get().objects.find(o => o.id === id)
@@ -466,6 +487,59 @@ export const useModeler = create<ModelerStore>((set, get) => {
       copies.push({ ...src, id: newId(), name: `${src.name} ${i + 1}`, position: [src.position[0] + i * spacing, src.position[1], src.position[2]] })
     }
     set(s => ({ objects: [...s.objects, ...copies] }))
+  },
+
+  /**
+   * Drop a whole run of pavé/channel stones at once — evenly spaced along a row
+   * or around a ring — and optionally carve a seat under each one out of a chosen
+   * metal part. This is the tedious-by-hand job the tool should own.
+   */
+  paveFill: opts => {
+    const count = Math.max(0, Math.floor(opts.count))
+    if (count === 0) return 0
+    const shapeId = opts.shapeId ?? 'rd'
+    const carat = opts.carat > 0 ? opts.carat : 0.02
+    const diameter = stoneMm(shapeById(shapeId), carat).width
+    const center: [number, number, number] = opts.center ?? [0, opts.y ?? 0, 0]
+
+    const spots = paveSpots({
+      count, diameter, gap: opts.gap ?? diameter * 0.15, mode: opts.mode,
+      center, radius: opts.radius, arcDeg: opts.arcDeg,
+    })
+    if (!spots.length) return 0
+    record()
+
+    // Carve a seat under each stone out of the chosen metal part, if asked.
+    let seated = 0
+    const base = opts.cutSeats && opts.baseId ? get().objects.find(o => o.id === opts.baseId && o.material === 'metal') : undefined
+    let carved: SculptObject | null = null
+    if (base) {
+      let acc: SculptObject = { ...base, kind: 'mesh', vertices: bakedVertices(base), position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 }
+      for (const s of spots) {
+        // a downward cone the width of the stone, its rim at the stone's girdle
+        const cutter: SculptObject = { id: 'seatcut', kind: 'cone', name: 'seat', position: [s.position[0], s.position[1], s.position[2]], rotation: [Math.PI, 0, 0], scale: [1, 1, 1], size: diameter * 1.25, material: 'metal', color: 0 }
+        try {
+          const v = booleanOp(acc, cutter, 'subtract')
+          if (v.length) { acc = { ...acc, vertices: v }; seated++ }
+        } catch { /* skip a seat that fails; keep carving the rest */ }
+      }
+      carved = { ...base, kind: 'mesh', vertices: acc.vertices, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 }
+    }
+
+    const gems: SculptObject[] = spots.map((s, i) => ({
+      id: newId(), name: `Pavé ${i + 1}`, kind: 'gem',
+      position: s.position, rotation: s.rotation, scale: [1, 1, 1], size: 6,
+      material: 'gem', color: GEM, params: { shapeId, stoneTypeId: 'dia', carat },
+    }))
+
+    set(s => ({
+      objects: [
+        ...s.objects.map(o => (carved && o.id === carved.id ? carved : o)),
+        ...gems,
+      ],
+      selectedId: gems[0].id,
+    }))
+    return opts.cutSeats && base ? seated : spots.length
   },
 
   select: id => set(s => (id === s.selectedId ? { selectedId: id } : { selectedId: id, selectedVertex: null })),

@@ -52,7 +52,7 @@ export function Necklace({ spec }: { spec: DesignSpec }) {
         <group position={[0, -R * 1.15 - d.r * d.lwRatio - explode * 14, 0]}>
           <group rotation={[Math.PI / 2, 0, 0]}>
             <Head material={headMetal} shapeId={spec.center.shapeId} stoneTypeId={spec.center.stoneTypeId}
-              carat={spec.center.carat} settingId={spec.setting.typeId} grading={spec.center.grading}
+              carat={spec.center.carat} settingId={spec.setting.typeId} grading={spec.center.grading} seat={spec.center.seat ?? 0}
               showStone={!isHidden(spec, 'stone')} showSetting={!isHidden(spec, 'head')} />
           </group>
         </group>

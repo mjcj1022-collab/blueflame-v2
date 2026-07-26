@@ -6,6 +6,7 @@ import { parseDesign } from '../lib/nlDesign'
 import { NECKLACE_STYLES } from '../lib/necklaceChain'
 import { BODY_STYLES } from '../lib/body'
 import { MOTIFS } from '../lib/motif'
+import { useSettings } from '../state/settings'
 import { ALLOYS, SHAPES, STONES, SETTINGS, TEMPLATES, FINISHES, shapeById, stoneMm, alloyById, birthstoneMonth, stoneById, finishById, settingById, isGradeable, gradeMultiplier, gradeLabel, CUT_GRADES, COLOR_GRADES, CLARITY_GRADES, FLUOR_GRADES, CERT_LABS, type Alloy, type Grade } from '../catalog'
 import { sizeToDiameter, sizeToCircumference, formatSize, fitAdvice, sizeConversions } from '../lib/sizing'
 import { guardrails, computePrice } from '../lib/pricing'
@@ -65,10 +66,18 @@ function DescribeBar() {
 
 function CategorySwitch() {
   const { spec, setCategory } = useDesign()
+  const enabled = useSettings(s => s.enabledCategories)
+  const cats = CATEGORIES.filter(c => enabled.includes(c))
+  // If the active piece type gets switched off in Settings, jump to a kept one.
+  useEffect(() => {
+    if (!enabled.includes(spec.category) && cats[0]) setCategory(cats[0])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled])
+  if (cats.length <= 1) return null   // only one piece type → no picker needed
   return (
     <Group title="Piece">
       <div className="opts">
-        {CATEGORIES.map(c => (
+        {cats.map(c => (
           <button key={c} className="opt" aria-pressed={spec.category === c} onClick={() => setCategory(c)}>
             {CATEGORY_LABEL[c]}
           </button>
@@ -523,7 +532,7 @@ function MeleeGroup() {
 }
 
 export function Controls() {
-  const { spec, setShape, setStone, setCarat, setSetting } = useDesign()
+  const { spec, setShape, setStone, setCarat, setSetting, setSeat } = useDesign()
   const undo = useDesign(s => s.undo)
   const redo = useDesign(s => s.redo)
   const shape = shapeById(spec.center.shapeId)
@@ -635,6 +644,10 @@ export function Controls() {
                 <b>{g.title}</b>{g.body}
               </div>
             ))}
+            <div style={{ height: 14 }} />
+            <Slider id="c-seat" label="Stone height in mount" value={spec.center.seat ?? 0} min={-2} max={3} step={0.1}
+              display={`${(spec.center.seat ?? 0) >= 0 ? '+' : ''}${(spec.center.seat ?? 0).toFixed(1)} mm`} onChange={setSeat} />
+            <p className="hint">Raise the stone to sit higher and catch more light, or set it deeper into the mount for a protected, low-profile look.</p>
           </Group>
 
           <MeleeGroup />

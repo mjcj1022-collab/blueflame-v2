@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { TransformControls, Edges } from '@react-three/drei'
 import { useModeler, type SculptObject } from '../state/modeler'
 import { renderGeometry } from '../lib/sculpt'
+import { wallThicknessColors, HEATMAP_MIN_WALL } from '../lib/heatmap'
 import { VertexEditor } from './VertexEditor'
 import { SketchNodeEditor } from './SketchNodeEditor'
 import { SurfaceDraw } from './SurfaceDraw'
@@ -28,6 +29,21 @@ export function SculptMesh({ o }: { o: SculptObject }) {
   const material = useSculptMaterial(o)
   const selected = selectedId === o.id
 
+  // Wall-thickness heat-map: recolour metal parts by local thickness on demand.
+  const heatmap = useModeler(s => s.heatmap)
+  const heatMat = useMemo(() => new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0, roughness: 0.75, envMapIntensity: 0.4 }), [])
+  const heatGeom = useMemo(() => {
+    if (!heatmap || o.material !== 'metal') return null
+    const g = geom.clone()
+    const colors = wallThicknessColors(g, HEATMAP_MIN_WALL)
+    if (!colors) { g.dispose(); return null }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+    return g
+  }, [heatmap, geom, o.material])
+  const showHeat = heatmap && heatGeom !== null
+  const dispGeom = showHeat ? heatGeom! : geom
+  const dispMat = showHeat ? heatMat : material
+
   // Entering Vertices mode on a template/primitive auto-converts it to an
   // editable mesh, so its moveable vertices appear at once — no separate
   // "Make editable" step. Sketches (their own node editor) and meshes are skipped.
@@ -45,8 +61,8 @@ export function SculptMesh({ o }: { o: SculptObject }) {
   const mesh = (
     <mesh
       ref={ref}
-      geometry={geom}
-      material={material}
+      geometry={dispGeom}
+      material={dispMat}
       position={o.position}
       rotation={o.rotation}
       scale={o.scale}

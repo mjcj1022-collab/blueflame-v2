@@ -37,7 +37,7 @@ export function Bracelet({ spec }: { spec: DesignSpec }) {
             <group key={i} position={[Math.cos(a) * R, tube + d.pavH * 0.5, Math.sin(a) * R]}
               scale={0.9}>
               <Head material={metal} shapeId={spec.center.shapeId} stoneTypeId={spec.center.stoneTypeId}
-                carat={Math.max(perStone, 0.02)} settingId={spec.setting.typeId}
+                carat={Math.max(perStone, 0.02)} settingId={spec.setting.typeId} seat={spec.center.seat ?? 0}
                 showStone={!isHidden(spec, 'stone')} showSetting={!isHidden(spec, 'head')} />
             </group>
           )

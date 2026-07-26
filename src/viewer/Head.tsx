@@ -8,13 +8,14 @@ import { Stone, stoneDims } from './Stone'
  * stone. Consumers position the whole group. Shared by rings, pendants,
  * earrings and tennis links so the setting is modelled once.
  */
-export function Head({ material, shapeId, stoneTypeId, carat, settingId, grading, showStone = true, showSetting = true }: {
+export function Head({ material, shapeId, stoneTypeId, carat, settingId, grading, seat = 0, showStone = true, showSetting = true }: {
   material: THREE.Material
   shapeId: string
   stoneTypeId: string
   carat: number
   settingId: string
   grading?: Grading
+  seat?: number   // mm the stone is raised (+) / set deeper (−) within the mount
   showStone?: boolean
   showSetting?: boolean
 }) {
@@ -39,7 +40,11 @@ export function Head({ material, shapeId, stoneTypeId, carat, settingId, grading
 
   return (
     <group>
-      {showStone && <Stone shapeId={shapeId} stoneTypeId={stoneTypeId} carat={carat} grading={grading} />}
+      {showStone && (
+        <group position={[0, seat, 0]}>
+          <Stone shapeId={shapeId} stoneTypeId={stoneTypeId} carat={carat} grading={grading} />
+        </group>
+      )}
 
       {showSetting && (
       <>

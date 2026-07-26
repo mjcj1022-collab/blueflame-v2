@@ -69,7 +69,7 @@ export function Ring({ spec }: { spec: DesignSpec }) {
       {stoneOnPiece(spec) && (
         <group position={[0, stoneY + explode * 7, 0]}>
           <Head material={headMetal} shapeId={spec.center.shapeId} stoneTypeId={spec.center.stoneTypeId}
-            carat={spec.center.carat} settingId={spec.setting.typeId} grading={spec.center.grading}
+            carat={spec.center.carat} settingId={spec.setting.typeId} grading={spec.center.grading} seat={spec.center.seat ?? 0}
             showStone={!isHidden(spec, 'stone')} showSetting={!isHidden(spec, 'head')} />
           {halo && !isHidden(spec, 'halo') && (
             <HaloRing

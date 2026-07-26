@@ -22,7 +22,7 @@ code{font-family:var(--mono);font-size:.92em}
 .lab-head h2,.gal-head h2,.settings-head h2{font-family:var(--serif);font-weight:600}
 
 /* next-step toast — bottom-left, persistent until dismissed */
-.toast{position:fixed;left:20px;bottom:64px;z-index:40;max-width:320px;display:flex;align-items:flex-start;gap:11px;background:var(--paper);border:1px solid var(--rule);border-left:4px solid var(--karat);border-radius:10px;padding:13px 14px 13px 15px;box-shadow:0 10px 30px rgba(50,38,22,.18)}
+.toast{position:fixed;left:20px;bottom:158px;z-index:40;max-width:300px;display:flex;align-items:flex-start;gap:11px;background:var(--paper);border:1px solid var(--rule);border-left:4px solid var(--karat);border-radius:10px;padding:13px 14px 13px 15px;box-shadow:0 10px 30px rgba(50,38,22,.18)}
 .toast-mark{color:var(--karat);font-size:15px;line-height:1.2;flex:0 0 auto}
 .toast-text{font-family:var(--ui);font-size:13px;line-height:1.5;color:var(--graphite)}
 .toast-x{flex:0 0 auto;background:none;border:none;color:var(--slate);font-size:14px;line-height:1;cursor:pointer;padding:1px 3px;border-radius:4px}
@@ -56,6 +56,11 @@ code{font-family:var(--mono);font-size:.92em}
 .settings-section .settings-row.inset+.settings-row.inset{border-top:1px dashed var(--rule)}
 
 /* appearance preferences (toggled from Settings) */
+/* wall-thickness heat-map legend */
+.heat-legend{display:flex;flex-direction:column;gap:5px;margin-top:9px;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--slate)}
+.heat-legend span{display:flex;align-items:center;gap:7px}
+.heat-legend i{width:12px;height:12px;border-radius:3px;flex:0 0 auto}
+
 html.no-grain{--grain:none}
 html.compact .grp{padding:13px 16px}
 html.compact .grp>h3{margin-bottom:11px}
@@ -108,10 +113,10 @@ html.compact .panel-block{padding:12px 16px}
 .sbtn{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;background:rgba(28,21,13,.8);border:1px solid var(--rule-dark);color:#B3A588;padding:7px 11px;cursor:pointer}
 .sbtn:hover{color:#fff}
 .sbtn[aria-pressed="true"]{background:var(--karat);border-color:var(--karat);color:#141414;font-weight:700}
-.topview-note{position:absolute;left:50%;transform:translateX(-50%);top:62px;font-family:var(--mono);font-size:10px;color:#B3A588;max-width:300px;line-height:1.6;text-align:center;background:rgba(28,21,13,.72);border:1px solid var(--rule-dark);padding:6px 12px;border-radius:7px;pointer-events:none;z-index:2}
+.topview-note{position:absolute;left:50%;transform:translateX(-50%);top:112px;font-family:var(--mono);font-size:10px;color:#B3A588;max-width:300px;line-height:1.6;text-align:center;background:rgba(28,21,13,.72);border:1px solid var(--rule-dark);padding:6px 12px;border-radius:7px;pointer-events:none;z-index:2}
 
 /* attribute table — floated on the left of the stage */
-.stage-attrs{position:absolute;left:20px;top:58px;width:206px;max-height:calc(100% - 250px);overflow-y:auto;background:rgba(28,21,13,.82);border:1px solid var(--rule-dark);backdrop-filter:blur(3px);pointer-events:auto;z-index:2}
+.stage-attrs{position:absolute;left:20px;top:58px;width:206px;max-height:calc(100% - 320px);overflow-y:auto;background:rgba(28,21,13,.82);border:1px solid var(--rule-dark);backdrop-filter:blur(3px);pointer-events:auto;z-index:2}
 .stage-attrs h5{margin:0;font-family:var(--mono);font-size:9.5px;font-weight:500;letter-spacing:.13em;text-transform:uppercase;color:#B3A588;padding:9px 11px;border-bottom:1px solid var(--rule-dark);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:rgba(28,21,13,.92)}
 .stage-attrs h5 b{color:var(--karat-lt);font-weight:500}
 .attr-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 11px;cursor:pointer;border-bottom:1px solid rgba(51,58,61,.5)}
@@ -632,7 +637,7 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .aistudio-reset:hover{color:#fff;border-color:var(--slate)}
 
 /* suggest bar — a compact AI "next move" nudge pinned to the bottom of the builder */
-.suggestbar{position:absolute;left:50%;transform:translateX(-50%);top:16px;z-index:4;pointer-events:auto;max-width:min(560px,calc(100% - 40px))}
+.suggestbar{position:absolute;left:50%;transform:translateX(-50%);top:60px;z-index:4;pointer-events:auto;max-width:min(520px,calc(100% - 260px))}
 .suggestbar-ask{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;background:rgba(28,21,13,.86);border:1px solid var(--rule-dark);color:var(--karat-lt);padding:9px 15px;border-radius:20px;cursor:pointer;backdrop-filter:blur(4px);transition:border-color .15s,color .15s}
 .suggestbar-ask:hover:not(:disabled){border-color:var(--karat);color:#fff}
 .suggestbar-ask:disabled{opacity:.6;cursor:default}

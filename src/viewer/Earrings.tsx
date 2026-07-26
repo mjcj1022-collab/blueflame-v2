@@ -27,7 +27,7 @@ function One({ spec, x, explode }: { spec: DesignSpec; x: number; explode: numbe
       {stoneOnPiece(spec) && (
         <group position={[0, -dropY / 2, explode * 6]} rotation={[Math.PI / 2, 0, 0]}>
           <Head material={headMetal} shapeId={spec.center.shapeId} stoneTypeId={spec.center.stoneTypeId}
-            carat={spec.center.carat} settingId={spec.setting.typeId} grading={spec.center.grading}
+            carat={spec.center.carat} settingId={spec.setting.typeId} grading={spec.center.grading} seat={spec.center.seat ?? 0}
             showStone={!isHidden(spec, 'stone')} showSetting={!isHidden(spec, 'head')} />
         </group>
       )}

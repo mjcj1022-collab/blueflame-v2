@@ -35,6 +35,7 @@ export interface Center {
   carat: number
   grading: Grading
   cert: Cert
+  seat?: number   // mm the stone sits raised (+) or set deeper (−) within the mount
 }
 
 /** Ring — sized on a mandrel, inside diameter in mm. */
