@@ -9,10 +9,8 @@ import { Controls } from './ui/Controls'
 import { MetalPanel } from './ui/MetalPanel'
 import { MetalOptionsPanel } from './ui/MetalOptionsPanel'
 import { StoneSourcePanel } from './ui/StoneSourcePanel'
-import { QuotePanel } from './ui/QuotePanel'
 import { ProductionPanel } from './ui/ProductionPanel'
 import { VariantsPanel } from './ui/VariantsPanel'
-import { OrderPanel } from './ui/OrderPanel'
 import { CustomersPanel } from './ui/CustomersPanel'
 import { LibraryPanel } from './ui/LibraryPanel'
 import { ProjectsPanel } from './ui/ProjectsPanel'
@@ -26,8 +24,6 @@ import { useAuth } from './state/auth'
 import { useWorkspace } from './state/workspace'
 import { autosave } from './lib/autosave'
 import { computeMetal } from './lib/metal'
-import { computePrice } from './lib/pricing'
-import { money } from './lib/units'
 import { CATEGORY_LABEL } from './spec/types'
 import { shareUrl, specFromUrl } from './lib/share'
 import { fetchAndApplySpot } from './lib/spot'
@@ -46,7 +42,6 @@ function Masthead({ mode, setMode, onLab, onTour, onGallery }: { mode: Mode; set
   const logout = useAuth(s => s.logout)
   const [shared, setShared] = useState(false)
   const m = computeMetal(spec)
-  const p = computePrice(spec)
   const share = async () => {
     try { await navigator.clipboard.writeText(shareUrl(spec)); setShared(true); setTimeout(() => setShared(false), 2000) } catch { /* clipboard blocked */ }
   }
@@ -65,7 +60,6 @@ function Masthead({ mode, setMode, onLab, onTour, onGallery }: { mode: Mode; set
             <span className="tag">{CATEGORY_LABEL[spec.category]}</span>
             <span className="mast-fig">{m.finished.toFixed(2)} g finished</span>
             <span className="mast-fig">{m.pour.toFixed(2)} g to pour</span>
-            {!shop.hideCost && <span className="mast-fig strong">{money(p.total)}</span>}
             <button className="mast-lab" onClick={share}>{shared ? 'Link copied' : 'Share'}</button>
           </>
         ) : mode === 'color' ? (
@@ -140,12 +134,10 @@ export default function App() {
                 <MetalPanel />
                 <MetalOptionsPanel />
                 <ProductionPanel />
-                <OrderPanel />
                 <CustomersPanel />
                 <LibraryPanel />
                 <ProjectsPanel />
               </div>
-              <QuotePanel />
             </aside>
           </>
         ) : mode === 'color' ? (

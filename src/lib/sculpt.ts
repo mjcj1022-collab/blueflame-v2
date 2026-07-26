@@ -509,6 +509,76 @@ export function subdivideSoup(verts: number[]): number[] {
  *  vertices within `radius`, blended by `strength` (0..1). Smooths lumps left
  *  by aggressive vertex pulls. A uniform hash grid keeps it ~O(n), so it stays
  *  responsive even on the dense meshes a baked band produces. */
+/* ---------------- deformers ---------------- */
+// Free-form deformers operate on a flat triangle soup about its own bounding box.
+// Axis is the "length" axis the deform runs along; 0=x, 1=y (default, up), 2=z.
+
+const AXIS_INDEX: Record<'x' | 'y' | 'z', number> = { x: 0, y: 1, z: 2 }
+
+function axisBounds(verts: number[], ai: number): { min: number; max: number; mid: number; span: number } {
+  let min = Infinity, max = -Infinity
+  for (let i = ai; i < verts.length; i += 3) { const v = verts[i]; if (v < min) min = v; if (v > max) max = v }
+  if (!isFinite(min)) { min = 0; max = 0 }
+  const span = max - min || 1
+  return { min, max, mid: (min + max) / 2, span }
+}
+
+/** Twist the soup around `axis`, rotating cross-sections progressively along it
+ *  (symmetric about the midpoint) by up to `degrees` end-to-end. */
+export function twistSoup(verts: number[], degrees: number, axis: 'x' | 'y' | 'z' = 'y'): number[] {
+  const ai = AXIS_INDEX[axis]
+  const [u, v] = [0, 1, 2].filter(i => i !== ai)          // the two cross-section axes
+  const { mid, span } = axisBounds(verts, ai)
+  const rad = (degrees * Math.PI) / 180
+  const uB = axisBounds(verts, u), vB = axisBounds(verts, v)
+  const out = verts.slice()
+  for (let i = 0; i < verts.length; i += 3) {
+    const t = (verts[i + ai] - mid) / span                // −0.5 … +0.5
+    const a = rad * t
+    const cs = Math.cos(a), sn = Math.sin(a)
+    const du = out[i + u] - uB.mid, dv = out[i + v] - vB.mid
+    out[i + u] = uB.mid + du * cs - dv * sn
+    out[i + v] = vB.mid + du * sn + dv * cs
+  }
+  return out
+}
+
+/** Taper the soup along `axis`: cross-section scales from 1× at the low end to
+ *  `factor`× at the high end (factor<1 narrows to a point, >1 flares out). */
+export function taperSoup(verts: number[], factor: number, axis: 'x' | 'y' | 'z' = 'y'): number[] {
+  const ai = AXIS_INDEX[axis]
+  const [u, v] = [0, 1, 2].filter(i => i !== ai)
+  const { min, span } = axisBounds(verts, ai)
+  const uB = axisBounds(verts, u), vB = axisBounds(verts, v)
+  const out = verts.slice()
+  for (let i = 0; i < verts.length; i += 3) {
+    const t = (verts[i + ai] - min) / span                // 0 … 1
+    const s = 1 + (factor - 1) * t
+    out[i + u] = uB.mid + (out[i + u] - uB.mid) * s
+    out[i + v] = vB.mid + (out[i + v] - vB.mid) * s
+  }
+  return out
+}
+
+/** Bend the soup into an arc: it runs along `axis` and curves toward `bend`
+ *  (default: length y, bending in x) by `degrees` total across its length. */
+export function bendSoup(verts: number[], degrees: number, axis: 'x' | 'y' | 'z' = 'y', bend: 'x' | 'y' | 'z' = 'x'): number[] {
+  const ai = AXIS_INDEX[axis], bi = AXIS_INDEX[bend === axis ? (axis === 'x' ? 'y' : 'x') : bend]
+  const rad = (degrees * Math.PI) / 180
+  const out = verts.slice()
+  if (Math.abs(rad) < 1e-4) return out
+  const { mid, span } = axisBounds(verts, ai)
+  const radius = span / rad
+  for (let i = 0; i < verts.length; i += 3) {
+    const len = out[i + ai] - mid                          // centered length coord
+    const off = out[i + bi]                                // distance from neutral line
+    const theta = len / radius
+    out[i + ai] = mid + (radius - off) * Math.sin(theta)
+    out[i + bi] = radius - (radius - off) * Math.cos(theta)
+  }
+  return out
+}
+
 export function smoothSoup(verts: number[], radius: number, strength = 0.5): number[] {
   const n = verts.length / 3
   const out = verts.slice()

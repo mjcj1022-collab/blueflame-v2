@@ -214,7 +214,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, mirror, centerObject, scaleAll, toggleSnap, toggleSymmetry, subdivideMesh, smoothMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, mirror, centerObject, scaleAll, toggleSnap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -607,6 +607,15 @@ export function ModelerPanel() {
                 <button className="opt" disabled={(sel.vertices?.length ?? 0) > 60000}
                   onClick={() => (sel.vertices?.length ?? 0) > 60000 ? flash('Mesh is already very dense.') : subdivideMesh(sel.id)}
                   title="Split each face into four for finer control">Subdivide</button>
+              </div>
+              <p className="disc" style={{ marginTop: 12, marginBottom: 4 }}>Deform (about the up axis · repeat to compound)</p>
+              <div className="opts" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
+                <button className="opt" onClick={() => twistMesh(sel.id, 30)} title="Twist cross-sections around the vertical axis">Twist ↻</button>
+                <button className="opt" onClick={() => taperMesh(sel.id, 0.7)} title="Narrow toward the top">Taper ▽</button>
+                <button className="opt" onClick={() => bendMesh(sel.id, 25)} title="Bend into an arc">Bend ⌒</button>
+                <button className="opt" onClick={() => twistMesh(sel.id, -30)} title="Twist the other way">Twist ↺</button>
+                <button className="opt" onClick={() => taperMesh(sel.id, 1.4)} title="Flare toward the top">Flare △</button>
+                <button className="opt" onClick={() => bendMesh(sel.id, -25)} title="Bend the other way">Bend ⌄</button>
               </div>
               <div className="opts" style={{ marginTop: 8 }}>
                 <button className="opt tpl" onClick={() => { if (sel.vertices) setDfm({ id: sel.id, r: analyzeMesh(sel.vertices) }) }} title="Ray-cast wall thickness, watertightness and overhangs">Analyze for printing</button>

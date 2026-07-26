@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { bakedVertices, subdivideSoup, smoothSoup, booleanOp, strokeTubeVertices, positionTextVertices, loftVertices, type SketchMode } from '../lib/sculpt'
+import { bakedVertices, subdivideSoup, smoothSoup, twistSoup, taperSoup, bendSoup, booleanOp, strokeTubeVertices, positionTextVertices, loftVertices, type SketchMode } from '../lib/sculpt'
 import { textVertices, curvedTextVertices } from '../lib/text3d'
 import { bakedGeometry } from '../lib/sculpt'
 import { allPresets, addUserPreset, removeUserPreset, cloneSketch, type SketchPreset } from '../lib/sketchPresets'
@@ -90,6 +90,13 @@ function newId(): string {
   return c?.randomUUID ? c.randomUUID() : 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36)
 }
 
+/** Apply a soup→soup deform to an object, baking a primitive to an editable
+ *  mesh (in world space, transforms reset) first if it isn't one already. */
+function deformObject(o: SculptObject, fn: (v: number[]) => number[]): SculptObject {
+  const verts = o.kind === 'mesh' && o.vertices ? o.vertices : bakedVertices(o)
+  return { ...o, kind: 'mesh', vertices: fn(verts), position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 }
+}
+
 interface ModelerStore {
   objects: SculptObject[]
   selectedId: string | null
@@ -119,6 +126,9 @@ interface ModelerStore {
   bakeToMesh: (id: string) => void
   subdivideMesh: (id: string) => void
   smoothMesh: (id: string, radius: number) => void
+  twistMesh: (id: string, degrees: number) => void
+  taperMesh: (id: string, factor: number) => void
+  bendMesh: (id: string, degrees: number) => void
   fuseMetal: () => number
   engraveOnPart: (targetId: string, text: string, font: string, op: SurfaceOp) => boolean
   wrapTextOnBand: (targetId: string, text: string, font: string, op: SurfaceOp, angleDeg?: number, inside?: boolean) => boolean
@@ -283,6 +293,12 @@ export const useModeler = create<ModelerStore>((set, get) => {
   smoothMesh: (id, radius) => { record(); set(s => ({
     objects: s.objects.map(o => o.id === id && o.kind === 'mesh' && o.vertices ? { ...o, vertices: smoothSoup(o.vertices, radius) } : o)
   })) },
+
+  /** Free-form deformers. A primitive is baked to an editable mesh first (in
+   *  world space), then the deform is applied about its own bounding box. */
+  twistMesh: (id, degrees) => { record(); set(s => ({ objects: s.objects.map(o => o.id === id ? deformObject(o, v => twistSoup(v, degrees)) : o) })) },
+  taperMesh: (id, factor) => { record(); set(s => ({ objects: s.objects.map(o => o.id === id ? deformObject(o, v => taperSoup(v, factor)) : o) })) },
+  bendMesh: (id, degrees) => { record(); set(s => ({ objects: s.objects.map(o => o.id === id ? deformObject(o, v => bendSoup(v, degrees)) : o) })) },
 
   /** Boolean-union every metal part into one watertight mesh for clean STL /
    *  3D-print export. Gems are left untouched. Returns the count fused. */
