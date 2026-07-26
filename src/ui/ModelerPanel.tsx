@@ -13,6 +13,8 @@ import { HEATMAP_MIN_WALL } from '../lib/heatmap'
 import { seatReport, type SeatReport } from '../lib/seatCheck'
 import { modelerToObj, blueFlameMtl } from '../lib/cadExport'
 import type { PaveMode } from '../lib/pave'
+import type { RailAlong } from '../lib/construction'
+import { stoneSchedule, stoneScheduleText } from '../lib/stoneSchedule'
 import { repairMesh } from '../lib/meshRepair'
 import { sculptTechSheet, sculptQuote } from '../lib/sculptDoc'
 import { textToPdf, bodyAfterTitle } from '../lib/pdf'
@@ -218,7 +220,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -233,6 +235,9 @@ export function ModelerPanel() {
   const [pave, setPave] = useState<{ count: number; carat: number; gap: number; mode: PaveMode; radius: number; arcDeg: number; cutSeats: boolean; snap: boolean }>({ count: 12, carat: 0.02, gap: 0.2, mode: 'ring', radius: 9, arcDeg: 360, cutSeats: true, snap: true })
   const [headProngs, setHeadProngs] = useState(6)
   const [drill, setDrill] = useState<{ axis: 'x' | 'y' | 'z'; dia: number }>({ axis: 'y', dia: 1.2 })
+  const [halo, setHalo] = useState({ count: 12, carat: 0.03 })
+  const [rails, setRails] = useState<{ length: number; innerGap: number; height: number; thickness: number; along: RailAlong }>({ length: 12, innerGap: 2.2, height: 2, thickness: 0.8, along: 'x' })
+  const [keepCutter, setKeepCutter] = useState(false)
   const [saveName, setSaveName] = useState('')
   const [saved, setSaved] = useState<SavedSculpt[]>(() => sculptLibrary.list())
   const [dfm, setDfm] = useState<{ id: string; r: DfmReport } | null>(null)
@@ -385,7 +390,7 @@ export function ModelerPanel() {
       const vertices = booleanOp(sel, b, op)
       if (!vertices.length) { flash('The shapes don’t overlap — nothing to combine.'); return }
       addMesh({ kind: 'mesh', vertices, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0, material: sel.material, color: sel.color, name: `${op} result` })
-      remove(sel.id); remove(b.id); setOtherId('')
+      remove(sel.id); if (!keepCutter) remove(b.id); setOtherId('')
     } catch { flash('Boolean failed on this geometry.') }
   }
 
@@ -409,8 +414,20 @@ export function ModelerPanel() {
   const doFitBezel = () => { if (sel && fitBezel(sel.id)) flash('Wrapped the stone in a bezel.'); else flash('Select a gem first.') }
   const doDrill = () => { if (sel && drillHole(sel.id, drill.axis, drill.dia)) flash(`Drilled a ${drill.dia} mm hole through ${sel.name}.`); else flash('Drill failed on this geometry.') }
   const doBail = () => { if (sel && addBail(sel.id)) flash('Added a bail to the top.'); else flash('Select a part first.') }
+  const doHalo = () => { if (sel && addHalo(sel.id, halo.count, halo.carat)) flash(`Added a ${halo.count}-stone halo around the centre.`); else flash('Select a centre gem first.') }
+  const doFlush = () => { if (sel && flushSet(sel.id)) flash('Flush-set the stone into the metal below it.'); else flash('Select a gem sitting over a metal part.') }
+  const doRails = () => {
+    const c = sel ? sel.position : [0, 0, 0] as [number, number, number]
+    if (addChannelRails({ center: [c[0], c[1], c[2]], length: rails.length, innerGap: rails.innerGap, height: rails.height, thickness: rails.thickness, along: rails.along }))
+      flash('Added channel rails — drop a row of stones between them.')
+  }
+  const copySchedule = () => {
+    const txt = stoneScheduleText(stoneSchedule(objects))
+    navigator.clipboard?.writeText(txt).then(() => flash('Stone schedule copied.'), () => flash('Could not copy.'))
+  }
 
   const metalCount = objects.filter(o => o.material === 'metal').length
+  const sched = stoneSchedule(objects)
   const fuse = () => {
     if (metalCount < 2) { flash('Need at least two metal parts to fuse.'); return }
     try { const n = fuseMetal(); flash(n ? `Fused ${n} metal parts into one solid.` : 'Nothing to fuse.') }
@@ -762,6 +779,19 @@ export function ModelerPanel() {
           <div className="opts" style={{ marginTop: 8 }}>
             {OPS.map(([op, label]) => <button key={op} className="opt" onClick={() => doBoolean(op)}>{label}</button>)}
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={keepCutter} onChange={e => setKeepCutter(e.target.checked)} /> Keep the cutter (reuse it on other parts)</label>
+
+          <h4 style={{ marginTop: 20 }}>Channel rails</h4>
+          <div className="opts c2" style={{ marginBottom: 6 }}>
+            <button className="opt" aria-pressed={rails.along === 'x'} onClick={() => setRails(r => ({ ...r, along: 'x' }))}>Along X</button>
+            <button className="opt" aria-pressed={rails.along === 'z'} onClick={() => setRails(r => ({ ...r, along: 'z' }))}>Along Z</button>
+          </div>
+          <div className="row"><label>Length mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={1} step={0.5} value={rails.length} onChange={e => setRails(r => ({ ...r, length: Math.max(1, +e.target.value) }))} /></div>
+          <div className="row"><label>Inner gap mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.2} step={0.1} value={rails.innerGap} onChange={e => setRails(r => ({ ...r, innerGap: Math.max(0.2, +e.target.value) }))} /></div>
+          <div className="row"><label>Height mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.3} step={0.1} value={rails.height} onChange={e => setRails(r => ({ ...r, height: Math.max(0.3, +e.target.value) }))} /></div>
+          <div className="row"><label>Thickness mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.2} step={0.1} value={rails.thickness} onChange={e => setRails(r => ({ ...r, thickness: Math.max(0.2, +e.target.value) }))} /></div>
+          <button className="opt" style={{ width: '100%', marginTop: 4 }} onClick={doRails}>Add channel rails</button>
+          <p className="disc">Two flanking walls for a channel setting, centred on the selected part. Drop a Row pavé between them and the stones sit in the channel.</p>
 
           <h4 style={{ marginTop: 20 }}>Pavé / channel fill</h4>
           <div className="opts c2" style={{ marginBottom: 8 }}>
@@ -784,7 +814,13 @@ export function ModelerPanel() {
               <button className="opt" onClick={doFitHead}>Fit prong head</button>
               <button className="opt" onClick={doFitBezel}>Fit bezel</button>
             </div>
-            <p className="disc">Adds a head or bezel auto-sized to this stone's girdle and centred on it.</p>
+            <button className="opt" style={{ width: '100%', marginTop: 6 }} onClick={doFlush}>Flush / gypsy set into metal below</button>
+            <p className="disc">Head or bezel auto-sized to this stone's girdle. Flush-set carves a seat in the metal directly beneath and sinks the stone level with the surface.</p>
+
+            <h4 style={{ marginTop: 18 }}>Halo</h4>
+            <div className="row"><label>Accents</label><input className="lib-name" style={{ width: 64 }} type="number" min={3} max={60} value={halo.count} onChange={e => setHalo(h => ({ ...h, count: Math.max(3, +e.target.value) }))} /></div>
+            <div className="row"><label>Accent ct</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.005} step={0.01} value={halo.carat} onChange={e => setHalo(h => ({ ...h, carat: Math.max(0.005, +e.target.value) }))} /></div>
+            <button className="opt" style={{ width: '100%', marginTop: 4 }} onClick={doHalo}>Add halo around this stone</button>
           </>)}
 
           <h4 style={{ marginTop: 20 }}>Drill &amp; bail</h4>
@@ -848,6 +884,23 @@ export function ModelerPanel() {
       </div>
 
       <PartsLibrary />
+
+      {sched.totalStones > 0 && (
+        <div className="panel-block">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <h4 style={{ margin: 0 }}>Stone schedule</h4>
+            <button className="mini" onClick={copySchedule}>Copy</button>
+          </div>
+          <table className="stone-sched">
+            <tbody>
+              {sched.rows.map((r, i) => (
+                <tr key={i}><td>{r.count}×</td><td>{r.shapeName}</td><td>{r.carat} ct</td><td>{r.mm.toFixed(2)} mm</td></tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="disc">{sched.totalStones} stones · {sched.totalCarat.toFixed(2)} ct total. Copy hands your supplier the exact order.</p>
+        </div>
+      )}
 
       <div className="panel-block quote">
         <div className="qact"><button className="primary" onClick={exportStl}>Export STL</button><button className="ghost" onClick={exportObj} title="Named parts + metal/gem groups, for ZBrush / Blender / Matrix / RhinoGold">Export OBJ</button><button className="ghost" onClick={quotePdf}>Quote PDF</button><button className="ghost" onClick={techSheet}>Tech sheet</button></div>

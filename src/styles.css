@@ -492,6 +492,10 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .lib-acts{display:flex;gap:4px;flex:0 0 auto}
 .mini{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;padding:5px 7px;background:none;border:1px solid var(--rule-dark);color:var(--karat-lt);cursor:pointer}
 .mini:hover{background:rgba(156,122,60,.15);border-color:var(--karat)}
+.stone-sched{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px}
+.stone-sched td{padding:3px 4px;border-bottom:1px solid var(--rule);font-family:var(--mono)}
+.stone-sched td:first-child{color:var(--karat-lt);font-weight:700}
+.stone-sched tr:last-child td{border-bottom:none}
 .mini[aria-pressed=true]{background:var(--karat);color:#141414;border-color:var(--karat)}
 .mini.danger{color:#9AA1A4}
 .mini.danger:hover{background:rgba(168,80,31,.2);border-color:var(--warn);color:#D98A5F}

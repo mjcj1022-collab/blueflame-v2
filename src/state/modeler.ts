@@ -6,6 +6,7 @@ import { allPresets, addUserPreset, removeUserPreset, cloneSketch, type SketchPr
 import { paveSpots, type PaveMode } from '../lib/pave'
 import { stoneMm, shapeById } from '../catalog'
 import { gemDiameterMm, surfaceTopAt, objectTop } from '../lib/setting'
+import { haloRadius, channelRailSpots, type RailAlong } from '../lib/construction'
 
 export interface PaveFillOptions {
   count: number
@@ -21,6 +22,15 @@ export interface PaveFillOptions {
   baseId?: string
   /** Drop each stone onto the actual surface of the base part (raycast down). */
   snapToSurface?: boolean
+}
+
+export interface ChannelRailOptions {
+  center: [number, number, number]
+  length: number
+  innerGap: number
+  height: number
+  thickness: number
+  along: RailAlong
 }
 
 export type PrimitiveKind = 'box' | 'sphere' | 'cylinder' | 'cone' | 'torus' | 'tube'
@@ -184,6 +194,9 @@ interface ModelerStore {
   fitBezel: (gemId: string) => boolean
   drillHole: (id: string, axis: 'x' | 'y' | 'z', diameter: number) => boolean
   addBail: (id: string, ringMm?: number) => boolean
+  addHalo: (gemId: string, count: number, smallCarat: number) => number
+  addChannelRails: (opts: ChannelRailOptions) => boolean
+  flushSet: (gemId: string) => boolean
   select: (id: string | null) => void
   setMode: (mode: TransformMode) => void
   setAlloy: (id: string) => void
@@ -643,6 +656,79 @@ export const useModeler = create<ModelerStore>((set, get) => {
       material: 'metal', color: GOLD,
     }
     set(s => ({ objects: [...s.objects, bail], selectedId: bail.id }))
+    return true
+  },
+
+  /** Ring a centre stone with a halo of accents, auto-sized to hug it. */
+  addHalo: (gemId, count, smallCarat) => {
+    const center = get().objects.find(o => o.id === gemId && o.material === 'gem')
+    if (!center || count < 3) return 0
+    const carat = smallCarat > 0 ? smallCarat : 0.03
+    const centerDia = gemDiameterMm(center)
+    const smallDia = stoneMm(shapeById('rd'), carat).width
+    const r = haloRadius(centerDia, smallDia, smallDia * 0.1)
+    const [cx, cy, cz] = center.position
+    record()
+    const gems: SculptObject[] = []
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2
+      gems.push({
+        id: newId(), name: `Halo ${i + 1}`, kind: 'gem',
+        position: [cx + Math.cos(a) * r, cy, cz + Math.sin(a) * r], rotation: [0, -a, 0],
+        scale: [1, 1, 1], size: 6, material: 'gem', color: GEM,
+        params: { shapeId: 'rd', stoneTypeId: 'dia', carat },
+      })
+    }
+    set(s => ({ objects: [...s.objects, ...gems], selectedId: gems[0].id }))
+    return count
+  },
+
+  /** Build the two flanking rails of a channel setting. */
+  addChannelRails: opts => {
+    const spots = channelRailSpots(opts)
+    record()
+    const rails: SculptObject[] = spots.map((sp, i) => ({
+      id: newId(), name: `Rail ${i + 1}`, kind: 'box',
+      position: sp.position, rotation: [0, 0, 0], scale: sp.scale, size: 1,
+      material: 'metal', color: GOLD,
+    }))
+    set(s => ({ objects: [...s.objects, ...rails], selectedId: rails[0].id }))
+    return true
+  },
+
+  /** Flush-/gypsy-set a stone: carve a conical seat into the metal directly under
+   *  it and sink the stone so its table sits level with the surface. */
+  flushSet: gemId => {
+    const gem = get().objects.find(o => o.id === gemId && o.material === 'gem')
+    if (!gem) return false
+    const [gx, gy, gz] = gem.position
+    // pick the metal part whose top surface sits under the stone (highest hit ≤ gem)
+    let base: SculptObject | undefined
+    let surfaceY = -Infinity
+    for (const m of get().objects.filter(o => o.material === 'metal')) {
+      const y = surfaceTopAt(gx, gz, bakedVertices(m))
+      if (y !== null && y <= gy + 0.5 && y > surfaceY) { surfaceY = y; base = m }
+    }
+    if (!base || !isFinite(surfaceY)) return false
+    const dia = gemDiameterMm(gem)
+    record()
+    // conical seat, rim at the surface, opening downward into the metal
+    const cutter: SculptObject = { id: 'flushcut', kind: 'cone', name: 'seat', position: [gx, surfaceY, gz], rotation: [Math.PI, 0, 0], scale: [1, 1, 1], size: dia * 1.15, material: 'metal', color: 0 }
+    let carved: SculptObject | null = null
+    try {
+      const acc: SculptObject = { ...base, kind: 'mesh', vertices: bakedVertices(base), position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 }
+      const v = booleanOp(acc, cutter, 'subtract')
+      if (v.length) carved = { ...base, kind: 'mesh', vertices: v, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 }
+    } catch { /* seat carve failed; still sink the stone */ }
+    // sink the stone so its girdle sits just below the surface (table ≈ flush)
+    const sunkGem = { ...gem, position: [gx, surfaceY - dia * 0.28, gz] as [number, number, number] }
+    set(s => ({
+      objects: s.objects.map(o => {
+        if (carved && o.id === carved.id) return carved
+        if (o.id === gem.id) return sunkGem
+        return o
+      }),
+    }))
     return true
   },
 
