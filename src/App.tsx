@@ -24,6 +24,7 @@ import { useDesign } from './state/design'
 import { useModeler } from './state/modeler'
 import { useAuth } from './state/auth'
 import { useWorkspace } from './state/workspace'
+import { useSettings } from './state/settings'
 import { autosave } from './lib/autosave'
 import { computeMetal } from './lib/metal'
 import { CATEGORY_LABEL } from './spec/types'
@@ -99,7 +100,17 @@ export default function App() {
   const mode = useWorkspace(s => s.mode)
   const setMode = useWorkspace(s => s.setMode)
   const load = useDesign(s => s.load)
+  const hiddenPanels = useSettings(s => s.hiddenPanels)
+  const paperTexture = useSettings(s => s.paperTexture)
+  const compact = useSettings(s => s.compact)
+  const show = (key: string) => !hiddenPanels.includes(key)
   const closeTour = () => { try { localStorage.setItem(TOUR_KEY, '1') } catch { /* private mode */ } setTourOpen(false) }
+
+  // Appearance prefs → root classes the stylesheet reacts to.
+  useEffect(() => {
+    document.documentElement.classList.toggle('no-grain', !paperTexture)
+    document.documentElement.classList.toggle('compact', compact)
+  }, [paperTexture, compact])
 
   // Restore on load: a shared ?d= link wins; otherwise the autosaved design and
   // sculpt come back exactly as they were left. History starts clean.
@@ -133,14 +144,14 @@ export default function App() {
             <aside className="panel">
               <div className="panel-scroll">
                 <Controls />
-                <StoneSourcePanel />
-                <VariantsPanel />
+                {show('stoneSource') && <StoneSourcePanel />}
+                {show('variants') && <VariantsPanel />}
                 <MetalPanel />
-                <MetalOptionsPanel />
-                <ProductionPanel />
-                <CustomersPanel />
-                <LibraryPanel />
-                <ProjectsPanel />
+                {show('metalOptions') && <MetalOptionsPanel />}
+                {show('production') && <ProductionPanel />}
+                {show('customers') && <CustomersPanel />}
+                {show('library') && <LibraryPanel />}
+                {show('projects') && <ProjectsPanel />}
               </div>
             </aside>
           </>
