@@ -103,6 +103,9 @@ export type BodyStyle =
   | 'tunnel'     // hollow ear tunnel (eyelet)
   | 'taper'      // stretching taper (cone)
   | 'spike'      // barbell with conical spike ends
+  | 'nostril'    // nose stud / nostril screw
+  | 'nipple'     // nipple shield (barbell + decorative plate)
+  | 'pincher'    // tapered talon / pincher
 export interface BodyGeo {
   style: BodyStyle
   gauge: number     // mm, shaft / wire diameter (1.6 mm = 14g, 1.2 mm = 16g)

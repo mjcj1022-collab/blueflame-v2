@@ -13,6 +13,9 @@ export const BODY_STYLES: [BodyStyle, string][] = [
   ['tunnel', 'Ear tunnel (eyelet)'],
   ['taper', 'Stretching taper'],
   ['spike', 'Spike barbell'],
+  ['nostril', 'Nose stud / nostril'],
+  ['nipple', 'Nipple shield'],
+  ['pincher', 'Pincher / talon'],
 ]
 
 const sphere = (d: number) => (Math.PI / 6) * d ** 3           // 4/3·π·r³ with r = d/2
@@ -75,5 +78,16 @@ export function bodyVolumeMm3(g: BodyGeo): number {
     case 'spike':
       // straight shaft with a conical spike on each end
       return cyl(gauge, size) + 2 * cone(ballSize, ballSize * 1.6)
+    case 'nostril':
+      // a short post with a small gem/ball on top
+      return cyl(gauge, Math.max(size * 0.6, 4)) + sphere(ballSize)
+    case 'nipple':
+      // barbell shaft + two balls + a flat decorative shield plate
+      return cyl(gauge, size) + 2 * sphere(ballSize) + cyl(ballSize * 2.4, 0.8)
+    case 'pincher': {
+      // a thick tapered talon bent into a ~200° arc
+      const meanR = (size + gauge) / 2
+      return 2 * Math.PI ** 2 * meanR * (gauge) ** 2 * 0.56 + 2 * cone(gauge * 1.4, gauge * 2)
+    }
   }
 }

@@ -6,6 +6,7 @@ import { isHidden } from '../lib/features'
 import { stoneDims } from './Stone'
 import { Head } from './Head'
 import { Motif } from './Motif'
+import { useDesign } from '../state/design'
 import { useMetalMaterial } from './material'
 import { necklaceChainVertices } from '../lib/necklaceChain'
 
@@ -17,6 +18,7 @@ export function Necklace({ spec }: { spec: DesignSpec }) {
   const metal = useMetalMaterial(alloy, spec.finish)
   const headMetalMat = useMetalMaterial(alloyById(spec.metal.headAlloyId ?? spec.metal.alloyId), spec.finish)
   const headMetal = spec.metal.twoTone && spec.metal.headAlloyId ? headMetalMat : metal
+  const explode = useDesign(s => s.explode)
   const { length, gauge, hasPendant, chainStyle, motif } = spec.necklace
   const hasMotif = !!motif && motif !== 'none'
   const circ = length * MM_PER_INCH
@@ -41,13 +43,13 @@ export function Necklace({ spec }: { spec: DesignSpec }) {
 
       {/* Decorative motif medallion hangs at the base of the loop, in place of a stone head */}
       {hasMotif && !isHidden(spec, 'head') && (
-        <group position={[0, -R * 1.15 - Math.max(R * 0.16, 6), 0]}>
+        <group position={[0, -R * 1.15 - Math.max(R * 0.16, 6) - explode * 14, 0]}>
           <Motif motif={motif!} material={headMetal} R={Math.max(R * 0.16, 6)} gauge={gauge} />
         </group>
       )}
 
       {!hasMotif && hasPendant && (
-        <group position={[0, -R * 1.15 - d.r * d.lwRatio, 0]}>
+        <group position={[0, -R * 1.15 - d.r * d.lwRatio - explode * 14, 0]}>
           <group rotation={[Math.PI / 2, 0, 0]}>
             <Head material={headMetal} shapeId={spec.center.shapeId} stoneTypeId={spec.center.stoneTypeId}
               carat={spec.center.carat} settingId={spec.setting.typeId} grading={spec.center.grading}

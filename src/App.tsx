@@ -17,6 +17,8 @@ import { ProjectsPanel } from './ui/ProjectsPanel'
 import { ModelerPanel } from './ui/ModelerPanel'
 import { MetalGenerator } from './ui/MetalGenerator'
 import { Tour } from './ui/Tour'
+import { SettingsModal } from './ui/SettingsModal'
+import { SuggestToast } from './ui/SuggestToast'
 import { BackendStatus } from './ui/BackendStatus'
 import { useDesign } from './state/design'
 import { useModeler } from './state/modeler'
@@ -30,7 +32,7 @@ import { fetchAndApplySpot } from './lib/spot'
 
 type Mode = 'design' | 'model' | 'color' | 'ai'
 
-function Masthead({ mode, setMode, onLab, onTour, onGallery }: { mode: Mode; setMode: (m: Mode) => void; onLab: () => void; onTour: () => void; onGallery: () => void }) {
+function Masthead({ mode, setMode, onLab, onTour, onGallery, onSettings }: { mode: Mode; setMode: (m: Mode) => void; onLab: () => void; onTour: () => void; onGallery: () => void; onSettings: () => void }) {
   const spec = useDesign(s => s.spec)
   const reset = useDesign(s => s.reset)
   const shop = useDesign(s => s.shop)
@@ -71,6 +73,7 @@ function Masthead({ mode, setMode, onLab, onTour, onGallery }: { mode: Mode; set
         )}
         <button className="mast-lab" onClick={onGallery} title="Open the gallery">Gallery</button>
         <button className="mast-lab" onClick={onLab}>Metal Lab</button>
+        <button className="mast-lab" onClick={onSettings} title="Settings" aria-label="Settings">⚙</button>
         <button className="mast-lab" onClick={onTour} title="Show the tour" aria-label="Show the tour">?</button>
         {mode === 'design' && (
           <>
@@ -91,6 +94,7 @@ const TOUR_KEY = 'blue-flame.tour.v1'
 export default function App() {
   const [labOpen, setLabOpen] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(true)   // the first window on launch
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [tourOpen, setTourOpen] = useState(() => { try { return !localStorage.getItem(TOUR_KEY) } catch { return false } })
   const mode = useWorkspace(s => s.mode)
   const setMode = useWorkspace(s => s.setMode)
@@ -121,7 +125,7 @@ export default function App() {
 
   return (
     <>
-      <Masthead mode={mode} setMode={setMode} onLab={() => setLabOpen(true)} onTour={() => setTourOpen(true)} onGallery={() => setGalleryOpen(true)} />
+      <Masthead mode={mode} setMode={setMode} onLab={() => setLabOpen(true)} onTour={() => setTourOpen(true)} onGallery={() => setGalleryOpen(true)} onSettings={() => setSettingsOpen(true)} />
       <div className="app">
         {mode === 'design' ? (
           <>
@@ -169,7 +173,9 @@ export default function App() {
       </div>
       <MetalGenerator open={labOpen} onClose={() => setLabOpen(false)} />
       {galleryOpen && <GalleryModal onClose={() => setGalleryOpen(false)} />}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {tourOpen && !galleryOpen && <Tour onClose={closeTour} />}
+      <SuggestToast />
     </>
   )
 }

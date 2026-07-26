@@ -2,12 +2,13 @@ import type { DesignSpec } from '../spec/types'
 import { stoneOnPiece } from '../spec/types'
 import { alloyById } from '../catalog'
 import { isHidden } from '../lib/features'
+import { useDesign } from '../state/design'
 import { stoneDims } from './Stone'
 import { Head } from './Head'
 import { useMetalMaterial } from './material'
 
 /** One earring: stone facing the viewer on a post, optionally on a drop. */
-function One({ spec, x }: { spec: DesignSpec; x: number }) {
+function One({ spec, x, explode }: { spec: DesignSpec; x: number; explode: number }) {
   const alloy = alloyById(spec.metal.alloyId)
   const metal = useMetalMaterial(alloy, spec.finish)
   const headMetalMat = useMetalMaterial(alloyById(spec.metal.headAlloyId ?? spec.metal.alloyId), spec.finish)
@@ -24,7 +25,7 @@ function One({ spec, x }: { spec: DesignSpec; x: number }) {
         </mesh>
       )}
       {stoneOnPiece(spec) && (
-        <group position={[0, -dropY / 2, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <group position={[0, -dropY / 2, explode * 6]} rotation={[Math.PI / 2, 0, 0]}>
           <Head material={headMetal} shapeId={spec.center.shapeId} stoneTypeId={spec.center.stoneTypeId}
             carat={spec.center.carat} settingId={spec.setting.typeId} grading={spec.center.grading}
             showStone={!isHidden(spec, 'stone')} showSetting={!isHidden(spec, 'head')} />
@@ -41,12 +42,13 @@ function One({ spec, x }: { spec: DesignSpec; x: number }) {
 }
 
 export function Earrings({ spec }: { spec: DesignSpec }) {
+  const explode = useDesign(s => s.explode)
   const d = stoneDims(spec.center.shapeId, spec.center.carat)
-  const gap = d.width * 1.6 + 4
+  const gap = d.width * 1.6 + 4 + explode * 6        // exploded: spread the pair apart
   return (
     <group position={[0, 2, 0]}>
-      <One spec={spec} x={-gap} />
-      {spec.earring.pair && <One spec={spec} x={gap} />}
+      <One spec={spec} x={-gap} explode={explode} />
+      {spec.earring.pair && <One spec={spec} x={gap} explode={explode} />}
     </group>
   )
 }

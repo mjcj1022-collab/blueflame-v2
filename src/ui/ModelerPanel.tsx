@@ -316,7 +316,7 @@ export function ModelerPanel() {
     addMesh({ kind: 'mesh', vertices: v, position: [0, 4, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0, material: 'metal', color: SCULPT_COLORS.metal, name: `Chain ×${chn.links}` })
     flash(`Added chain — ${chn.links} links, ~${chainSpan({ ...chn }).toFixed(0)} mm.`)
   }
-  const { vol, castG, carats, gemCount, metalCost, stoneCost, settingLabor, total } = est
+  const { vol, castG } = est
   const warnings = useMemo(() => sculptWarnings(objects), [objects])
 
   const [sendingOrder, setSendingOrder] = useState(false)
@@ -515,7 +515,7 @@ export function ModelerPanel() {
       </div>
 
       <div className="panel-block metalreq quote">
-        <h4>Estimate
+        <h4>Metal &amp; weight
           <select className="unit" value={alloyId} onChange={e => setAlloy(e.target.value)} style={{ marginLeft: 'auto' }}>
             {ALLOYS.map(a => <option key={a.id} value={a.id}>{a.short}</option>)}
           </select>
@@ -530,11 +530,6 @@ export function ModelerPanel() {
             <button className="opt" onClick={applyResizeToWeight} disabled={!objects.length}>Set g</button>
           </span>
         </div>
-        <div className="qline sub"><span>Metal</span><span>{money(metalCost)}</span></div>
-        {gemCount > 0 && <div className="qline sub"><span>{gemCount > 1 ? `${gemCount} stones` : 'Stone'} · {carats.toFixed(2)} ct</span><span>{money(stoneCost)}</span></div>}
-        {gemCount > 0 && <div className="qline sub"><span>Setting labor ×{gemCount}</span><span>{money(settingLabor)}</span></div>}
-        <div className="qline sub"><span>Cast, finish, polish</span><span>{money(MARKET.finishFee)}</span></div>
-        <div className="qtotal"><span className="lbl">Estimate</span><span className="amt">{money(total)}</span></div>
         <div className="opts" style={{ marginTop: 8 }}>
           <button className="opt tpl" onClick={checkBalance} title="Center of mass — will the ring sit still or rotate on the finger?">Check balance ⚖</button>
         </div>

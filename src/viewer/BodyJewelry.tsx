@@ -184,5 +184,48 @@ export function BodyJewelry({ spec }: { spec: DesignSpec }) {
         </group>
       )
     }
+
+    case 'nostril': {
+      // A short post with a small gem/ball at the top (worn in the nostril).
+      const L = Math.max(size * 0.6, 4)
+      return (
+        <group>
+          <mesh material={metal}><cylinderGeometry args={[r, r, L, 20]} /></mesh>
+          {ball(metal, [0, L / 2, 0], ballSize)}
+        </group>
+      )
+    }
+
+    case 'nipple': {
+      // A barbell with a flat decorative shield plate around the centre.
+      const L = Math.max(size, 3)
+      return (
+        <group>
+          <mesh material={metal}><cylinderGeometry args={[r, r, L, 24]} /></mesh>
+          <mesh material={metal} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[ballSize * 1.2, ballSize * 1.2, 0.7, 40]} />
+          </mesh>
+          {ball(metal, [0, L / 2, 0], ballSize)}
+          {ball(metal, [0, -L / 2, 0], ballSize)}
+        </group>
+      )
+    }
+
+    case 'pincher': {
+      // A thick tapered talon bent into a ~200° open arc.
+      const arc = TWO_PI * 0.56
+      const half = arc / 2
+      const thick = Math.max(r * 1.8, 1.2)
+      const ex = ringR * Math.cos(half), ey = ringR * Math.sin(half)
+      return (
+        <group>
+          <mesh material={metal} rotation={[0, 0, -half]}>
+            <torusGeometry args={[ringR, thick, 18, 90, arc]} />
+          </mesh>
+          <mesh material={metal} position={[ex, ey, 0]} rotation={[0, 0, half]}><coneGeometry args={[thick, thick * 2.4, 20]} /></mesh>
+          <mesh material={metal} position={[ex, -ey, 0]} rotation={[Math.PI, 0, half]}><coneGeometry args={[thick, thick * 2.4, 20]} /></mesh>
+        </group>
+      )
+    }
   }
 }
