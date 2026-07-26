@@ -136,6 +136,7 @@ interface ModelerStore {
   toggleMeasuring: () => void
   mirror: (id: string) => void
   centerObject: (id: string) => void
+  dropToFloor: (id: string) => void
   scaleAll: (factor: number) => void
   sketching: boolean
   sketchEditId: string | null
@@ -330,6 +331,15 @@ export const useModeler = create<ModelerStore>((set, get) => {
   },
 
   centerObject: id => { record(); set(s => ({ objects: s.objects.map(o => o.id === id ? { ...o, position: [0, o.position[1], 0] } : o) })) },
+  // Seat the object on the floor (y=0): drop it by its lowest world vertex so
+  // nothing sits below the build plate — matters for casting/printing setup.
+  dropToFloor: id => { record(); set(s => ({ objects: s.objects.map(o => {
+    if (o.id !== id) return o
+    const v = bakedVertices(o)
+    let minY = Infinity
+    for (let i = 1; i < v.length; i += 3) if (v[i] < minY) minY = v[i]
+    return isFinite(minY) ? { ...o, position: [o.position[0], o.position[1] - minY, o.position[2]] } : o
+  }) })) },
   // Uniformly resize the whole piece about the origin (scale + layout), e.g. to
   // hit a target metal weight. Gems scale too, keeping proportions intact.
   scaleAll: factor => {

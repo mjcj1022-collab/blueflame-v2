@@ -214,7 +214,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, mirror, centerObject, scaleAll, toggleSnap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -659,9 +659,14 @@ export function ModelerPanel() {
                 onChange={e => { const r = [...sel.rotation] as [number, number, number]; r[i] = (+e.target.value) / DEG; update(sel.id, { rotation: r }) }} />
             ))}
           </div>
-          <div className="opts c2" style={{ marginTop: 10 }}>
+          <div className="opts" style={{ gridTemplateColumns: 'repeat(3,1fr)', marginTop: 10 }}>
             <button className="opt" onClick={() => mirror(sel.id)}>Mirror X</button>
             <button className="opt" onClick={() => centerObject(sel.id)}>Center X/Z</button>
+            <button className="opt" onClick={() => dropToFloor(sel.id)} title="Seat the part on the build plate (y=0) for casting/printing">Drop to floor</button>
+          </div>
+          <div className="opts c2" style={{ marginTop: 8 }}>
+            <button className="opt" onClick={() => update(sel.id, { position: [0, 0, 0] })} title="Move to the origin (0,0,0)">Reset position</button>
+            <button className="opt" onClick={() => update(sel.id, { rotation: [0, 0, 0] })} title="Clear rotation">Reset rotation</button>
           </div>
 
           {sel.kind === 'gem' && (
