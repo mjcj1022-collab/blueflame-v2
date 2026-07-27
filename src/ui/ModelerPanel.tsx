@@ -18,7 +18,6 @@ import { stoneSchedule, stoneScheduleText } from '../lib/stoneSchedule'
 import { askAssistant, type AiRoute } from '../lib/aiAssistant'
 import { designQuality, designSpecText, type DesignQuality } from '../lib/designQuality'
 import { DESIGN_TEMPLATES } from '../lib/designTemplates'
-import { askCommands } from '../lib/aiCommands'
 import { overhangReport, symmetryScore, type OverhangReport } from '../lib/castCheck'
 import { alloyCostTable } from '../lib/alloyCost'
 import { sculptMetalVolume } from '../lib/sculpt'
@@ -228,7 +227,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -255,8 +254,6 @@ export function ModelerPanel() {
   const [aiAsm, setAiAsm] = useState<{ busy: boolean; err: string | null; routes: AiRoute[]; assumptions: string[] }>({ busy: false, err: null, routes: [], assumptions: [] })
   const [aiReplace, setAiReplace] = useState(true)
   const [aiQuality, setAiQuality] = useState<DesignQuality | null>(null)
-  const [finText, setFinText] = useState('')
-  const [finBusy, setFinBusy] = useState(false)
   const [domeH, setDomeH] = useState(1.5)
   const [symAxis, setSymAxis] = useState<'x' | 'y' | 'z'>('x')
   const [over, setOver] = useState<OverhangReport | null>(null)
@@ -495,21 +492,6 @@ export function ModelerPanel() {
     const txt = designSpecText(objects, alloyId, alloy.name)
     navigator.clipboard?.writeText(txt).then(() => flash('Design spec copied.'), () => flash('Could not copy.'))
   }
-  const runFinish = async () => {
-    const q = finText.trim()
-    if (!q || finBusy) return
-    if (!objects.length) { flash('Build or assemble a piece first, then finish it with AI.'); return }
-    setFinBusy(true)
-    try {
-      const res = await askCommands(q)
-      if (res.disabled) { flash('AI is off — add AI_API_KEY on the backend.'); setFinBusy(false); return }
-      if (!res.commands.length) { flash(res.reply || 'Nothing actionable in that.'); setFinBusy(false); return }
-      const { applied, skipped } = runModelerCommands(res.commands)
-      flash(applied.length ? `Applied ${applied.join(', ')}${skipped.length ? ` · skipped ${skipped.join(', ')}` : ''}.` : `Couldn't apply those — ${skipped.join(', ')}.`)
-      if (applied.length) { setFinText(''); runQa() }
-    } catch { flash('AI command failed — try again.') }
-    setFinBusy(false)
-  }
 
   const metalCount = objects.filter(o => o.material === 'metal').length
   const sched = stoneSchedule(objects)
@@ -606,13 +588,6 @@ export function ModelerPanel() {
         <div className="opts c2">
           {DESIGN_TEMPLATES.map(t => <button key={t.id} className="opt tpl" title={t.blurb} onClick={() => buildTemplate(t.id)}>{t.name}</button>)}
         </div>
-
-        <h4 style={{ marginTop: 18 }}>Finish with AI ✦</h4>
-        <textarea className="ai-asm-in" rows={2} value={finText} onChange={e => setFinText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void runFinish() } }}
-          placeholder="Tell it what to do to the piece — e.g. hammer the band, add a halo, flush-set the stone, then get it ready to print" disabled={finBusy} />
-        <button className="primary" style={{ width: '100%', marginTop: 6 }} onClick={() => void runFinish()} disabled={finBusy || !finText.trim()}>{finBusy ? 'Working…' : 'Run on this piece ✦'}</button>
-        <p className="disc">Drives the finishing &amp; setting tools by voice — texture, dome, halo, flush-set, milgrain, pierce, symmetrise, auto-orient — in the order you say them.</p>
       </div>
 
       <div className="panel-block">

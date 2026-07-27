@@ -13,7 +13,6 @@ import { paveSpots as paveSpotsFn } from '../lib/pave'
 import { buildSculptFromDesign } from '../lib/aiAssemble'
 import type { AiDesignPatch } from '../lib/aiAssistant'
 import { refineDesign } from '../lib/designRules'
-import type { ModelerCommand } from '../lib/aiCommands'
 import { domeSoup } from '../lib/dome'
 import { symmetrizeSoup } from '../lib/symmetrize'
 import { bestPrintOrientation, rotateSoup } from '../lib/printOrient'
@@ -214,7 +213,6 @@ interface ModelerStore {
   piercePattern: (id: string, count: number, mode: 'row' | 'ring', span: number, dia: number, axis: 'x' | 'y' | 'z') => number
   addSignet: (id: string, width: number, length: number, thickness: number) => boolean
   assembleDesign: (patch: AiDesignPatch, replace?: boolean) => number
-  runModelerCommands: (cmds: ModelerCommand[]) => { applied: string[]; skipped: string[] }
   domeTop: (id: string, height: number) => boolean
   addSizingBeads: (id: string) => boolean
   symmetrizeMesh: (id: string, axis: Axis) => boolean
@@ -857,44 +855,6 @@ export const useModeler = create<ModelerStore>((set, get) => {
     const full: SculptObject[] = parts.map((p, i) => ({ ...p, id: newId(), name: p.name ?? `Part ${i + 1}` }))
     set(s => ({ objects: replace ? full : [...s.objects, ...full], selectedId: full[0].id }))
     return full.length
-  },
-
-  /** Execute an ordered list of AI-issued finishing/setting commands against the
-   *  piece on the bench. Metal ops target the selected (or first) metal part and
-   *  gem ops the selected (or first) gem — captured up front so ids stay stable
-   *  as parts are added. Returns which ops applied and which were skipped. */
-  runModelerCommands: cmds => {
-    const applied: string[] = []
-    const skipped: string[] = []
-    const startSel = get().objects.find(o => o.id === get().selectedId) ?? null
-    const metalId = (startSel?.material === 'metal' ? startSel : get().objects.find(o => o.material === 'metal'))?.id
-    const gemId = (startSel?.material === 'gem' ? startSel : get().objects.find(o => o.material === 'gem'))?.id
-    const self = get()
-    const ok = (cond: boolean, name: string) => { (cond ? applied : skipped).push(name) }
-    for (const c of cmds) {
-      try {
-        switch (c.op) {
-          case 'texture': ok(!!metalId && self.textureMesh(metalId, c.style, c.depth, 1.2), 'texture'); break
-          case 'dome': ok(!!metalId && self.domeTop(metalId, c.height), 'dome'); break
-          case 'sizingBeads': ok(!!metalId && self.addSizingBeads(metalId), 'sizingBeads'); break
-          case 'milgrain': { const b = metalId ? get().objects.find(o => o.id === metalId) : null; ok(self.addMilgrain(b ? b.position : [0, 0, 0], c.radius, c.beadDia) > 0, 'milgrain'); break }
-          case 'bail': ok(!!metalId && self.addBail(metalId), 'bail'); break
-          case 'drill': ok(!!metalId && self.drillHole(metalId, c.axis, c.dia), 'drill'); break
-          case 'pierce': ok(!!metalId && self.piercePattern(metalId, c.count, c.mode, c.mode === 'ring' ? c.dia * 3 : c.dia * 2, c.dia, c.axis) > 0, 'pierce'); break
-          case 'flush': ok(!!gemId && self.flushSet(gemId), 'flush'); break
-          case 'halo': ok(!!gemId && self.addHalo(gemId, c.count, c.carat) > 0, 'halo'); break
-          case 'fitHead': ok(!!gemId && self.fitHead(gemId, c.prongs), 'fitHead'); break
-          case 'fitBezel': ok(!!gemId && self.fitBezel(gemId), 'fitBezel'); break
-          case 'signet': ok(!!metalId && self.addSignet(metalId, c.width, c.length, c.thickness), 'signet'); break
-          case 'symmetrize': ok(!!metalId && self.symmetrizeMesh(metalId, c.axis), 'symmetrize'); break
-          case 'autoOrient': ok(self.autoOrientForPrint() >= 0, 'autoOrient'); break
-          case 'gallery': ok(!!gemId && self.addGallery(gemId), 'gallery'); break
-          case 'subtractAll': ok(!!metalId && self.subtractFromAll(metalId) > 0, 'subtractAll'); break
-          default: skipped.push((c as { op: string }).op)
-        }
-      } catch { skipped.push(c.op) }
-    }
-    return { applied, skipped }
   },
 
   /** Dome the top of a part into a cabochon / comfort bulge. */
