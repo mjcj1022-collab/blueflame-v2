@@ -47,6 +47,11 @@ import { durabilityCheck } from '../lib/durability'
 import { careSheetHtml } from '../lib/careSheet'
 import { jobTicketText } from '../lib/jobTicket'
 import { paymentSchedule } from '../lib/deposit'
+import { alloyMix } from '../lib/alloyMix'
+import { metalFromPattern, PATTERN_SG } from '../lib/waxWeight'
+import { refineValue } from '../lib/refining'
+import { toolList, toolListText } from '../lib/toolList'
+import { qcChecklistText } from '../lib/qcChecklist'
 import { sculptMetalVolume } from '../lib/sculpt'
 import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
@@ -321,6 +326,8 @@ export function ModelerPanel() {
   const [inv, setInv] = useState<GemStock[]>(() => gemInventory.list())
   const [invAdd, setInvAdd] = useState<{ stoneId: string; shapeId: string; mm: number; qty: number }>({ stoneId: 'dia', shapeId: 'rd', mm: 1.5, qty: 10 })
   const [staged, setStaged] = useState(false)
+  const [waxG, setWaxG] = useState(2)
+  const [waxResin, setWaxResin] = useState(false)
   const [benchQ, setBenchQ] = useState('')
   const [benchA, setBenchA] = useState<{ text: string; ai: boolean } | null>(null)
   const [benchBusy, setBenchBusy] = useState(false)
@@ -1730,6 +1737,52 @@ export function ModelerPanel() {
               <tr><td>Scrap (recoverable)</td><td>{sk.scrapGrams.toFixed(2)} g</td><td></td></tr>
             </tbody></table>
             <p className="disc">To pour: {plan.alloyName} — parts + sprues + shrinkage + feed button. Order {sk.orderGrams.toFixed(0)} g of stock ({money(sk.stockCost)}); {sk.recoveryPct.toFixed(0)}% ends up in the pieces, the rest is recoverable scrap.</p>
+            {(() => {
+              const mix = alloyMix(alloyId, plan.pourGrams)
+              const rv = refineValue(alloyId, sk.scrapGrams)
+              return (
+                <table className="stone-sched" style={{ marginTop: 6 }}><tbody>
+                  <tr><td>Mix (melt {mix.meltGrams.toFixed(1)} g)</td><td>{mix.fineGrams.toFixed(2)} g {mix.fineMetal}</td><td>+ {mix.masterGrams.toFixed(2)} g master</td></tr>
+                  <tr><td>Scrap value</td><td>{rv.recoveredGrams.toFixed(2)} g recovered</td><td>{money(rv.netValue)} net</td></tr>
+                </tbody></table>
+              )
+            })()}
+            <p className="disc">To alloy your own: {alloyMix(alloyId, plan.pourGrams).fineGrams.toFixed(2)} g fine + {alloyMix(alloyId, plan.pourGrams).masterGrams.toFixed(2)} g master (melt includes {(alloyById(alloyId).meltLoss * 100).toFixed(1)}% loss). Scrap from this pour is worth ~{money(refineValue(alloyId, sk.scrapGrams).netValue)} back from the refiner.</p>
+          </div>
+        )
+      })()}
+
+      {metalCount > 0 && (() => {
+        const cast = metalFromPattern(waxG, alloyId, waxResin ? PATTERN_SG.resin : PATTERN_SG.wax)
+        return (
+          <div className="panel-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <h4 style={{ margin: 0 }}>Wax → metal</h4>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={waxResin} onChange={e => setWaxResin(e.target.checked)} /> resin</label>
+            </div>
+            <div className="row" style={{ marginTop: 6 }}>
+              <label htmlFor="mp-wax" style={{ flex: '0 0 auto' }}>{waxResin ? 'Resin' : 'Wax'} weight</label>
+              <input id="mp-wax" className="lib-name" style={{ width: 64, marginLeft: 'auto' }} type="number" step={0.1} min={0} value={waxG} onChange={e => setWaxG(Math.max(0, +e.target.value))} />
+              <small style={{ color: 'var(--slate)', marginLeft: 4 }}>g</small>
+            </div>
+            <p className="disc" style={{ marginTop: 6 }}><b>~{cast.toFixed(2)} g</b> cast in {alloy.name}. Weigh the {waxResin ? 'resin' : 'wax'} print and this gives the metal weight (× density ÷ pattern SG {waxResin ? PATTERN_SG.resin : PATTERN_SG.wax}).</p>
+          </div>
+        )
+      })()}
+
+      {objects.length > 0 && (() => {
+        const tools = toolList(objects)
+        if (!tools.length) return null
+        return (
+          <div className="panel-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <h4 style={{ margin: 0 }}>Tools &amp; burs</h4>
+              <button className="mini" onClick={() => navigator.clipboard?.writeText(toolListText(objects, shopName)).then(() => flash('Tool list copied.'), () => flash('Could not copy.'))}>Copy</button>
+            </div>
+            <table className="stone-sched"><tbody>
+              {tools.map((t, i) => <tr key={i}><td>{t.tool}</td><td>{t.detail}</td></tr>)}
+            </tbody></table>
+            <p className="disc">Pull these before you start — setting burs sized to each stone, prong/bezel tools, and the finishing kit.</p>
           </div>
         )
       })()}
@@ -1796,6 +1849,7 @@ export function ModelerPanel() {
           </label>
           <button className="ghost" onClick={quotePdf}>Quote PDF</button><button className="ghost" onClick={techSheet}>Tech sheet</button><button className="ghost" onClick={clientSheet} title="A customer-facing one-pager: render, specs and price">Client sheet</button>
           <button className="ghost" onClick={jobTicket} title="Shop build sheet: parts, pour weight, bench ops, sign-off">Job ticket</button>
+          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to check yet.'); return } const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); textToPdf(shopName, 'QC Checklist', bodyAfterTitle(qcChecklistText(objects, alloyId, shopName)), `${slug}-qc.pdf`); flash('QC checklist exported.') }} title="Quality-control checklist tailored to this piece">QC checklist</button>
           <button className="ghost" onClick={careSheet} title="Consumer care sheet from the piece's metal and stones">Care sheet</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to export.'); return } download(modelerToDxf(objects), `blue-flame-sculpt-${Date.now()}.dxf`, 'application/dxf'); flash('Exported DXF — top-view template for laser / CAM.') }} title="2D top-view wireframe (DXF R12) for laser engraving / wax milling alignment">Export DXF</button>
         </div>
