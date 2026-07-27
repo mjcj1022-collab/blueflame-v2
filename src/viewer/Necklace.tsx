@@ -53,7 +53,7 @@ export function Necklace({ spec }: { spec: DesignSpec }) {
       )}
 
       {/* Station stones spaced around the chain (rubies-by-the-yard) */}
-      {station && !isHidden(spec, 'stone') && stations.map((p, i) => (
+      {station && !isHidden(spec, 'station') && stations.map((p, i) => (
         <group key={i} position={p}>
           <Stone shapeId={station.shapeId} stoneTypeId={station.stoneId} carat={station.carat} />
         </group>
