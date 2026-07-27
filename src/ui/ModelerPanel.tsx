@@ -28,6 +28,7 @@ import { invoiceText } from '../lib/invoice'
 import { certificateHtml } from '../lib/certificate'
 import { intakeFormHtml } from '../lib/intakeForm'
 import { batchStlZip } from '../lib/cadExport'
+import { modelerToStep } from '../lib/stepExport'
 import type { PaveMode } from '../lib/pave'
 import type { RailAlong } from '../lib/construction'
 import { stoneSchedule, stoneScheduleText } from '../lib/stoneSchedule'
@@ -1933,7 +1934,7 @@ export function ModelerPanel() {
       })()}
 
       <div className="panel-block quote">
-        <div className="qact"><button className="primary" onClick={exportStl} title="Binary STL — the slicer/caster standard">Export STL</button><button className="ghost" onClick={export3mf} title="3MF — modern container, parts stay separate">Export 3MF</button><button className="ghost" onClick={exportObj} title="Named parts + metal/gem groups, for ZBrush / Blender / Matrix / RhinoGold">Export OBJ</button></div>
+        <div className="qact"><button className="primary" onClick={exportStl} title="Binary STL — the slicer/caster standard">Export STL</button><button className="ghost" onClick={export3mf} title="3MF — modern container, parts stay separate">Export 3MF</button><button className="ghost" onClick={exportObj} title="Named parts + metal/gem groups, for ZBrush / Blender / Matrix / RhinoGold">Export OBJ</button><button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to export.'); return } if (!printGateOk()) return; download(modelerToStep(objects), `blue-flame-sculpt-${Date.now()}.step`, 'application/step'); flash('Exported STEP — faceted solid for Rhino / Fusion / Matrix.') }} title="STEP AP214 faceted solid B-rep — imports as a solid in Rhino / Fusion / SolidWorks / Matrix">Export STEP</button></div>
         <div className="qact" style={{ marginTop: 8 }}>
           <label className="ghost" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }} title="Bring in an existing STL model or scan to modify on the bench">
             Import STL / OBJ…

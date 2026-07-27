@@ -2,22 +2,32 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { TransformControls, Edges } from '@react-three/drei'
 import { useModeler, type SculptObject } from '../state/modeler'
+import { stoneById, alloyById } from '../catalog'
 import { renderGeometry } from '../lib/sculpt'
 import { wallThicknessColors, HEATMAP_MIN_WALL } from '../lib/heatmap'
 import { VertexEditor } from './VertexEditor'
 import { SketchNodeEditor } from './SketchNodeEditor'
 import { SurfaceDraw } from './SurfaceDraw'
 
-function useSculptMaterial(o: SculptObject) {
+function useSculptMaterial(o: SculptObject, metalRoughness: number) {
+  const stoneId = o.material === 'gem' ? (o.params?.stoneTypeId ?? 'dia') : ''
   return useMemo(() => {
     if (o.material === 'gem') {
+      const st = stoneById(stoneId)
+      if (!st.transparent) {
+        // Opaque gems (opal, onyx, turquoise, pearl) — no light passes through.
+        return new THREE.MeshPhysicalMaterial({ color: o.color, metalness: 0, roughness: 0.35, clearcoat: 0.4, clearcoatRoughness: 0.2, envMapIntensity: 1.1 })
+      }
+      const ior = Math.min(2.333, Math.max(1.0, st.ior))       // three clamps physical IOR to ≤2.333
+      const fire = st.ior >= 2.3 ? 0.08 : st.ior >= 1.9 ? 0.05 : 0.02  // diamond/moissanite sparkle more
       return new THREE.MeshPhysicalMaterial({
-        color: o.color, metalness: 0, roughness: 0.02, transmission: 0.9,
-        thickness: 4, ior: 2.0, clearcoat: 1, flatShading: true, transparent: true
+        color: o.color, metalness: 0, roughness: 0.02, transmission: 0.92,
+        thickness: 3, ior, dispersion: fire, clearcoat: 1, clearcoatRoughness: 0.03,
+        specularIntensity: 1, envMapIntensity: 1.4, transparent: true,
       })
     }
-    return new THREE.MeshStandardMaterial({ color: o.color, metalness: 1, roughness: 0.22, envMapIntensity: 1.3 })
-  }, [o.material, o.color])
+    return new THREE.MeshStandardMaterial({ color: o.color, metalness: 1, roughness: metalRoughness, envMapIntensity: 1.35 })
+  }, [o.material, o.color, stoneId, metalRoughness])
 }
 
 const snapTo = (v: number, step: number) => Math.round(v / step) * step
@@ -26,7 +36,8 @@ export function SculptMesh({ o }: { o: SculptObject }) {
   const { selectedId, select, mode, update, snap, editMode, sketching, sketchEditId, bakeToMesh } = useModeler()
   const ref = useRef<THREE.Mesh>(null)
   const geom = useMemo(() => renderGeometry(o), [o.kind, o.size, o.vertices, JSON.stringify(o.params)])
-  const material = useSculptMaterial(o)
+  const alloyId = useModeler(s => s.alloyId)
+  const material = useSculptMaterial(o, o.material === 'metal' ? (alloyById(alloyId).roughness ?? 0.22) : 0.22)
   const selected = selectedId === o.id
 
   // Wall-thickness heat-map: recolour metal parts by local thickness on demand.

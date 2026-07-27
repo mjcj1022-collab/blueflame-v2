@@ -284,6 +284,18 @@ interface ModelerStore {
 
 const HISTORY_LIMIT = 60
 
+const SNAP_KEY = 'blue-flame.snapshots.v1'
+type Snap = { id: string; name: string; at: number; objects: SculptObject[]; alloyId: string }
+function loadSnaps(): Snap[] {
+  try { const raw = localStorage.getItem(SNAP_KEY); return raw ? JSON.parse(raw) as Snap[] : [] } catch { return [] }
+}
+function saveSnaps(list: Snap[]): void {
+  // Geometry can be large — trim to the most recent that fit under the quota.
+  for (let n = list.length; n >= 0; n--) {
+    try { localStorage.setItem(SNAP_KEY, JSON.stringify(list.slice(0, n))); return } catch { /* quota — try fewer */ }
+  }
+}
+
 export const useModeler = create<ModelerStore>((set, get) => {
   // When batching (a whole AI command run), inner actions' record() calls are
   // suppressed so the entire run collapses into ONE undo step.
@@ -315,7 +327,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
   importedSig: null,
   explode: 0,
   envPreset: 'studio',
-  snapshots: [],
+  snapshots: loadSnaps(),
   placing: null,
 
   undo: () => set(s => {
@@ -616,7 +628,8 @@ export const useModeler = create<ModelerStore>((set, get) => {
     const objs = get().objects.map(o => ({ ...o, vertices: o.vertices ? [...o.vertices] : undefined }))
     const at = Date.now()
     const snap = { id, name: name?.trim() || `v${get().snapshots.length + 1}`, at, objects: objs, alloyId: get().alloyId }
-    set(s => ({ snapshots: [snap, ...s.snapshots].slice(0, 30) }))
+    const next = [snap, ...get().snapshots].slice(0, 30)
+    set({ snapshots: next }); saveSnaps(next)
     return id
   },
   restoreSnapshot: id => {
@@ -626,7 +639,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
     set({ objects: snap.objects.map(o => ({ ...o })), selectedId: null, alloyId: snap.alloyId })
     return true
   },
-  deleteSnapshot: id => set(s => ({ snapshots: s.snapshots.filter(x => x.id !== id) })),
+  deleteSnapshot: id => { const next = get().snapshots.filter(x => x.id !== id); set({ snapshots: next }); saveSnaps(next) },
 
   toggleSnap: () => set(s => ({ snap: !s.snap })),
   toggleMeasuring: () => set(s => ({ measuring: !s.measuring })),
