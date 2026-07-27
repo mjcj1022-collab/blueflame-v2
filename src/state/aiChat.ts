@@ -8,7 +8,7 @@ import { askAssistant, applyAiDesign, assistantEnabled, type ChatTurn, type AiDe
  * even if you navigate away mid-generation. Cleared only by Reset or a page reload.
  */
 
-export interface AiMsg { role: 'user' | 'assistant'; content: string; matched?: string[]; image?: string; routes?: AiRoute[] }
+export interface AiMsg { role: 'user' | 'assistant'; content: string; matched?: string[]; image?: string; routes?: AiRoute[]; assumptions?: string[] }
 
 interface AiChatStore {
   enabled: boolean | null
@@ -60,13 +60,13 @@ export const useAiChat = create<AiChatStore>((set, get) => ({
       // Build mode: the model offered distinct routes — show them as choices and
       // wait for a pick instead of auto-applying anything.
       if (res.routes.length) {
-        set(s => ({ messages: [...s.messages, { role: 'assistant', content: res.reply, routes: res.routes }], routes: res.routes, busy: false, enabled: true }))
+        set(s => ({ messages: [...s.messages, { role: 'assistant', content: res.reply, routes: res.routes, assumptions: res.assumptions }], routes: res.routes, busy: false, enabled: true }))
         return
       }
       // Edit mode: note when the model replied but changed nothing, so the render
       // staying put reads as an intentional answer rather than a silent failure.
       const note = res.design ? undefined : ['no change to the piece']
-      set(s => ({ messages: [...s.messages, { role: 'assistant', content: res.reply, matched: res.matched?.length ? res.matched : note }], routes: [], busy: false, enabled: true }))
+      set(s => ({ messages: [...s.messages, { role: 'assistant', content: res.reply, matched: res.matched?.length ? res.matched : note, assumptions: res.assumptions }], routes: [], busy: false, enabled: true }))
       if (res.design) applyAiDesign(res.design as AiDesignPatch)
     } catch (e) {
       console.error('[AI] request failed:', e)

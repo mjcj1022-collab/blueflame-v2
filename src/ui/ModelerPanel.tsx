@@ -16,6 +16,9 @@ import type { PaveMode } from '../lib/pave'
 import type { RailAlong } from '../lib/construction'
 import { stoneSchedule, stoneScheduleText } from '../lib/stoneSchedule'
 import { askAssistant, type AiRoute } from '../lib/aiAssistant'
+import { designQuality, designSpecText, type DesignQuality } from '../lib/designQuality'
+import { DESIGN_TEMPLATES } from '../lib/designTemplates'
+import { askCommands } from '../lib/aiCommands'
 import { overhangReport, symmetryScore, type OverhangReport } from '../lib/castCheck'
 import { alloyCostTable } from '../lib/alloyCost'
 import { sculptMetalVolume } from '../lib/sculpt'
@@ -225,7 +228,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -249,8 +252,11 @@ export function ModelerPanel() {
   const [signet, setSignet] = useState({ width: 10, length: 12, thickness: 1.5 })
   const [wire, setWire] = useState(1)
   const [aiText, setAiText] = useState('')
-  const [aiAsm, setAiAsm] = useState<{ busy: boolean; err: string | null; routes: AiRoute[] }>({ busy: false, err: null, routes: [] })
+  const [aiAsm, setAiAsm] = useState<{ busy: boolean; err: string | null; routes: AiRoute[]; assumptions: string[] }>({ busy: false, err: null, routes: [], assumptions: [] })
   const [aiReplace, setAiReplace] = useState(true)
+  const [aiQuality, setAiQuality] = useState<DesignQuality | null>(null)
+  const [finText, setFinText] = useState('')
+  const [finBusy, setFinBusy] = useState(false)
   const [domeH, setDomeH] = useState(1.5)
   const [symAxis, setSymAxis] = useState<'x' | 'y' | 'z'>('x')
   const [over, setOver] = useState<OverhangReport | null>(null)
@@ -456,18 +462,19 @@ export function ModelerPanel() {
     const txt = stoneScheduleText(stoneSchedule(objects))
     navigator.clipboard?.writeText(txt).then(() => flash('Stone schedule copied.'), () => flash('Could not copy.'))
   }
+  const runQa = () => setAiQuality(designQuality(useModeler.getState().objects))
   const runAiAssemble = async () => {
     const q = aiText.trim()
     if (!q || aiAsm.busy) return
-    setAiAsm({ busy: true, err: null, routes: [] })
+    setAiAsm({ busy: true, err: null, routes: [], assumptions: [] })
     try {
       const res = await askAssistant([{ role: 'user', content: q }])
-      if (res.disabled) { setAiAsm({ busy: false, err: 'AI is off — add AI_API_KEY on the backend.', routes: [] }); return }
-      if (res.routes.length) { setAiAsm({ busy: false, err: null, routes: res.routes }); return }
-      if (res.design) { const n = assembleDesign(res.design, aiReplace); flash(n ? `Assembled ${n} editable parts.` : 'Nothing to assemble from that.') }
+      if (res.disabled) { setAiAsm({ busy: false, err: 'AI is off — add AI_API_KEY on the backend.', routes: [], assumptions: [] }); return }
+      if (res.routes.length) { setAiAsm({ busy: false, err: null, routes: res.routes, assumptions: res.assumptions }); return }
+      if (res.design) { const n = assembleDesign(res.design, aiReplace); flash(n ? `Assembled ${n} editable parts.` : 'Nothing to assemble from that.'); if (n) runQa() }
       else flash(res.reply || 'No buildable design in that request.')
-      setAiAsm({ busy: false, err: null, routes: [] })
-    } catch { setAiAsm({ busy: false, err: 'AI request failed — try again.', routes: [] }) }
+      setAiAsm({ busy: false, err: null, routes: [], assumptions: res.assumptions })
+    } catch { setAiAsm({ busy: false, err: 'AI request failed — try again.', routes: [], assumptions: [] }) }
   }
   const buildAiRoute = (i: number) => {
     const r = aiAsm.routes[i]
@@ -475,6 +482,33 @@ export function ModelerPanel() {
     const n = assembleDesign(r.design, aiReplace)
     flash(n ? `Built “${r.label}” — ${n} editable parts.` : 'Nothing to assemble.')
     setAiAsm(a => ({ ...a, routes: [] }))
+    if (n) runQa()
+  }
+  const buildTemplate = (id: string) => {
+    const t = DESIGN_TEMPLATES.find(x => x.id === id)
+    if (!t) return
+    const n = assembleDesign(t.patch, aiReplace)
+    flash(n ? `Assembled “${t.name}” — ${n} parts.` : 'Nothing to assemble.')
+    if (n) runQa()
+  }
+  const copySpec = () => {
+    const txt = designSpecText(objects, alloyId, alloy.name)
+    navigator.clipboard?.writeText(txt).then(() => flash('Design spec copied.'), () => flash('Could not copy.'))
+  }
+  const runFinish = async () => {
+    const q = finText.trim()
+    if (!q || finBusy) return
+    if (!objects.length) { flash('Build or assemble a piece first, then finish it with AI.'); return }
+    setFinBusy(true)
+    try {
+      const res = await askCommands(q)
+      if (res.disabled) { flash('AI is off — add AI_API_KEY on the backend.'); setFinBusy(false); return }
+      if (!res.commands.length) { flash(res.reply || 'Nothing actionable in that.'); setFinBusy(false); return }
+      const { applied, skipped } = runModelerCommands(res.commands)
+      flash(applied.length ? `Applied ${applied.join(', ')}${skipped.length ? ` · skipped ${skipped.join(', ')}` : ''}.` : `Couldn't apply those — ${skipped.join(', ')}.`)
+      if (applied.length) { setFinText(''); runQa() }
+    } catch { flash('AI command failed — try again.') }
+    setFinBusy(false)
   }
 
   const metalCount = objects.filter(o => o.material === 'metal').length
@@ -543,6 +577,9 @@ export function ModelerPanel() {
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={aiReplace} onChange={e => setAiReplace(e.target.checked)} /> Start fresh</label>
         </div>
         {aiAsm.err && <p className="disc" style={{ color: 'var(--warn)' }}>{aiAsm.err}</p>}
+        {aiAsm.assumptions.length > 0 && (
+          <div className="ai-chips" style={{ marginTop: 8 }}>{aiAsm.assumptions.map((a, i) => <span key={i} className="ai-chip" title="An assumption the AI made">≈ {a}</span>)}</div>
+        )}
         {aiAsm.routes.length > 0 && (
           <div className="ai-asm-routes">
             <p className="disc" style={{ marginTop: 10 }}>Pick a build route — it assembles as editable parts:</p>
@@ -555,7 +592,27 @@ export function ModelerPanel() {
             ))}
           </div>
         )}
+        {aiQuality && (
+          <div className="dfm" style={{ marginTop: 10 }}>
+            <p className={`dfm-line ${aiQuality.level === 'clean' ? 'pass' : aiQuality.level === 'review' ? 'warn' : 'fail'}`}>
+              <b>{aiQuality.level === 'clean' ? 'Quality: clean' : aiQuality.level === 'review' ? 'Quality: review' : 'Quality: blocked'}</b>
+              {aiQuality.issues.length > 0 ? ' — ' + aiQuality.issues.join(' ') : ' — all manufacturing checks pass.'}
+            </p>
+          </div>
+        )}
         <p className="disc">The AI turns your description into real shank / stone / setting parts you can then refine with every tool below.</p>
+
+        <h4 style={{ marginTop: 16 }}>Or start from a template</h4>
+        <div className="opts c2">
+          {DESIGN_TEMPLATES.map(t => <button key={t.id} className="opt tpl" title={t.blurb} onClick={() => buildTemplate(t.id)}>{t.name}</button>)}
+        </div>
+
+        <h4 style={{ marginTop: 18 }}>Finish with AI ✦</h4>
+        <textarea className="ai-asm-in" rows={2} value={finText} onChange={e => setFinText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void runFinish() } }}
+          placeholder="Tell it what to do to the piece — e.g. hammer the band, add a halo, flush-set the stone, then get it ready to print" disabled={finBusy} />
+        <button className="primary" style={{ width: '100%', marginTop: 6 }} onClick={() => void runFinish()} disabled={finBusy || !finText.trim()}>{finBusy ? 'Working…' : 'Run on this piece ✦'}</button>
+        <p className="disc">Drives the finishing &amp; setting tools by voice — texture, dome, halo, flush-set, milgrain, pierce, symmetrise, auto-orient — in the order you say them.</p>
       </div>
 
       <div className="panel-block">
@@ -1052,7 +1109,7 @@ export function ModelerPanel() {
           <div className="panel-block">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
               <h4 style={{ margin: 0 }}>Piece summary</h4>
-              <button className="mini" onClick={copySummary}>Copy</button>
+              <span style={{ display: 'flex', gap: 6 }}><button className="mini" onClick={copySummary}>Copy</button><button className="mini" onClick={copySpec} title="Full design specification for the caster">Spec</button></span>
             </div>
             <table className="stone-sched">
               <tbody>

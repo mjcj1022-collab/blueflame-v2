@@ -78,6 +78,9 @@ export function AIStudioPanel() {
                   {m.matched && m.matched.length > 0 && (
                     <div className="ai-chips">{m.matched.map((c, j) => <span key={j} className="ai-chip">{c}</span>)}</div>
                   )}
+                  {m.assumptions && m.assumptions.length > 0 && (
+                    <div className="ai-chips">{m.assumptions.map((a, j) => <span key={j} className="ai-chip" title="An assumption the AI made">≈ {a}</span>)}</div>
+                  )}
                   {m.routes && m.routes.length > 0 && (
                     <div className="ai-routes">
                       {m.routes.map((r, j) => (

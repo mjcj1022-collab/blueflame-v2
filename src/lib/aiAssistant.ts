@@ -5,6 +5,7 @@ import { BODY_STYLES } from './body'
 import { MOTIFS, MOTIF_IDS } from './motif'
 import { api } from './api'
 import { useDesign } from '../state/design'
+import { validateDesign, completeDesign } from './designRules'
 
 /**
  * The client half of the AI design assistant. The model is asked to reply in
@@ -40,7 +41,7 @@ export interface AiDesignPatch {
 }
 /** One of three distinct "build routes" the assistant offers for a new piece. */
 export interface AiRoute { label: string; note: string; design: AiDesignPatch; matched: string[] }
-export interface AiReply { reply: string; design: AiDesignPatch | null; matched: string[]; routes: AiRoute[] }
+export interface AiReply { reply: string; design: AiDesignPatch | null; matched: string[]; routes: AiRoute[]; assumptions: string[] }
 export interface ChatTurn { role: 'user' | 'assistant'; content: string }
 
 const list = (rows: { id: string; name: string }[]) => rows.map(r => `${r.id} (${r.name})`).join(', ')
@@ -62,10 +63,16 @@ export function buildSystemPrompt(): string {
     '(B) EDIT MODE — when the user asks for a small change, asks a question, or is chatting. Return a single patch (only the fields that change), or null:',
     '{ "reply": "<answer in one or two sentences>", "design": { ...changed fields... } | null }',
     '',
+    'You MAY include an "assumptions" array of 1–3 short strings naming any choice you inferred that the user did not state (e.g. "assumed 1 ct as no carat was given", "assumed size 6.5"). Put it at the top level alongside reply.',
+    '',
     'ACCURACY RULES (follow strictly):',
     '- Use ONLY ids from the lists below. NEVER invent an id. If the exact thing isn\'t listed, pick the CLOSEST listed id.',
     '- ALWAYS set "category". ALWAYS translate descriptive words into concrete fields — never leave the geometry generic.',
+    '- Produce a COMPLETE spec: whenever a stone is implied, set shapeId, stoneTypeId, carat AND a settingId; for a ring also set size, bandWidth, bandProfile and finish.',
+    '- Keep the spec self-consistent: no setting or carat on a no-stone band; no chain/necklace fields on a ring; drop fields that do not belong to the category.',
     '- Before you output, silently verify every id you used appears in the lists.',
+    '',
+    'STYLE VOCABULARY (map the word to fields): solitaire→single stone, settingId p4/p6, no halo. three-stone→a larger centre with two smaller flanking stones (centre carat higher). halo→settingId hal (double halo hl2). vintage/antique→settingId hal or bz, finish satin, often cushion/oval/asscher cut, rose or yellow gold. modern/minimal→settingId bz, flat/knife band, high polish. eternity→category ring, no centre stone, many small stones implied. bezel/protective→settingId bz. cathedral→prong setting p4/p6 with a slightly wider band.',
     '',
     'IDS:',
     `category: ${CATEGORIES.join(', ')}`,
@@ -100,19 +107,27 @@ export function buildSystemPrompt(): string {
 /** Pull the JSON envelope out of a model reply that may be fenced or chatty. */
 export function parseAiReply(text: string): AiReply {
   const raw = extractJson(text)
-  if (!raw) return { reply: text.trim() || 'Done.', design: null, matched: [], routes: [] }
-  let obj: { reply?: unknown; design?: unknown; options?: unknown; routes?: unknown }
-  try { obj = JSON.parse(raw) } catch { return { reply: text.trim(), design: null, matched: [], routes: [] } }
+  if (!raw) return { reply: text.trim() || 'Done.', design: null, matched: [], routes: [], assumptions: [] }
+  let obj: { reply?: unknown; design?: unknown; options?: unknown; routes?: unknown; assumptions?: unknown }
+  try { obj = JSON.parse(raw) } catch { return { reply: text.trim(), design: null, matched: [], routes: [], assumptions: [] } }
 
   // Build mode: an array of distinct routes. Accept "options" or "routes".
   const routes = normalizeRoutes(obj.options ?? obj.routes)
-  const design = routes.length ? null : normalizeAiDesign(obj.design)
+  // Edit mode: a single patch, repaired of any self-contradiction.
+  const design = routes.length ? null : (() => {
+    const d = normalizeAiDesign(obj.design)
+    return d ? validateDesign(d).design : null
+  })()
+  const assumptions = Array.isArray(obj.assumptions)
+    ? obj.assumptions.filter((a): a is string => typeof a === 'string' && !!a.trim()).map((a) => a.trim()).slice(0, 4)
+    : []
   const fallback = routes.length ? 'Here are three ways to build it — pick one.' : (design ? 'Updated the design.' : 'Done.')
   return {
     reply: typeof obj.reply === 'string' && obj.reply.trim() ? obj.reply.trim() : fallback,
     design,
     matched: describe(design),
     routes,
+    assumptions,
   }
 }
 
@@ -123,7 +138,8 @@ function normalizeRoutes(raw: unknown): AiRoute[] {
   for (const item of raw) {
     if (!item || typeof item !== 'object') continue
     const r = item as Record<string, unknown>
-    const design = normalizeAiDesign(r.design)
+    const raw = normalizeAiDesign(r.design)
+    const design = raw ? validateDesign(raw).design : null
     if (!design) continue
     const label = typeof r.label === 'string' && r.label.trim() ? r.label.trim() : `Option ${out.length + 1}`
     const note = typeof r.note === 'string' ? r.note.trim() : (typeof r.description === 'string' ? (r.description as string).trim() : '')
@@ -221,7 +237,10 @@ function describe(d: AiDesignPatch | null): string[] {
 
 /** Apply a validated patch to the live design. The AI studio shows the same
  *  piece, so we don't switch tabs — the render just updates in place. */
-export function applyAiDesign(d: AiDesignPatch): void {
+export function applyAiDesign(patch: AiDesignPatch): void {
+  // Fill the spec out to a complete, buildable design before applying, so the
+  // rendered piece is never half-specified (missing metal, size, finish…).
+  const d = completeDesign(patch)
   const s = useDesign.getState()
   // The AI is defining a fresh piece — clear any leftover "hidden" flags from a
   // previous design so nothing it builds (a motif in the head slot, a new band)
@@ -257,9 +276,26 @@ export async function askAssistant(history: ChatTurn[], image?: string | null): 
   // Trace the round-trip so a "nothing happened" report is diagnosable from the
   // browser console (F12 → Console, filter "[AI]"): raw model text + parse result.
   console.log('[AI] raw server response:', res)
-  if (res.disabled) { console.log('[AI] assistant reports disabled (no key)'); return { reply: '', design: null, matched: [], routes: [], disabled: true } }
-  const parsed = parseAiReply(res.text ?? '')
-  console.log('[AI] parsed reply:', parsed.reply, '| design patch:', parsed.design, '| routes:', parsed.routes.length, '| matched:', parsed.matched)
+  if (res.disabled) { console.log('[AI] assistant reports disabled (no key)'); return { reply: '', design: null, matched: [], routes: [], assumptions: [], disabled: true } }
+  let parsed = parseAiReply(res.text ?? '')
+
+  // One corrective retry: the model tried to emit structured output but it came
+  // back unusable (no design, no routes) — re-ask with an explicit reminder of
+  // the exact JSON envelope. This recovers the common "chatty, no JSON" miss.
+  const looksStructured = (res.text ?? '').includes('{')
+  if (!parsed.design && !parsed.routes.length && looksStructured) {
+    console.log('[AI] first reply had no usable design — retrying once with a corrective nudge')
+    const retryHistory: ChatTurn[] = [
+      ...history,
+      { role: 'assistant', content: res.text ?? '' },
+      { role: 'user', content: 'That was not valid. Reply again with ONLY the JSON object in the exact shape described (either a single "design" patch or an "options" array of three routes), using real catalog ids and nothing else.' },
+    ]
+    const retry = await api.assistant({ system: buildSystemPrompt(), messages: retryHistory, image: null }) as { text?: string }
+    const reparsed = parseAiReply(retry.text ?? '')
+    if (reparsed.design || reparsed.routes.length) parsed = reparsed
+  }
+
+  console.log('[AI] parsed reply:', parsed.reply, '| design patch:', parsed.design, '| routes:', parsed.routes.length, '| assumptions:', parsed.assumptions, '| matched:', parsed.matched)
   return parsed
 }
 
