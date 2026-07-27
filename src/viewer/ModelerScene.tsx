@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { useModeler } from '../state/modeler'
 import { SculptMesh } from './SculptMesh'
 import { EnvBoundary } from './EnvBoundary'
+import { CaptureRig } from './CaptureRig'
 import { ObjectListOverlay } from '../ui/ObjectListOverlay'
 import { ModelerToolbar } from '../ui/ModelerToolbar'
 import { SketchDock } from '../ui/SketchPad'
@@ -49,6 +50,7 @@ export function ModelerScene() {
         <directionalLight position={[-10, 4, -8]} intensity={0.6} color="#BFD4FF" />
 
         <gridHelper args={[100, 50, '#39424633', '#252b2e']} />
+        <CaptureRig />
 
         {objects.map(o => (
           <group key={o.id} position={explodeOffset(o)}>
