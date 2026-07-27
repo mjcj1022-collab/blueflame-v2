@@ -15,6 +15,17 @@ export function ModelerScene() {
   const sketching = useModeler(s => s.sketching)
   const placing = useModeler(s => s.placing)
   const addStone = useModeler(s => s.addStone)
+  const explode = useModeler(s => s.explode)
+
+  // Exploded view: push each part outward from the assembly centre by `explode`.
+  const cx = objects.length ? objects.reduce((s, o) => s + o.position[0], 0) / objects.length : 0
+  const cz = objects.length ? objects.reduce((s, o) => s + o.position[2], 0) / objects.length : 0
+  const explodeOffset = (o: { position: [number, number, number] }): [number, number, number] => {
+    if (explode <= 0) return [0, 0, 0]
+    const dx = o.position[0] - cx, dz = o.position[2] - cz
+    const len = Math.hypot(dx, dz) || 1
+    return [(dx / len) * explode, explode * 0.6, (dz / len) * explode]
+  }
 
   return (
     <div className="stage">
@@ -37,7 +48,11 @@ export function ModelerScene() {
 
         <gridHelper args={[100, 50, '#39424633', '#252b2e']} />
 
-        {objects.map(o => <SculptMesh key={o.id} o={o} />)}
+        {objects.map(o => (
+          <group key={o.id} position={explodeOffset(o)}>
+            <SculptMesh o={o} />
+          </group>
+        ))}
 
         {/* Click-to-place: while a stone is armed, an invisible ground plane
             catches clicks on empty space and drops the stone there. Clicking an

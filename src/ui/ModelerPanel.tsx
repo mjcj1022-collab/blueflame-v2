@@ -27,6 +27,8 @@ import { describePiece } from '../lib/describePiece'
 import { overhangReport, symmetryScore, type OverhangReport } from '../lib/castCheck'
 import { alloyCostTable } from '../lib/alloyCost'
 import { laborBreakdown, formatMinutes } from '../lib/laborTime'
+import { FINDINGS } from '../lib/findings'
+import { sculptBom, sculptBomText } from '../lib/sculptBom'
 import { sculptMetalVolume } from '../lib/sculpt'
 import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
@@ -249,7 +251,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -279,6 +281,7 @@ export function ModelerPanel() {
   const [finText, setFinText] = useState('')
   const [finBusy, setFinBusy] = useState(false)
   const [stonePick, setStonePick] = useState<{ stoneId: string; shapeId: string; carat: number; hue: number; custom: boolean }>({ stoneId: 'dia', shapeId: 'rd', carat: 0.5, hue: 200, custom: false })
+  const [findingPick, setFindingPick] = useState('jump')
   const [domeH, setDomeH] = useState(1.5)
   const [symAxis, setSymAxis] = useState<'x' | 'y' | 'z'>('x')
   const [over, setOver] = useState<OverhangReport | null>(null)
@@ -790,6 +793,15 @@ export function ModelerPanel() {
           </button>
         </div>
         <p className="disc">Pick a stone, then <b>Click to place</b> and click on the stage to drop copies. Or <b>Add one</b>. Select a stone and <b>Cut seat</b> to carve its bearing into the setting. To move any stone: click it and drag the move gizmo.</p>
+
+        <h4 style={{ marginTop: 18 }}>Findings</h4>
+        <div className="row">
+          <select className="lib-name" style={{ width: '62%' }} value={findingPick} onChange={e => setFindingPick(e.target.value)}>
+            {FINDINGS.map(f => <option key={f.id} value={f.id}>{f.name} — {f.blurb}</option>)}
+          </select>
+          <button className="opt" style={{ marginLeft: 'auto' }} onClick={() => { const id = addFinding(findingPick); if (id) { flash(`Added a ${FINDINGS.find(f => f.id === findingPick)?.name}. Drag it into place, then solder.`); runQa() } }}>Add finding</button>
+        </div>
+        <p className="disc">Clasps, jump rings, bails, ear posts &amp; backs, toggles and pins — drop one on the bench, position it, and it joins the metal weight, BOM and quote.</p>
 
         <h4 style={{ marginTop: 18 }}>Free draw</h4>
         <div className="opts"><button className="opt tpl" aria-pressed={sketching} onClick={() => setSketching(!sketching)}>{sketching ? 'Sketching… (drawing on stage)' : 'Sketch a shape…'}</button></div>
@@ -1325,6 +1337,31 @@ export function ModelerPanel() {
               </tbody>
             </table>
             <p className="disc">Estimated bench time by operation at {money(MARKET.laborRate)}/hr (set on the Design tab’s cost settings). Setting scales with each stone’s size; finishing with metal mass.</p>
+          </div>
+        )
+      })()}
+
+      {objects.length > 0 && (() => {
+        const b = sculptBom(objects, alloyId)
+        return (
+          <div className="panel-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <h4 style={{ margin: 0 }}>Bill of materials</h4>
+              <button className="mini" onClick={() => { navigator.clipboard?.writeText(sculptBomText(objects, alloyId, shopName)).then(() => flash('BOM copied.'), () => flash('Could not copy.')) }}>Copy</button>
+            </div>
+            <table className="stone-sched">
+              <tbody>
+                {b.rows.map((r, i) => (
+                  <tr key={i}><td>{r.qty}×</td><td>{r.item}</td><td>{r.material}</td><td>{r.detail}</td></tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="disc">{b.metalParts} metal part{b.metalParts === 1 ? '' : 's'} · {b.metalGrams.toFixed(2)} g{b.gemCount ? ` · ${b.gemCount} stone${b.gemCount === 1 ? '' : 's'}, ${b.carats.toFixed(2)} ct` : ''}. Findings and parts count here as soon as you add them.</p>
+            <div className="row" style={{ marginTop: 6 }}>
+              <label htmlFor="mp-explode" style={{ flex: '0 0 auto' }}>Exploded view</label>
+              <input id="mp-explode" type="range" min={0} max={30} step={1} value={explode} onChange={e => setExplode(+e.target.value)} style={{ flex: 1, marginLeft: 8 }} />
+              <small style={{ color: 'var(--slate)', marginLeft: 8 }}>{explode ? `${explode} mm` : 'off'}</small>
+            </div>
           </div>
         )
       })()}

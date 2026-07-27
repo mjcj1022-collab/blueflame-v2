@@ -12,6 +12,7 @@ import { milgrainSpots, milgrainCount, bridgePath } from '../lib/finishing'
 import { paveSpots as paveSpotsFn } from '../lib/pave'
 import { buildSculptFromDesign, patchFromSpec, designSignature } from '../lib/aiAssemble'
 import { repairMesh } from '../lib/meshRepair'
+import { findingVertices, findingById } from '../lib/findings'
 import type { AiDesignPatch } from '../lib/aiAssistant'
 import type { DesignSpec } from '../spec/types'
 import { refineDesign } from '../lib/designRules'
@@ -185,6 +186,11 @@ interface ModelerStore {
   /** Drop an imported mesh (e.g. from an STL) onto the bench, recentred & on the
    *  floor so it's visible. Returns the new part id (or null if empty). */
   importMesh: (vertices: number[], name?: string) => string | null
+  /** Add a finding (clasp, jump ring, bail, post/back, toggle…) as a metal part. */
+  addFinding: (id: string) => string | null
+  /** Exploded-view spread (mm). 0 = assembled; view-only, not persisted. */
+  explode: number
+  setExplode: (v: number) => void
   engraveOnPart: (targetId: string, text: string, font: string, op: SurfaceOp) => boolean
   wrapTextOnBand: (targetId: string, text: string, font: string, op: SurfaceOp, angleDeg?: number, inside?: boolean) => boolean
   toggleSnap: () => void
@@ -285,6 +291,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
   past: [],
   future: [],
   importedSig: null,
+  explode: 0,
   placing: null,
 
   undo: () => set(s => {
@@ -469,6 +476,18 @@ export const useModeler = create<ModelerStore>((set, get) => {
     set(s => ({ objects: [...s.objects, obj], selectedId: obj.id }))
     return obj.id
   },
+
+  addFinding: id => {
+    const v = findingVertices(id)
+    if (v.length < 9) return null
+    record()
+    const name = findingById(id)?.name ?? 'Finding'
+    // drop it just above the floor and slightly to the side so it's visible
+    const obj: SculptObject = { id: newId(), kind: 'mesh', name, vertices: v, position: [10, 4, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0, material: 'metal', color: GOLD }
+    set(s => ({ objects: [...s.objects, obj], selectedId: obj.id }))
+    return obj.id
+  },
+  setExplode: v => set({ explode: Math.max(0, v) }),
 
   toggleSnap: () => set(s => ({ snap: !s.snap })),
   toggleMeasuring: () => set(s => ({ measuring: !s.measuring })),
