@@ -42,6 +42,11 @@ import { printEstimate } from '../lib/printEstimate'
 import { profitability } from '../lib/profitability'
 import { stoneOrder, stoneOrderText } from '../lib/stoneOrder'
 import type { NecklaceStyle } from '../lib/necklaceChain'
+import { gemInventory, matchDesign, type GemStock } from '../lib/gemInventory'
+import { durabilityCheck } from '../lib/durability'
+import { careSheetHtml } from '../lib/careSheet'
+import { jobTicketText } from '../lib/jobTicket'
+import { paymentSchedule } from '../lib/deposit'
 import { sculptMetalVolume } from '../lib/sculpt'
 import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
@@ -313,6 +318,9 @@ export function ModelerPanel() {
   const [treeCount, setTreeCount] = useState(1)
   const [snapName, setSnapName] = useState('')
   const [chain, setChain] = useState<{ style: NecklaceStyle; length: number; gauge: number }>({ style: 'cable', length: 18, gauge: 1.2 })
+  const [inv, setInv] = useState<GemStock[]>(() => gemInventory.list())
+  const [invAdd, setInvAdd] = useState<{ stoneId: string; shapeId: string; mm: number; qty: number }>({ stoneId: 'dia', shapeId: 'rd', mm: 1.5, qty: 10 })
+  const [staged, setStaged] = useState(false)
   const [benchQ, setBenchQ] = useState('')
   const [benchA, setBenchA] = useState<{ text: string; ai: boolean } | null>(null)
   const [benchBusy, setBenchBusy] = useState(false)
@@ -658,6 +666,18 @@ export function ModelerPanel() {
     const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
     downloadBlob(html, `${slug}-client-sheet.html`, 'text/html')
     flash('Client sheet saved — render, specs and price in one page.')
+  }
+  const careSheet = () => {
+    if (!objects.length) { flash('Nothing to document yet.'); return }
+    const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    downloadBlob(careSheetHtml(shopName, describePiece(objects, alloyId).name, objects, alloyId), `${slug}-care.html`, 'text/html')
+    flash('Care sheet saved — hand it over with the piece.')
+  }
+  const jobTicket = () => {
+    if (!objects.length) { flash('Nothing to build yet.'); return }
+    const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    textToPdf(shopName, 'Job Ticket', bodyAfterTitle(jobTicketText(objects, alloyId, shopName, { today: new Date().toISOString().slice(0, 10) })), `${slug}-job-ticket.pdf`)
+    flash('Job ticket exported — the shop build sheet.')
   }
   const exportStl = () => {
     if (!objects.length) { flash('Nothing to export.'); return }
@@ -1562,6 +1582,20 @@ export function ModelerPanel() {
         )
       })()}
 
+      {(() => {
+        const dur = durabilityCheck(objects)
+        if (!dur.length) return null
+        return (
+          <div className="panel-block">
+            <h4 style={{ margin: 0 }}>Durability &amp; wear</h4>
+            <div className="dfm" style={{ marginTop: 8 }}>
+              {dur.map((d, i) => <p key={i} className={`dfm-line ${d.level}`}><b>{d.title}</b> — {d.detail}</p>)}
+            </div>
+            <p className="disc">Whether the stones suit how the piece is worn — soft stones in a ring, ultrasonic-unsafe gems, and mixed-hardness sets, from Mohs and care data.</p>
+          </div>
+        )
+      })()}
+
       {metalCount > 0 && (() => {
         const p = profitability(objects, alloyId)
         return (
@@ -1576,6 +1610,25 @@ export function ModelerPanel() {
               <tr><td><b>Profit</b></td><td></td><td><b>{money(p.profit)}</b></td></tr>
             </tbody></table>
             <p className="disc">What the piece costs the shop (metal + stones + bench labor) versus what it sells for. Tune margin and the labor rate on the Design tab.</p>
+          </div>
+        )
+      })()}
+
+      {metalCount > 0 && (() => {
+        const sched = paymentSchedule(sculptEstimate(objects, alloyId).total, 0.5, staged)
+        return (
+          <div className="panel-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <h4 style={{ margin: 0 }}>Payment schedule</h4>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={staged} onChange={e => setStaged(e.target.checked)} /> 3-stage</label>
+            </div>
+            <table className="stone-sched"><tbody>
+              {sched.milestones.map((mst, i) => (
+                <tr key={i}><td>{mst.label}</td><td>{Math.round(mst.pct * 100)}%</td><td>{money(mst.amount)}</td></tr>
+              ))}
+              <tr><td><b>Total</b></td><td></td><td><b>{money(sched.total)}</b></td></tr>
+            </tbody></table>
+            <p className="disc">A {Math.round(sched.depositRate * 100)}% deposit starts production; the balance is due before delivery{staged ? ', split across casting and completion' : ''}.</p>
           </div>
         )
       })()}
@@ -1613,6 +1666,33 @@ export function ModelerPanel() {
           </div>
         )
       })()}
+
+      <div className="panel-block">
+        <h4 style={{ margin: 0 }}>Stone inventory</h4>
+        <div className="row" style={{ marginTop: 8, gap: 4 }}>
+          <select className="lib-name" style={{ width: '34%' }} value={invAdd.stoneId} onChange={e => setInvAdd(a => ({ ...a, stoneId: e.target.value }))}>{STONES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+          <select className="lib-name" style={{ width: '24%' }} value={invAdd.shapeId} onChange={e => setInvAdd(a => ({ ...a, shapeId: e.target.value }))}>{SHAPES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+          <input className="lib-name" style={{ width: 44 }} type="number" step={0.1} min={0.5} title="mm" value={invAdd.mm} onChange={e => setInvAdd(a => ({ ...a, mm: Math.max(0.2, +e.target.value) }))} />
+          <input className="lib-name" style={{ width: 44 }} type="number" step={1} min={1} title="qty" value={invAdd.qty} onChange={e => setInvAdd(a => ({ ...a, qty: Math.max(1, Math.round(+e.target.value)) }))} />
+          <button className="mini" onClick={() => { gemInventory.add(invAdd); setInv(gemInventory.list()); flash('Added to inventory.') }}>Add</button>
+        </div>
+        {(() => {
+          const rows = matchDesign(objects, inv)
+          if (!rows.length && !inv.length) return <p className="disc">Log the stones you have on hand; a design then shows what you already own versus what to order.</p>
+          return (
+            <>
+              {rows.length > 0 && (
+                <table className="stone-sched" style={{ marginTop: 8 }}><tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i}><td>{r.mm.toFixed(2)} mm {r.stone}</td><td>need {r.need}</td><td>have {r.have}</td><td className={r.toBuy > 0 ? 'fail' : 'pass'}>{r.toBuy > 0 ? `buy ${r.toBuy}` : '✓ stocked'}</td></tr>
+                  ))}
+                </tbody></table>
+              )}
+              {inv.length > 0 && <p className="disc" style={{ marginTop: 6 }}>On hand: {inv.map(s => `${s.qty}× ${s.mm}mm ${STONES.find(x => x.id === s.stoneId)?.name ?? s.stoneId}`).join(', ')}. <button className="mini" onClick={() => { gemInventory.clear(); setInv([]) }}>Clear</button></p>}
+            </>
+          )
+        })()}
+      </div>
 
       <div className="panel-block">
         <h4 style={{ margin: 0 }}>Chain calculator</h4>
@@ -1715,6 +1795,8 @@ export function ModelerPanel() {
             <input type="file" accept=".stl,model/stl" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) importStlFile(f); e.target.value = '' }} />
           </label>
           <button className="ghost" onClick={quotePdf}>Quote PDF</button><button className="ghost" onClick={techSheet}>Tech sheet</button><button className="ghost" onClick={clientSheet} title="A customer-facing one-pager: render, specs and price">Client sheet</button>
+          <button className="ghost" onClick={jobTicket} title="Shop build sheet: parts, pour weight, bench ops, sign-off">Job ticket</button>
+          <button className="ghost" onClick={careSheet} title="Consumer care sheet from the piece's metal and stones">Care sheet</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to export.'); return } download(modelerToDxf(objects), `blue-flame-sculpt-${Date.now()}.dxf`, 'application/dxf'); flash('Exported DXF — top-view template for laser / CAM.') }} title="2D top-view wireframe (DXF R12) for laser engraving / wax milling alignment">Export DXF</button>
         </div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={fuse} disabled={metalCount < 2}>Fuse metal</button></div>
