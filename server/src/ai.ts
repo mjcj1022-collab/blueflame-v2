@@ -45,7 +45,7 @@ async function callAnthropic(k: string, req: AiRequest): Promise<string> {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': k, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: model(), max_tokens: 1024, system: req.system, messages })
+    body: JSON.stringify({ model: model(), max_tokens: 2048, temperature: 0.2, system: req.system, messages })
   })
   if (!r.ok) throw new Error(`anthropic ${r.status}: ${await r.text()}`)
   const j = await r.json() as { content?: { type: string; text?: string }[] }
@@ -65,7 +65,7 @@ async function callOpenAI(k: string, req: AiRequest): Promise<string> {
   const r = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${k}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ model: model(), max_tokens: 1024, messages })
+    body: JSON.stringify({ model: model(), max_tokens: 2048, temperature: 0.2, messages })
   })
   if (!r.ok) throw new Error(`openai ${r.status}: ${await r.text()}`)
   const j = await r.json() as { choices?: { message?: { content?: string } }[] }
