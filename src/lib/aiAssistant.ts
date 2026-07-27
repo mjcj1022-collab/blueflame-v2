@@ -33,6 +33,9 @@ export interface AiDesignPatch {
   bandProfile?: BandProfile  // ring cross-section
   chainStyle?: NecklaceStyle // necklace link pattern
   necklaceLength?: number    // necklace length, inches
+  stationStoneId?: string    // stones set along the chain (station / by-the-yard)
+  stationCarat?: number      // per-station stone size
+  stationEveryIn?: number    // spacing between stations, inches
   braceletKind?: BraceletKind
   dropLength?: number        // earring drop, mm (0 = stud)
   bodyStyle?: BodyStyle
@@ -85,7 +88,7 @@ export function buildSystemPrompt(): string {
     `motif (a medallion on a necklace): ${MOTIFS.map(([id, name]) => `${id} (${name})`).join(', ')}, or "none". Set category to "necklace" and pick the motif whenever the request names one — Celtic/knotwork/triquetra→celtic, cross/crucifix→cross, infinity/eternity→infinity, heart→heart, halo→halo, cluster→cluster, flower/floral→floral.`,
     '--- Dimensional fields — set these to shape the real geometry, not just the category: ---',
     'RING: bandWidth (mm, 1–12; a wide band is 6–8), bandProfile (round, flat, dshape, knife).',
-    `NECKLACE: chainStyle (${NECKLACE_STYLES.map(([id]) => id).join(', ')}), necklaceLength (inches, 14–30; 16=choker, 18=princess, 24=opera).`,
+    `NECKLACE: chainStyle (${NECKLACE_STYLES.map(([id]) => id).join(', ')}), necklaceLength (inches, 14–30; 16=choker, 18=princess, 24=opera). For stones set ALONG the chain (a station / by-the-yard necklace, e.g. "rubies every other inch"): stationStoneId (a real stoneTypeId like rub/sap/dia), stationCarat (0.03–0.1), stationEveryIn (inches between stones; "every inch"=1, "every other inch"=2). These render as stones spaced around the whole chain — use them, NOT the single centre-stone fields, when the request is stones distributed along a necklace.`,
     'BRACELET: braceletKind (tennis, bangle, cuff, chain).',
     'EARRING: dropLength (mm, 0 for a stud, >0 for a drop/dangle).',
     `BODY (barbells, rings, plugs): bodyStyle (${BODY_STYLES.map(([id]) => id).join(', ')}), bodyGauge (mm, 0.8–3.2; 1.6=14g, 1.2=16g), bodySize (mm; barbell length or ring/plug diameter). Set category to "body".`,
@@ -203,6 +206,9 @@ export function normalizeAiDesign(raw: unknown): AiDesignPatch | null {
   if (typeof r.bandProfile === 'string' && BAND_PROFILES.has(r.bandProfile)) out.bandProfile = r.bandProfile as BandProfile
   if (typeof r.chainStyle === 'string' && NECKLACE_STYLE_IDS.has(r.chainStyle)) out.chainStyle = r.chainStyle as NecklaceStyle
   if (num(r.necklaceLength)) out.necklaceLength = clamp(r.necklaceLength, 14, 30)
+  if (typeof r.stationStoneId === 'string' && STONE_IDS.has(r.stationStoneId) && r.stationStoneId !== NO_STONE) out.stationStoneId = r.stationStoneId
+  if (num(r.stationCarat)) out.stationCarat = clamp(r.stationCarat, 0.01, 2)
+  if (num(r.stationEveryIn)) out.stationEveryIn = clamp(r.stationEveryIn, 0.5, 6)
   if (typeof r.braceletKind === 'string' && BRACELET_KINDS.has(r.braceletKind)) out.braceletKind = r.braceletKind as BraceletKind
   if (num(r.dropLength)) out.dropLength = clamp(r.dropLength, 0, 60)
   if (typeof r.bodyStyle === 'string' && BODY_STYLE_IDS.has(r.bodyStyle)) out.bodyStyle = r.bodyStyle as BodyStyle
@@ -227,6 +233,8 @@ function describe(d: AiDesignPatch | null): string[] {
   if (d.bandProfile) m.push(`${d.bandProfile} profile`)
   if (d.chainStyle) m.push(`${d.chainStyle} chain`)
   if (d.necklaceLength) m.push(`${d.necklaceLength}"`)
+  if (d.stationStoneId) m.push(`${STONES.find(s => s.id === d.stationStoneId)?.name ?? d.stationStoneId} stations`)
+  if (typeof d.stationEveryIn === 'number') m.push(`every ${d.stationEveryIn}"`)
   if (d.braceletKind) m.push(d.braceletKind)
   if (typeof d.dropLength === 'number') m.push(d.dropLength > 0 ? `${d.dropLength} mm drop` : 'stud')
   if (d.bodyStyle) m.push(BODY_STYLES.find(([id]) => id === d.bodyStyle)?.[1] ?? d.bodyStyle)
@@ -263,6 +271,7 @@ export function applyAiDesign(patch: AiDesignPatch): void {
   if (d.bandProfile) s.setRing({ profile: d.bandProfile })
   if (d.chainStyle) s.setNecklace({ chainStyle: d.chainStyle })
   if (typeof d.necklaceLength === 'number') s.setNecklace({ length: d.necklaceLength })
+  if (d.stationStoneId) s.setNecklace({ station: { stoneId: d.stationStoneId, shapeId: d.shapeId ?? 'rd', carat: d.stationCarat ?? 0.05, everyIn: d.stationEveryIn ?? 2 } })
   if (d.braceletKind) s.setBracelet({ kind: d.braceletKind })
   if (typeof d.dropLength === 'number') s.setEarring({ dropLength: d.dropLength })
   if (d.bodyStyle) s.setBody({ style: d.bodyStyle })
@@ -271,7 +280,41 @@ export function applyAiDesign(patch: AiDesignPatch): void {
 }
 
 /** Ask the assistant. Returns the parsed reply; throws on transport error. */
-export async function askAssistant(history: ChatTurn[], image?: string | null): Promise<AiReply & { disabled?: boolean }> {
+/** Does the user's message ask to BUILD a new piece (→ offer three routes)
+ *  rather than tweak the current one (→ apply directly)? */
+export function buildIntent(text: string): boolean {
+  const t = text.toLowerCase()
+  const edit = /\b(make it|change|wider|narrower|thinner|thicker|bigger|smaller|instead|swap|replace|add a|add an|remove|take off|resize|shrink|enlarge)\b/.test(t)
+  if (edit) return false
+  return /\b(build|design|create|make me|make a|make an|generate|mock|come up|show me|i want|i'd like|options|ideas|give me|three|3 )\b/.test(t)
+}
+
+/** Guarantee three distinct routes from one design when the model returned only
+ *  a single build — so the maker always gets a choice before anything renders.
+ *  Route 1 is the model's design; 2 and 3 are sensible professional variations. */
+export function synthesizeRoutes(design: AiDesignPatch): AiRoute[] {
+  const base = validateDesign(design).design
+  const mk = (label: string, note: string, over: Partial<AiDesignPatch>): AiRoute => {
+    const d = validateDesign({ ...base, ...over }).design
+    return { label, note, design: d, matched: describe(d) }
+  }
+  const hasStone = base.stoneTypeId !== NO_STONE && (base.stoneTypeId || base.shapeId || base.carat)
+  if (base.category === 'ring' && hasStone) {
+    return [
+      { label: 'As described', note: 'your request, prong-set', design: validateDesign({ ...base, settingId: base.settingId ?? 'p6' }).design, matched: describe(base) },
+      mk('Sleek bezel', 'modern, low-profile, protective', { settingId: 'bz', bandProfile: 'flat', finish: 'satin' }),
+      mk('Bold halo', 'more sparkle and presence', { settingId: 'hal', carat: (base.carat ?? 1) }),
+    ]
+  }
+  // Non-ring or no-stone: vary metal + finish so the three still feel distinct.
+  return [
+    { label: 'As described', note: 'your request', design: base, matched: describe(base) },
+    mk('White-gold + satin', 'cooler, contemporary', { alloyId: '14kw', finish: 'satin' }),
+    mk('Yellow-gold + polish', 'warm, classic', { alloyId: '18ky', finish: 'polish' }),
+  ]
+}
+
+export async function askAssistant(history: ChatTurn[], image?: string | null, opts?: { forceRoutes?: boolean }): Promise<AiReply & { disabled?: boolean }> {
   const res = await api.assistant({ system: buildSystemPrompt(), messages: history, image: image ?? null }) as { text?: string; disabled?: boolean }
   // Trace the round-trip so a "nothing happened" report is diagnosable from the
   // browser console (F12 → Console, filter "[AI]"): raw model text + parse result.
@@ -293,6 +336,28 @@ export async function askAssistant(history: ChatTurn[], image?: string | null): 
     const retry = await api.assistant({ system: buildSystemPrompt(), messages: retryHistory, image: null }) as { text?: string }
     const reparsed = parseAiReply(retry.text ?? '')
     if (reparsed.design || reparsed.routes.length) parsed = reparsed
+  }
+
+  // Three-directions guarantee: for a build request (or when the caller forces
+  // it), the maker must see three routes BEFORE anything renders. If the model
+  // returned only a single design, re-ask once for options; if it still won't,
+  // synthesise three from the single design so a choice always appears.
+  const lastUser = [...history].reverse().find((m) => m.role === 'user')?.content ?? ''
+  const wantRoutes = opts?.forceRoutes || buildIntent(lastUser)
+  if (wantRoutes && !parsed.routes.length && parsed.design) {
+    console.log('[AI] build request returned a single design — forcing three routes')
+    const optHistory: ChatTurn[] = [
+      ...history,
+      { role: 'user', content: 'Give me THREE distinct build routes for this as an "options" array (label, note, design each) — do not return a single design. Use real catalog ids.' },
+    ]
+    try {
+      const r2 = await api.assistant({ system: buildSystemPrompt(), messages: optHistory, image: null }) as { text?: string }
+      const p2 = parseAiReply(r2.text ?? '')
+      if (p2.routes.length) parsed = { ...parsed, routes: p2.routes, design: null, reply: p2.reply || parsed.reply }
+    } catch { /* fall through to synthesis */ }
+    if (!parsed.routes.length && parsed.design) {
+      parsed = { ...parsed, routes: synthesizeRoutes(parsed.design), design: null, reply: parsed.reply || 'Here are three ways to build it — pick one.' }
+    }
   }
 
   console.log('[AI] parsed reply:', parsed.reply, '| design patch:', parsed.design, '| routes:', parsed.routes.length, '| assumptions:', parsed.assumptions, '| matched:', parsed.matched)

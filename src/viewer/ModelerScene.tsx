@@ -13,6 +13,8 @@ export function ModelerScene() {
   const objects = useModeler(s => s.objects)
   const select = useModeler(s => s.select)
   const sketching = useModeler(s => s.sketching)
+  const placing = useModeler(s => s.placing)
+  const addStone = useModeler(s => s.addStone)
 
   return (
     <div className="stage">
@@ -36,6 +38,20 @@ export function ModelerScene() {
         <gridHelper args={[100, 50, '#39424633', '#252b2e']} />
 
         {objects.map(o => <SculptMesh key={o.id} o={o} />)}
+
+        {/* Click-to-place: while a stone is armed, an invisible ground plane
+            catches clicks on empty space and drops the stone there. Clicking an
+            existing part still selects it (that mesh stops propagation first). */}
+        {placing && (
+          <mesh
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[0, 0, 0]}
+            onClick={e => { e.stopPropagation(); addStone({ ...placing, position: [e.point.x, 4, e.point.z] }) }}
+          >
+            <planeGeometry args={[400, 400]} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          </mesh>
+        )}
 
         <OrbitControls makeDefault enablePan minDistance={8} maxDistance={200} target={[0, 4, 0]} />
         <GizmoHelper alignment="bottom-right" margin={[70, 70]}>

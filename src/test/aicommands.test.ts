@@ -17,6 +17,13 @@ describe('normalizeCommand', () => {
     expect(normalizeCommand({ op: 'explode' })).toBeNull()
     expect(normalizeCommand({})).toBeNull()
   })
+  it('validates the expanded vocabulary (array/mirror/center/drop)', () => {
+    expect(normalizeCommand({ op: 'mirror' })).toEqual({ op: 'mirror' })
+    expect(normalizeCommand({ op: 'arrayRing', count: 8 })).toEqual({ op: 'arrayRing', count: 8 })
+    expect(normalizeCommand({ op: 'arrayRow' })).toEqual({ op: 'arrayRow', count: 5, spacing: 4 })
+    expect(normalizeCommand({ op: 'center' })).toEqual({ op: 'center' })
+    expect(normalizeCommand({ op: 'dropFloor' })).toEqual({ op: 'dropFloor' })
+  })
 })
 
 describe('parseCommandReply', () => {

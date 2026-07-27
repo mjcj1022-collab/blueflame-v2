@@ -6,6 +6,7 @@ import { isHidden } from '../lib/features'
 import { stoneDims } from './Stone'
 import { Head } from './Head'
 import { Motif } from './Motif'
+import { Stone } from './Stone'
 import { useDesign } from '../state/design'
 import { useMetalMaterial } from './material'
 import { necklaceChainVertices } from '../lib/necklaceChain'
@@ -19,10 +20,20 @@ export function Necklace({ spec }: { spec: DesignSpec }) {
   const headMetalMat = useMetalMaterial(alloyById(spec.metal.headAlloyId ?? spec.metal.alloyId), spec.finish)
   const headMetal = spec.metal.twoTone && spec.metal.headAlloyId ? headMetalMat : metal
   const explode = useDesign(s => s.explode)
-  const { length, gauge, hasPendant, chainStyle, motif } = spec.necklace
+  const { length, gauge, hasPendant, chainStyle, motif, station } = spec.necklace
   const hasMotif = !!motif && motif !== 'none'
   const circ = length * MM_PER_INCH
   const R = circ / (Math.PI * 2)
+
+  // Station stones spaced along the chain ("rubies every other inch").
+  const stations = useMemo(() => {
+    if (!station || station.everyIn <= 0 || station.carat <= 0) return []
+    const count = Math.max(1, Math.min(120, Math.round(length / station.everyIn)))
+    return Array.from({ length: count }, (_, i) => {
+      const a = (i / count) * Math.PI * 2 + Math.PI / 2 // start at the bottom of the drape
+      return [Math.cos(a) * R, Math.sin(a) * R * 1.15, 0] as [number, number, number]
+    })
+  }, [station, length, R])
   const d = stoneDims(spec.center.shapeId, spec.center.carat)
 
   // Real interlocking chain around the neckline loop (regenerated on style/size).
@@ -40,6 +51,13 @@ export function Necklace({ spec }: { spec: DesignSpec }) {
       {!isHidden(spec, 'chain') && (
         <mesh geometry={chainGeo} material={metal} scale={[1, 1.15, 1]} />
       )}
+
+      {/* Station stones spaced around the chain (rubies-by-the-yard) */}
+      {station && !isHidden(spec, 'stone') && stations.map((p, i) => (
+        <group key={i} position={p}>
+          <Stone shapeId={station.shapeId} stoneTypeId={station.stoneId} carat={station.carat} />
+        </group>
+      ))}
 
       {/* Decorative motif medallion hangs at the base of the loop, in place of a stone head */}
       {hasMotif && !isHidden(spec, 'head') && (

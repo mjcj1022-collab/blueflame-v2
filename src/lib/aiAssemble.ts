@@ -1,5 +1,5 @@
 import { sizeToDiameter } from './sizing'
-import { stoneMm, shapeById } from '../catalog'
+import { stoneMm, shapeById, stoneById, alloyById } from '../catalog'
 import { haloRadius } from './construction'
 import { NO_STONE } from '../spec/types'
 import type { AiDesignPatch } from './aiAssistant'
@@ -16,11 +16,14 @@ import type { SculptObject } from '../state/modeler'
 
 export type NewPart = Omit<SculptObject, 'id'> & { name: string }
 
-const GOLD = 0xd8b36a
-const GEM = 0x8fd0e8
+const DEFAULT_GOLD = 0xd8b36a
+// The true display colour of a metal/stone from the catalog, so the render
+// matches the chosen alloy (yellow/white/rose) and stone (sapphire blue, etc.).
+const metalColorOf = (alloyId?: string): number => alloyById(alloyId ?? '14ky')?.color ?? DEFAULT_GOLD
+const stoneColorOf = (stoneTypeId?: string): number => stoneById(stoneTypeId ?? 'dia').color
 
-const metal = (kind: SculptObject['kind'], name: string, extra: Partial<SculptObject>): NewPart => ({
-  kind, name, material: 'metal', color: GOLD,
+const metal = (kind: SculptObject['kind'], name: string, extra: Partial<SculptObject>, color = DEFAULT_GOLD): NewPart => ({
+  kind, name, material: 'metal', color,
   position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 6, ...extra,
 })
 
@@ -40,13 +43,15 @@ function hasStone(d: AiDesignPatch): boolean {
 export function buildSculptFromDesign(d: AiDesignPatch): NewPart[] {
   const category = d.category ?? 'ring'
   const parts: NewPart[] = []
+  const mc = metalColorOf(d.alloyId)                 // metal parts match the alloy
+  const stoneType = d.stoneTypeId && d.stoneTypeId !== NO_STONE ? d.stoneTypeId : 'dia'
 
   if (category === 'ring') {
     const size = d.size ?? 7
     const width = d.bandWidth ?? 2.2
     const thickness = 1.8
     const profile = d.bandProfile ?? 'round'
-    parts.push(metal('shank', 'Shank', { params: { ringSize: size, width, thickness, profile } }))
+    parts.push(metal('shank', 'Shank', { params: { ringSize: size, width, thickness, profile } }, mc))
 
     if (hasStone(d)) {
       const shapeId = d.shapeId ?? 'rd'
@@ -57,16 +62,16 @@ export function buildSculptFromDesign(d: AiDesignPatch): NewPart[] {
 
       if (setting === 'fl') {
         // flush: sit the stone into the band top
-        parts.push(gem('Center stone', [0, bandTop - stoneW * 0.28, 0], shapeId, carat))
+        parts.push(gem('Center stone', [0, bandTop - stoneW * 0.28, 0], shapeId, carat, [0, 0, 0], stoneType))
       } else {
         const gemY = bandTop + stoneW * 0.35
-        parts.push(gem('Center stone', [0, gemY, 0], shapeId, carat))
+        parts.push(gem('Center stone', [0, gemY, 0], shapeId, carat, [0, 0, 0], stoneType))
         if (setting === 'bz') {
           const h = Math.max(2, stoneW * 0.5)
-          parts.push(metal('bezel', 'Bezel', { position: [0, gemY - h * 0.35, 0], params: { stoneW, height: h, wall: Math.max(0.4, stoneW * 0.09) } }))
+          parts.push(metal('bezel', 'Bezel', { position: [0, gemY - h * 0.35, 0], params: { stoneW, height: h, wall: Math.max(0.4, stoneW * 0.09) } }, mc))
         } else {
           const h = Math.max(3, stoneW * 0.62)
-          parts.push(metal('head', `${prongCount(setting)}-prong head`, { position: [0, gemY - h * 0.15, 0], params: { prongs: prongCount(setting), stoneW, height: h } }))
+          parts.push(metal('head', `${prongCount(setting)}-prong head`, { position: [0, gemY - h * 0.15, 0], params: { prongs: prongCount(setting), stoneW, height: h } }, mc))
         }
         if (setting === 'hal' || setting === 'hl2') {
           const accentCt = Math.max(0.01, carat * 0.03)
@@ -86,28 +91,28 @@ export function buildSculptFromDesign(d: AiDesignPatch): NewPart[] {
   if (category === 'pendant' || category === 'earring') {
     const shapeId = d.shapeId ?? 'rd'
     const carat = d.carat ?? 1
-    parts.push(gem('Center stone', [0, 6, 0], shapeId, carat))
+    parts.push(gem('Center stone', [0, 6, 0], shapeId, carat, [0, 0, 0], stoneType))
     const stoneW = stoneMm(shapeById(shapeId), carat).width
     const h = Math.max(3, stoneW * 0.62)
-    parts.push(metal('head', 'Prong head', { position: [0, 6 - h * 0.15, 0], params: { prongs: prongCount(d.settingId), stoneW, height: h } }))
+    parts.push(metal('head', 'Prong head', { position: [0, 6 - h * 0.15, 0], params: { prongs: prongCount(d.settingId), stoneW, height: h } }, mc))
     if (category === 'pendant') {
       // a bail loop above the stone
       const ring = Math.max(2.5, stoneW * 0.5)
-      parts.push(metal('torus', 'Bail', { position: [0, 6 + stoneW * 0.7 + ring * 0.85, 0], scale: [ring / 3, ring / 3, ring / 3], size: 3 }))
+      parts.push(metal('torus', 'Bail', { position: [0, 6 + stoneW * 0.7 + ring * 0.85, 0], scale: [ring / 3, ring / 3, ring / 3], size: 3 }, mc))
     }
     return parts
   }
 
   // Categories without a natural single-part assembly (necklace/bracelet/body)
   // start from a lone stone the maker can build around.
-  if (hasStone(d)) parts.push(gem('Stone', [0, 6, 0], d.shapeId ?? 'rd', d.carat ?? 1))
+  if (hasStone(d)) parts.push(gem('Stone', [0, 6, 0], d.shapeId ?? 'rd', d.carat ?? 1, [0, 0, 0], stoneType))
   return parts
 }
 
-function gem(name: string, position: [number, number, number], shapeId: string, carat: number, rotation: [number, number, number] = [0, 0, 0]): NewPart {
+function gem(name: string, position: [number, number, number], shapeId: string, carat: number, rotation: [number, number, number] = [0, 0, 0], stoneTypeId = 'dia'): NewPart {
   return {
-    kind: 'gem', name, material: 'gem', color: GEM,
+    kind: 'gem', name, material: 'gem', color: stoneColorOf(stoneTypeId),
     position, rotation, scale: [1, 1, 1], size: 6,
-    params: { shapeId, stoneTypeId: 'dia', carat },
+    params: { shapeId, stoneTypeId, carat },
   }
 }

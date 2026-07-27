@@ -79,12 +79,20 @@ export interface BraceletGeo {
 export type NecklaceStyle = 'cable' | 'curb' | 'rope' | 'figaro' | 'bead'
 /** Decorative motif hung on the chain, rendered as a medallion pendant. */
 export type NecklaceMotif = 'none' | 'celtic' | 'cross' | 'infinity' | 'heart' | 'halo' | 'cluster' | 'floral'
+/** Stones set at intervals along the chain — a "station" / "by-the-yard" necklace. */
+export interface NecklaceStation {
+  stoneId: string   // catalog stone id (e.g. 'rub')
+  shapeId: string   // cut
+  carat: number     // per stone
+  everyIn: number   // spacing along the chain, inches
+}
 export interface NecklaceGeo {
   length: number        // inches
   gauge: number         // mm, chain wire gauge
   hasPendant: boolean
   chainStyle: NecklaceStyle
   motif?: NecklaceMotif // optional decorative pendant motif (default: none)
+  station?: NecklaceStation // optional stones spaced along the chain
 }
 
 /**

@@ -16,7 +16,7 @@ import type { AiDesignPatch } from './aiAssistant'
 
 // ring-only, necklace-only, etc. — fields that make no sense off their category
 const RING_FIELDS: (keyof AiDesignPatch)[] = ['size', 'bandWidth', 'bandProfile']
-const NECKLACE_FIELDS: (keyof AiDesignPatch)[] = ['chainStyle', 'necklaceLength', 'motif']
+const NECKLACE_FIELDS: (keyof AiDesignPatch)[] = ['chainStyle', 'necklaceLength', 'motif', 'stationStoneId', 'stationCarat', 'stationEveryIn']
 const EARRING_FIELDS: (keyof AiDesignPatch)[] = ['dropLength']
 const BRACELET_FIELDS: (keyof AiDesignPatch)[] = ['braceletKind']
 const BODY_FIELDS: (keyof AiDesignPatch)[] = ['bodyStyle', 'bodyGauge', 'bodySize']

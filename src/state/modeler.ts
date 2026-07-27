@@ -4,7 +4,7 @@ import { textVertices, curvedTextVertices } from '../lib/text3d'
 import { bakedGeometry } from '../lib/sculpt'
 import { allPresets, addUserPreset, removeUserPreset, cloneSketch, type SketchPreset } from '../lib/sketchPresets'
 import { paveSpots, type PaveMode } from '../lib/pave'
-import { stoneMm, shapeById } from '../catalog'
+import { stoneMm, shapeById, alloyById, stoneById } from '../catalog'
 import { gemDiameterMm, surfaceTopAt, objectTop } from '../lib/setting'
 import { haloRadius, channelRailSpots, type RailAlong } from '../lib/construction'
 import { textureSoup, type TextureStyle } from '../lib/texture'
@@ -215,6 +215,10 @@ interface ModelerStore {
   addSignet: (id: string, width: number, length: number, thickness: number) => boolean
   assembleDesign: (patch: AiDesignPatch, replace?: boolean) => number
   runModelerCommands: (cmds: ModelerCommand[]) => { applied: string[]; skipped: string[] }
+  /** A stone type armed for click-to-place on the stage (null = not placing). */
+  placing: { stoneId: string; shapeId: string; carat: number } | null
+  setPlacing: (p: { stoneId: string; shapeId: string; carat: number } | null) => void
+  addStone: (opts: { stoneId: string; shapeId: string; carat: number; position?: [number, number, number] }) => string
   domeTop: (id: string, height: number) => boolean
   addSizingBeads: (id: string) => boolean
   symmetrizeMesh: (id: string, axis: Axis) => boolean
@@ -231,8 +235,11 @@ interface ModelerStore {
 const HISTORY_LIMIT = 60
 
 export const useModeler = create<ModelerStore>((set, get) => {
+  // When batching (a whole AI command run), inner actions' record() calls are
+  // suppressed so the entire run collapses into ONE undo step.
+  let batching = false
   /** Snapshot the current objects onto the undo stack before a mutation. */
-  const record = () => set(s => ({ past: [...s.past, s.objects].slice(-HISTORY_LIMIT), future: [] }))
+  const record = () => { if (batching) return; set(s => ({ past: [...s.past, s.objects].slice(-HISTORY_LIMIT), future: [] })) }
   const stillThere = (id: string | null, objs: SculptObject[]) => (id && objs.some(o => o.id === id) ? id : null)
 
   return {
@@ -254,6 +261,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
   sketchEditId: null,
   past: [],
   future: [],
+  placing: null,
 
   undo: () => set(s => {
     if (!s.past.length) return {}
@@ -866,6 +874,9 @@ export const useModeler = create<ModelerStore>((set, get) => {
   runModelerCommands: cmds => {
     const applied: string[] = []
     const skipped: string[] = []
+    // One undo checkpoint for the whole run, then suppress the inner records.
+    if (cmds.length) record()
+    batching = true
     const startSel = get().objects.find(o => o.id === get().selectedId) ?? null
     const metalId = (startSel?.material === 'metal' ? startSel : get().objects.find(o => o.material === 'metal'))?.id
     const gemId = (startSel?.material === 'gem' ? startSel : get().objects.find(o => o.material === 'gem'))?.id
@@ -890,10 +901,16 @@ export const useModeler = create<ModelerStore>((set, get) => {
           case 'autoOrient': ok(self.autoOrientForPrint() >= 0, 'autoOrient'); break
           case 'gallery': ok(!!gemId && self.addGallery(gemId), 'gallery'); break
           case 'subtractAll': ok(!!metalId && self.subtractFromAll(metalId) > 0, 'subtractAll'); break
+          case 'mirror': { const t = startSel?.id ?? metalId ?? gemId; if (t) { self.mirror(t); applied.push('mirror') } else skipped.push('mirror'); break }
+          case 'arrayRing': { const t = startSel?.id ?? metalId ?? gemId; if (t) { self.arrayCircular(t, c.count); applied.push('arrayRing') } else skipped.push('arrayRing'); break }
+          case 'arrayRow': { const t = startSel?.id ?? metalId ?? gemId; if (t) { self.arrayLinear(t, c.count, c.spacing); applied.push('arrayRow') } else skipped.push('arrayRow'); break }
+          case 'center': { const t = startSel?.id ?? metalId ?? gemId; if (t) { self.centerObject(t); applied.push('center') } else skipped.push('center'); break }
+          case 'dropFloor': { const t = startSel?.id ?? metalId ?? gemId; if (t) { self.dropToFloor(t); applied.push('dropFloor') } else skipped.push('dropFloor'); break }
           default: skipped.push((c as { op: string }).op)
         }
       } catch { skipped.push(c.op) }
     }
+    batching = false
     return { applied, skipped }
   },
 
@@ -1000,9 +1017,30 @@ export const useModeler = create<ModelerStore>((set, get) => {
     return cut
   },
 
+  setPlacing: p => set({ placing: p }),
+  /** Drop a stone of a chosen type at a position (default just above the grid),
+   *  coloured to match the stone. Used by the palette and by click-to-place. */
+  addStone: ({ stoneId, shapeId, carat, position }) => {
+    record()
+    const id = newId()
+    const st = stoneById(stoneId)
+    const gem: SculptObject = {
+      id, name: `${st.name} ${carat} ct`, kind: 'gem',
+      position: position ?? [0, 6, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 6,
+      material: 'gem', color: st.color, params: { shapeId, stoneTypeId: stoneId, carat },
+    }
+    set(s => ({ objects: [...s.objects, gem], selectedId: id }))
+    return id
+  },
+
   select: id => set(s => (id === s.selectedId ? { selectedId: id } : { selectedId: id, selectedVertex: null })),
   setMode: mode => set({ mode }),
-  setAlloy: id => set({ alloyId: id }),
+  setAlloy: id => set(s => {
+    // Recolour metal parts to the chosen alloy so the render matches the metal
+    // (yellow / white / rose gold, platinum, …). Gems keep their stone colour.
+    const c = alloyById(id)?.color
+    return { alloyId: id, objects: c === undefined ? s.objects : s.objects.map(o => o.material === 'metal' ? { ...o, color: c } : o) }
+  }),
   clear: () => { record(); set({ objects: [], selectedId: null }) },
   load: objects => { record(); set({ objects, selectedId: null }) }
   }

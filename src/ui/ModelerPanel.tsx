@@ -19,6 +19,8 @@ import { askAssistant, type AiRoute } from '../lib/aiAssistant'
 import { designQuality, designSpecText, type DesignQuality } from '../lib/designQuality'
 import { DESIGN_TEMPLATES } from '../lib/designTemplates'
 import { askCommands } from '../lib/aiCommands'
+import { MACROS } from '../lib/commandMacros'
+import { describePiece } from '../lib/describePiece'
 import { overhangReport, symmetryScore, type OverhangReport } from '../lib/castCheck'
 import { alloyCostTable } from '../lib/alloyCost'
 import { sculptMetalVolume } from '../lib/sculpt'
@@ -228,7 +230,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -257,6 +259,7 @@ export function ModelerPanel() {
   const [aiQuality, setAiQuality] = useState<DesignQuality | null>(null)
   const [finText, setFinText] = useState('')
   const [finBusy, setFinBusy] = useState(false)
+  const [stonePick, setStonePick] = useState({ stoneId: 'dia', shapeId: 'rd', carat: 0.5 })
   const [domeH, setDomeH] = useState(1.5)
   const [symAxis, setSymAxis] = useState<'x' | 'y' | 'z'>('x')
   const [over, setOver] = useState<OverhangReport | null>(null)
@@ -462,13 +465,13 @@ export function ModelerPanel() {
     const txt = stoneScheduleText(stoneSchedule(objects))
     navigator.clipboard?.writeText(txt).then(() => flash('Stone schedule copied.'), () => flash('Could not copy.'))
   }
-  const runQa = () => setAiQuality(designQuality(useModeler.getState().objects))
+  const runQa = () => setAiQuality(designQuality(useModeler.getState().objects, alloyId))
   const runAiAssemble = async () => {
     const q = aiText.trim()
     if (!q || aiAsm.busy) return
     setAiAsm({ busy: true, err: null, routes: [], assumptions: [] })
     try {
-      const res = await askAssistant([{ role: 'user', content: q }])
+      const res = await askAssistant([{ role: 'user', content: q }], null, { forceRoutes: true })
       if (res.disabled) { setAiAsm({ busy: false, err: 'AI is off — add AI_API_KEY on the backend.', routes: [], assumptions: [] }); return }
       if (res.routes.length) { setAiAsm({ busy: false, err: null, routes: res.routes, assumptions: res.assumptions }); return }
       if (res.design) { const n = assembleDesign(res.design, aiReplace); flash(n ? `Assembled ${n} editable parts.` : 'Nothing to assemble from that.'); if (n) runQa() }
@@ -495,6 +498,11 @@ export function ModelerPanel() {
     const txt = designSpecText(objects, alloyId, alloy.name)
     navigator.clipboard?.writeText(txt).then(() => flash('Design spec copied.'), () => flash('Could not copy.'))
   }
+  const specPdf = () => {
+    if (!objects.length) { flash('Nothing to spec yet.'); return }
+    const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    textToPdf(shopName, 'Design Specification', designSpecText(objects, alloyId, alloy.name), `${slug}-design-spec.pdf`)
+  }
   const runFinish = async () => {
     const q = finText.trim()
     if (!q || finBusy) return
@@ -510,6 +518,21 @@ export function ModelerPanel() {
     } catch { flash('AI command failed — try again.') }
     setFinBusy(false)
   }
+  const runMacro = (id: string) => {
+    const m = MACROS.find(x => x.id === id)
+    if (!m) return
+    if (!objects.length) { flash('Build a piece first, then apply a finish.'); return }
+    const { applied, skipped } = runModelerCommands(m.commands)
+    flash(applied.length ? `${m.name}: applied ${applied.join(', ')}${skipped.length ? ` · skipped ${skipped.join(', ')}` : ''}.` : `Couldn't apply ${m.name}.`)
+    if (applied.length) runQa()
+  }
+  const copyDescribe = () => {
+    const d = describePiece(objects, alloyId)
+    navigator.clipboard?.writeText(`${d.name}\n${d.sentence}`).then(() => flash(`Copied: ${d.name}`), () => flash('Could not copy.'))
+  }
+  const setPick = (patch: Partial<typeof stonePick>) => { const p = { ...stonePick, ...patch }; setStonePick(p); if (placing) setPlacing(p) }
+  const togglePlace = () => { setPlacing(placing ? null : stonePick); if (!placing) flash('Click the stage to drop stones. Click a part to select it.') }
+  const addOneStone = () => { addStone({ ...stonePick }); flash(`Added ${STONES.find(s => s.id === stonePick.stoneId)?.name ?? 'stone'} — drag the gizmo to move it.`) }
 
   const metalCount = objects.filter(o => o.material === 'metal').length
   const sched = stoneSchedule(objects)
@@ -559,7 +582,7 @@ export function ModelerPanel() {
   }
   const save = () => {
     if (!objects.length) { flash('Nothing to save.'); return }
-    const name = saveName.trim() || `Sculpt ${new Date().toLocaleDateString()}`
+    const name = saveName.trim() || describePiece(objects, alloyId).name
     sculptLibrary.save(name, objects); setSaveName(''); setSaved(sculptLibrary.list()); flash('Saved.')
   }
   const openSaved = (id: string) => { const rec = sculptLibrary.get(id); if (rec) { load(rec.objects); flash(`Loaded “${rec.name}”.`) } }
@@ -612,7 +635,12 @@ export function ModelerPanel() {
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void runFinish() } }}
           placeholder="Tell it what to do to the piece — e.g. hammer the band, add a halo, flush-set the stone, then get it ready to print" disabled={finBusy} />
         <button className="primary" style={{ width: '100%', marginTop: 6 }} onClick={() => void runFinish()} disabled={finBusy || !finText.trim()}>{finBusy ? 'Working…' : 'Run on this piece ✦'}</button>
-        <p className="disc">Drives the finishing &amp; setting tools by voice — texture, dome, halo, flush-set, milgrain, pierce, symmetrise, auto-orient — in the order you say them.</p>
+        <p className="disc">Drives the finishing &amp; setting tools by voice — texture, dome, halo, flush-set, milgrain, pierce, symmetrise, auto-orient, mirror, array — in the order you say them.</p>
+
+        <div className="row" style={{ marginTop: 8 }}><label>Quick finishes</label></div>
+        <div className="opts c2">
+          {MACROS.map(m => <button key={m.id} className="opt" title={m.blurb} onClick={() => runMacro(m.id)}>{m.name}</button>)}
+        </div>
       </div>
 
       <div className="panel-block">
@@ -624,6 +652,23 @@ export function ModelerPanel() {
         <div className="opts c2">
           {PRIMS.map(([k, label]) => <button key={k} className="opt" onClick={() => add(k)}>{label}</button>)}
         </div>
+
+        <h4 style={{ marginTop: 18 }}>Place stones</h4>
+        <select className="lib-name" style={{ width: '100%' }} value={stonePick.stoneId} onChange={e => setPick({ stoneId: e.target.value })}>
+          {STONES.map(s => <option key={s.id} value={s.id}>{s.name}{s.variety ? ` — ${s.variety}` : ''}</option>)}
+        </select>
+        <div className="row" style={{ marginTop: 8 }}>
+          <select className="lib-name" style={{ width: '55%' }} value={stonePick.shapeId} onChange={e => setPick({ shapeId: e.target.value })}>
+            {SHAPES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <span style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}><input className="lib-name" style={{ width: 56 }} type="number" min={0.01} step={0.05} value={stonePick.carat} onChange={e => setPick({ carat: Math.max(0.01, +e.target.value) })} /><small style={{ color: 'var(--slate)' }}>ct</small></span>
+        </div>
+        <div className="opts c2" style={{ marginTop: 8 }}>
+          <button className="opt tpl" aria-pressed={!!placing} onClick={togglePlace}>{placing ? 'Placing… (click stage)' : 'Click to place'}</button>
+          <button className="opt" onClick={addOneStone}>Add one</button>
+        </div>
+        <p className="disc">Pick a stone, then <b>Click to place</b> and click on the stage to drop copies. Or <b>Add one</b>. To move any stone: click it and drag the move gizmo (Select/Move tools below).</p>
+
         <h4 style={{ marginTop: 18 }}>Free draw</h4>
         <div className="opts"><button className="opt tpl" aria-pressed={sketching} onClick={() => setSketching(!sketching)}>{sketching ? 'Sketching… (drawing on stage)' : 'Sketch a shape…'}</button></div>
         <div className="row" style={{ marginTop: 10 }}><label>Profile presets</label></div>
@@ -1109,7 +1154,7 @@ export function ModelerPanel() {
           <div className="panel-block">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
               <h4 style={{ margin: 0 }}>Piece summary</h4>
-              <span style={{ display: 'flex', gap: 6 }}><button className="mini" onClick={copySummary}>Copy</button><button className="mini" onClick={copySpec} title="Full design specification for the caster">Spec</button></span>
+              <span style={{ display: 'flex', gap: 6 }}><button className="mini" onClick={copySummary}>Copy</button><button className="mini" onClick={copySpec} title="Copy the full design specification">Spec</button><button className="mini" onClick={specPdf} title="Export the design specification as a PDF">Spec PDF</button><button className="mini" onClick={copyDescribe} title="Plain-language name & description">Describe</button></span>
             </div>
             <table className="stone-sched">
               <tbody>

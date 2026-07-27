@@ -31,10 +31,16 @@ export type ModelerCommand =
   | { op: 'autoOrient' }
   | { op: 'gallery' }
   | { op: 'subtractAll' }
+  | { op: 'mirror' }
+  | { op: 'arrayRing'; count: number }
+  | { op: 'arrayRow'; count: number; spacing: number }
+  | { op: 'center' }
+  | { op: 'dropFloor' }
 
 export const COMMAND_OPS = [
   'texture', 'dome', 'sizingBeads', 'milgrain', 'bail', 'drill', 'pierce',
   'flush', 'halo', 'fitHead', 'fitBezel', 'signet', 'symmetrize', 'autoOrient', 'gallery', 'subtractAll',
+  'mirror', 'arrayRing', 'arrayRow', 'center', 'dropFloor',
 ] as const
 
 const clamp = (n: unknown, lo: number, hi: number, dflt: number): number => {
@@ -69,6 +75,11 @@ export function normalizeCommand(raw: unknown): ModelerCommand | null {
     case 'autoOrient': return { op }
     case 'gallery': return { op }
     case 'subtractAll': return { op }
+    case 'mirror': return { op }
+    case 'arrayRing': return { op, count: clamp(r.count, 2, 60, 6) }
+    case 'arrayRow': return { op, count: clamp(r.count, 2, 60, 5), spacing: clamp(r.spacing, 0.5, 40, 4) }
+    case 'center': return { op }
+    case 'dropFloor': return { op }
     default: return null
   }
 }
@@ -125,6 +136,11 @@ export function buildCommandPrompt(): string {
     'autoOrient {} — rotate the whole piece to the best print orientation',
     'gallery {} — add a decorative gallery ring under the stone',
     'subtractAll {} — subtract the selected part from every other metal part',
+    'mirror {} — mirror the selected part to the other side',
+    'arrayRing {count} — array the selected part evenly around a ring',
+    'arrayRow {count, spacing: mm} — array the selected part in a straight row',
+    'center {} — centre the selected part on the axis',
+    'dropFloor {} — drop the selected part onto the floor (y=0)',
     'Order matters — list the steps in the sequence they should run. Translate plain words: "hammered band"→texture hammered; "add a halo"→halo; "flush set the stone"→flush; "make it symmetric"→symmetrize; "get it ready to print"→autoOrient.',
     'If the request is a question or nothing actionable, return an empty commands array and answer in reply.',
   ].join('\n')
