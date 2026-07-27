@@ -30,6 +30,7 @@ import { laborBreakdown, formatMinutes } from '../lib/laborTime'
 import { FINDINGS } from '../lib/findings'
 import { sculptBom, sculptBomText } from '../lib/sculptBom'
 import { askBenchAdvisor } from '../lib/benchAdvisor'
+import { findShank, sizingReport, ringSizeOptions, euForSize } from '../lib/ringSizing'
 import { sculptMetalVolume } from '../lib/sculpt'
 import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
@@ -252,7 +253,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, resizeRing, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -283,6 +284,7 @@ export function ModelerPanel() {
   const [finBusy, setFinBusy] = useState(false)
   const [stonePick, setStonePick] = useState<{ stoneId: string; shapeId: string; carat: number; hue: number; custom: boolean }>({ stoneId: 'dia', shapeId: 'rd', carat: 0.5, hue: 200, custom: false })
   const [findingPick, setFindingPick] = useState('jump')
+  const [sizeTarget, setSizeTarget] = useState<number | null>(null)
   const [benchQ, setBenchQ] = useState('')
   const [benchA, setBenchA] = useState<{ text: string; ai: boolean } | null>(null)
   const [benchBusy, setBenchBusy] = useState(false)
@@ -1365,6 +1367,40 @@ export function ModelerPanel() {
               </tbody>
             </table>
             <p className="disc">Estimated bench time by operation at {money(MARKET.laborRate)}/hr (set on the Design tab’s cost settings). Setting scales with each stone’s size; finishing with metal mass.</p>
+          </div>
+        )
+      })()}
+
+      {(() => {
+        const shank = findShank(objects)
+        if (!shank) return null
+        const cur = shank.params!.ringSize as number
+        const target = sizeTarget ?? cur
+        const rep = sizingReport(objects, shank.id, target, alloyId)
+        return (
+          <div className="panel-block">
+            <h4 style={{ margin: 0 }}>Resize ring</h4>
+            <div className="row" style={{ marginTop: 8 }}>
+              <label htmlFor="mp-size" style={{ flex: '0 0 auto' }}>Current US {cur} → target</label>
+              <select id="mp-size" className="lib-name" style={{ width: '32%', marginLeft: 'auto' }} value={String(target)} onChange={e => setSizeTarget(+e.target.value)}>
+                {ringSizeOptions().map(s => <option key={s} value={s}>US {s} · {euForSize(s)} mm</option>)}
+              </select>
+            </div>
+            {rep && rep.steps !== 0 && (
+              <div className="dfm" style={{ marginTop: 8 }}>
+                <div className="dfm-metrics">
+                  <span>{rep.beforeG.toFixed(2)} → {rep.afterG.toFixed(2)} g</span>
+                  <span>{rep.deltaG >= 0 ? '+' : ''}{rep.deltaG.toFixed(2)} g metal</span>
+                  <span>{formatMinutes(rep.laborMinutes)} bench</span>
+                </div>
+                <p className="dfm-line pass"><b>Sizing {rep.steps > 0 ? 'up' : 'down'} {Math.abs(rep.steps / 4).toFixed(2)} size{Math.abs(rep.steps) === 4 ? '' : 's'}</b> — {money(rep.total)} ({rep.deltaG > 0 ? `${money(rep.metalCost)} metal + ` : ''}{money(rep.laborCost)} labor)</p>
+                {rep.note && <p className="dfm-line warn">{rep.note}</p>}
+              </div>
+            )}
+            <div className="opts" style={{ marginTop: 8 }}>
+              <button className="opt tpl" disabled={!rep || rep.steps === 0} onClick={() => { const to = resizeRing(shank.id, target); if (to != null) { flash(`Resized to US ${to}.`); runQa() } }}>Resize to US {target}</button>
+            </div>
+            <p className="disc">Regenerates the shank at the target finger size and re-weighs the piece — metal added (or removed) and bench time priced from the real geometry.</p>
           </div>
         )
       })()}

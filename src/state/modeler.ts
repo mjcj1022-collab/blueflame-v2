@@ -13,6 +13,7 @@ import { paveSpots as paveSpotsFn } from '../lib/pave'
 import { buildSculptFromDesign, patchFromSpec, designSignature } from '../lib/aiAssemble'
 import { repairMesh } from '../lib/meshRepair'
 import { findingVertices, findingById } from '../lib/findings'
+import { RING_SIZE_MIN, RING_SIZE_MAX } from '../lib/ringSizing'
 import type { AiDesignPatch } from '../lib/aiAssistant'
 import type { DesignSpec } from '../spec/types'
 import { refineDesign } from '../lib/designRules'
@@ -188,6 +189,9 @@ interface ModelerStore {
   importMesh: (vertices: number[], name?: string) => string | null
   /** Add a finding (clasp, jump ring, bail, post/back, toggle…) as a metal part. */
   addFinding: (id: string) => string | null
+  /** Resize a parametric shank to a target US finger size. Returns the applied
+   *  size, or null if there's no resizable shank. */
+  resizeRing: (shankId: string, toSize: number) => number | null
   /** Exploded-view spread (mm). 0 = assembled; view-only, not persisted. */
   explode: number
   setExplode: (v: number) => void
@@ -488,6 +492,16 @@ export const useModeler = create<ModelerStore>((set, get) => {
     return obj.id
   },
   setExplode: v => set({ explode: Math.max(0, v) }),
+
+  resizeRing: (shankId, toSize) => {
+    const shank = get().objects.find(o => o.id === shankId && o.kind === 'shank')
+    if (!shank || typeof shank.params?.ringSize !== 'number') return null
+    const to = Math.min(RING_SIZE_MAX, Math.max(RING_SIZE_MIN, Math.round(toSize * 4) / 4))
+    if (to === shank.params.ringSize) return to
+    record()
+    set(s => ({ objects: s.objects.map(o => o.id === shankId ? { ...o, params: { ...o.params, ringSize: to } } : o) }))
+    return to
+  },
 
   toggleSnap: () => set(s => ({ snap: !s.snap })),
   toggleMeasuring: () => set(s => ({ measuring: !s.measuring })),
