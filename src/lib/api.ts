@@ -29,6 +29,14 @@ export interface TeamMember {
   created_at: string
 }
 
+/** A cloud sculpt library entry (list view omits `data`). */
+export interface CloudSculpt {
+  id: string
+  name: string
+  tags: string | null
+  updated_at: string
+}
+
 /** A CRM customer record. */
 export interface Customer {
   id: string
@@ -132,6 +140,10 @@ export const api = {
   saveDesign: (name: string, spec: unknown) => req('/api/designs', { method: 'POST', body: JSON.stringify({ name, spec }) }),
   loadDesign: (id: string) => req(`/api/designs/${id}`),
   deleteDesign: (id: string) => req(`/api/designs/${id}`, { method: 'DELETE' }),
+  listSculpts: () => req('/api/sculpts') as Promise<CloudSculpt[]>,
+  getSculpt: (id: string) => req(`/api/sculpts/${id}`) as Promise<CloudSculpt & { data: unknown[] }>,
+  saveSculpt: (name: string, tags: string[], data: unknown) => req('/api/sculpts', { method: 'POST', body: JSON.stringify({ name, tags, data }) }) as Promise<{ id: string }>,
+  deleteSculpt: (id: string) => req(`/api/sculpts/${id}`, { method: 'DELETE' }) as Promise<{ deleted: number }>,
   listOrders: () => req('/api/orders') as Promise<ServerOrder[]>,
   createOrder: (design_id: string, customer_id?: string) => req('/api/orders', { method: 'POST', body: JSON.stringify({ design_id, customer_id }) }),
   advanceOrder: (id: string, stage: string) => req(`/api/orders/${id}/stage`, { method: 'PATCH', body: JSON.stringify({ stage }) }) as Promise<{ updated: number }>,

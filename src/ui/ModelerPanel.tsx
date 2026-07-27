@@ -6,6 +6,7 @@ import { balanceReport, type BalanceReport } from '../lib/balance'
 import { voronoiLatticeVertices, latticeHoleCount } from '../lib/latticeGeo'
 import { chainVertices, chainSpan } from '../lib/chainGeo'
 import { sculptLibrary, searchSculpts, allTags, parseTags, type SavedSculpt } from '../lib/sculptLibrary'
+import { CloudLibrary } from './CloudLibrary'
 import { sculptHandoff, sculptRestore, SculptHandoffError } from '../lib/sculptHandoff'
 import { api, apiConfigured } from '../lib/api'
 import { analyzeMesh, type DfmReport } from '../lib/dfm'
@@ -1453,6 +1454,8 @@ export function ModelerPanel() {
             })()}
           </div>
         )}
+
+        <CloudLibrary />
 
         {apiConfigured() && (
           <>
