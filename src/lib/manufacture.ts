@@ -30,6 +30,12 @@ function minWall(symbol: string): number {
   }
 }
 
+/** Minimum sound casting wall (mm) for a given alloy id — the number the
+ *  print-readiness gate checks the actual geometry against. */
+export function minWallForAlloy(alloyId: string): number {
+  return minWall(alloyById(alloyId).symbol)
+}
+
 const MIN_PRINTABLE = 0.35   // mm, feature a resin printer can hold reliably
 
 export function manufacturabilityChecks(spec: DesignSpec): Check[] {

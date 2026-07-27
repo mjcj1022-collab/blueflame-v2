@@ -9,6 +9,8 @@ import { sculptLibrary, type SavedSculpt } from '../lib/sculptLibrary'
 import { sculptHandoff, sculptRestore, SculptHandoffError } from '../lib/sculptHandoff'
 import { api, apiConfigured } from '../lib/api'
 import { analyzeMesh, type DfmReport } from '../lib/dfm'
+import { printReadiness } from '../lib/printReady'
+import { minWallForAlloy } from '../lib/manufacture'
 import { HEATMAP_MIN_WALL } from '../lib/heatmap'
 import { seatReport, type SeatReport } from '../lib/seatCheck'
 import { modelerToObj, blueFlameMtl } from '../lib/cadExport'
@@ -245,7 +247,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -319,7 +321,7 @@ export function ModelerPanel() {
     if (!obj.vertices || obj.vertices.length < 9) { flash('Nothing to repair on this part.'); return }
     const { vertices, stats } = repairMesh(obj.vertices)
     update(obj.id, { vertices })
-    setDfm({ id: obj.id, r: analyzeMesh(vertices) })
+    setDfm({ id: obj.id, r: analyzeMesh(vertices, minWallForAlloy(alloyId)) })
     const fixes: string[] = []
     if (stats.weldedVertices) fixes.push(`welded ${stats.weldedVertices} points`)
     if (stats.removedDegenerate) fixes.push(`removed ${stats.removedDegenerate} sliver${stats.removedDegenerate === 1 ? '' : 's'}`)
@@ -566,10 +568,32 @@ export function ModelerPanel() {
 
   const shopName = useDesign.getState().shop.name
 
+  /** Warn (once) before exporting a piece that fails the print gate. Returns
+   *  true to proceed. Non-blocking for pass/warn; a confirm only on hard fail. */
+  const printGateOk = (): boolean => {
+    const r = printReadiness(objects, alloyId)
+    if (r.verdict !== 'fail') return true
+    const bad = r.issues.filter(i => i.level === 'fail').map(i => i.title).join('; ')
+    return window.confirm(`This piece isn’t print-ready — ${bad}.\n\nRun “Fix for print” first (button above). Export anyway?`)
+  }
   const exportStl = () => {
     if (!objects.length) { flash('Nothing to export.'); return }
+    if (!printGateOk()) return
     const blob = new Blob([modelerToStl(objects)], { type: 'model/stl' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `blue-flame-sculpt-${Date.now()}.stl`; a.click(); URL.revokeObjectURL(a.href)
+  }
+  const runFixForPrint = () => {
+    if (!objects.length) { flash('Nothing to fix yet.'); return }
+    const s = fixForPrint()
+    const bits: string[] = []
+    if (s.welded) bits.push(`welded ${s.welded} points`)
+    if (s.degenerate) bits.push(`removed ${s.degenerate} sliver${s.degenerate === 1 ? '' : 's'}`)
+    if (s.duplicate) bits.push(`dropped ${s.duplicate} dup face${s.duplicate === 1 ? '' : 's'}`)
+    if (s.holes) bits.push(`capped ${s.holes} hole${s.holes === 1 ? '' : 's'}`)
+    flash(s.parts === 0
+      ? 'Parts are parametric and already watertight — nothing to weld.'
+      : `Fixed ${s.parts} mesh part${s.parts === 1 ? '' : 's'}${bits.length ? ' — ' + bits.join(', ') : ''}. ${s.watertight ? 'Now watertight.' : 'Some open edges remain — check part-level repair.'}`)
+    runQa()
   }
 
   const download = (text: string, name: string, mime: string) => {
@@ -577,6 +601,7 @@ export function ModelerPanel() {
   }
   const exportObj = () => {
     if (!objects.length) { flash('Nothing to export.'); return }
+    if (!printGateOk()) return
     const stamp = Date.now()
     download(modelerToObj(objects), `blue-flame-sculpt-${stamp}.obj`, 'model/obj')
     // The OBJ names blue-flame.mtl; ship it too so parts arrive with their colours.
@@ -1236,6 +1261,31 @@ export function ModelerPanel() {
               </tbody>
             </table>
             <p className="disc">Same metal volume ({(vol / 1000).toFixed(3)} cm³) cast in each alloy, at the shop's current spot factor. Stones and labor not included.</p>
+          </div>
+        )
+      })()}
+
+      {objects.length > 0 && (() => {
+        const pr = printReadiness(objects, alloyId)
+        const label = pr.verdict === 'pass' ? 'Print-ready' : pr.verdict === 'warn' ? 'Print-ready with notes' : 'Not print-ready'
+        return (
+          <div className="panel-block">
+            <h4>Fix for print</h4>
+            <div className={`dfm print-gate ${pr.verdict}`}>
+              <div className="dfm-metrics">
+                <span>{pr.watertight ? 'watertight' : `${pr.openEdges} open edge${pr.openEdges === 1 ? '' : 's'}`}</span>
+                <span>min wall {pr.minWall === Infinity ? '—' : `${pr.minWall.toFixed(2)} mm`} / {pr.minWallLimit.toFixed(2)}</span>
+                <span>{Math.round(pr.overhangFraction * 100)}% overhang</span>
+              </div>
+              <p className={`dfm-line ${pr.verdict}`}><b>{label}</b></p>
+              {pr.issues.filter(i => i.level !== 'pass').map((iss, i) => (
+                <p key={i} className={`dfm-line ${iss.level}`}><b>{iss.title}</b> — {iss.detail}</p>
+              ))}
+            </div>
+            <div className="qact" style={{ marginTop: 8 }}>
+              <button className="primary" onClick={runFixForPrint} title="Weld points, drop slivers, cap holes across every metal part so it slices and casts clean">Fix all for print ✚</button>
+            </div>
+            <p className="disc">Checks every metal part against the {minWallForAlloy(alloyId).toFixed(2)} mm minimum for this alloy, watertightness and support burden. Export warns if it would fail.</p>
           </div>
         )
       })()}

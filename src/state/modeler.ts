@@ -11,6 +11,7 @@ import { textureSoup, type TextureStyle } from '../lib/texture'
 import { milgrainSpots, milgrainCount, bridgePath } from '../lib/finishing'
 import { paveSpots as paveSpotsFn } from '../lib/pave'
 import { buildSculptFromDesign, patchFromSpec, designSignature } from '../lib/aiAssemble'
+import { repairMesh } from '../lib/meshRepair'
 import type { AiDesignPatch } from '../lib/aiAssistant'
 import type { DesignSpec } from '../spec/types'
 import { refineDesign } from '../lib/designRules'
@@ -178,6 +179,9 @@ interface ModelerStore {
   taperMesh: (id: string, factor: number) => void
   bendMesh: (id: string, degrees: number) => void
   fuseMetal: () => number
+  /** Weld/cap every metal mesh part so the whole piece is print/cast ready.
+   *  Returns aggregate repair stats (one undo step). Primitives are already clean. */
+  fixForPrint: () => { parts: number; welded: number; degenerate: number; duplicate: number; holes: number; watertight: boolean }
   engraveOnPart: (targetId: string, text: string, font: string, op: SurfaceOp) => boolean
   wrapTextOnBand: (targetId: string, text: string, font: string, op: SurfaceOp, angleDeg?: number, inside?: boolean) => boolean
   toggleSnap: () => void
@@ -414,6 +418,29 @@ export const useModeler = create<ModelerStore>((set, get) => {
     const fused: SculptObject = { id: newId(), kind: 'mesh', name: 'Fused metal', vertices: acc.vertices, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0, material: 'metal', color: metals[0].color }
     set(s => ({ objects: [...s.objects.filter(o => o.material !== 'metal'), fused], selectedId: fused.id }))
     return metals.length
+  },
+
+  fixForPrint: () => {
+    const objs = get().objects
+    const targets = objs.filter(o => o.material === 'metal' && o.kind === 'mesh' && o.vertices && o.vertices.length >= 9)
+    let welded = 0, degenerate = 0, duplicate = 0, holes = 0, allTight = true
+    if (!targets.length) {
+      // Nothing baked to repair — primitives are watertight by construction.
+      return { parts: 0, welded: 0, degenerate: 0, duplicate: 0, holes: 0, watertight: true }
+    }
+    record()
+    const patched = new Map<string, number[]>()
+    for (const o of targets) {
+      const { vertices, stats } = repairMesh(o.vertices!)
+      patched.set(o.id, vertices)
+      welded += stats.weldedVertices
+      degenerate += stats.removedDegenerate
+      duplicate += stats.removedDuplicate
+      holes += stats.holesFilled
+      if (!stats.watertight) allTight = false
+    }
+    set(s => ({ objects: s.objects.map(o => patched.has(o.id) ? { ...o, vertices: patched.get(o.id)! } : o) }))
+    return { parts: targets.length, welded, degenerate, duplicate, holes, watertight: allTight }
   },
 
   toggleSnap: () => set(s => ({ snap: !s.snap })),

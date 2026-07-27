@@ -684,3 +684,8 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .ai-config>summary::before{content:'▸ ';color:var(--slate)}
 .ai-config[open]>summary::before{content:'▾ '}
 .ai-config .quick-config{margin-top:10px}
+
+/* Print-readiness gate */
+.print-gate.pass{border-left:3px solid var(--karat)}
+.print-gate.warn{border-left:3px solid var(--warn)}
+.print-gate.fail{border-left:3px solid #C0392B}
