@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAiChat } from '../state/aiChat'
+import { QuickConfigure, TemplateBrowser } from './QuickConfigure'
 
 const SUGGESTIONS = [
   '2 ct emerald-cut diamond three-stone in platinum, size 6.5',
@@ -51,6 +52,12 @@ export function AIStudioPanel() {
         </div>
         {messages.length > 0 && <button className="aistudio-reset" onClick={reset} title="Start a new conversation">Reset</button>}
       </div>
+
+      <details className="ai-config" open>
+        <summary>Pick by type — or describe it below ✦</summary>
+        <TemplateBrowser />
+        <QuickConfigure />
+      </details>
 
       {enabled === false ? (
         <div className="ai-off">

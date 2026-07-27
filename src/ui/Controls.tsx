@@ -7,7 +7,8 @@ import { NECKLACE_STYLES } from '../lib/necklaceChain'
 import { BODY_STYLES } from '../lib/body'
 import { MOTIFS } from '../lib/motif'
 import { useSettings } from '../state/settings'
-import { ALLOYS, SHAPES, STONES, SETTINGS, TEMPLATES, FINISHES, shapeById, stoneMm, alloyById, birthstoneMonth, stoneById, finishById, settingById, isGradeable, gradeMultiplier, gradeLabel, CUT_GRADES, COLOR_GRADES, CLARITY_GRADES, FLUOR_GRADES, CERT_LABS, type Alloy, type Grade } from '../catalog'
+import { QuickConfigure, TemplateBrowser } from './QuickConfigure'
+import { ALLOYS, SHAPES, STONES, SETTINGS, FINISHES, shapeById, stoneMm, alloyById, birthstoneMonth, stoneById, finishById, settingById, isGradeable, gradeMultiplier, gradeLabel, CUT_GRADES, COLOR_GRADES, CLARITY_GRADES, FLUOR_GRADES, CERT_LABS, type Alloy, type Grade } from '../catalog'
 import { sizeToDiameter, sizeToCircumference, formatSize, fitAdvice, sizeConversions } from '../lib/sizing'
 import { guardrails, computePrice } from '../lib/pricing'
 import { engraveCapacity, ENGRAVE_FONTS } from '../lib/engrave'
@@ -80,21 +81,6 @@ function CategorySwitch() {
         {cats.map(c => (
           <button key={c} className="opt" aria-pressed={spec.category === c} onClick={() => setCategory(c)}>
             {CATEGORY_LABEL[c]}
-          </button>
-        ))}
-      </div>
-    </Group>
-  )
-}
-
-function TemplatePicker() {
-  const load = useDesign(s => s.load)
-  return (
-    <Group title="Start from a template">
-      <div className="opts c2">
-        {TEMPLATES.map(t => (
-          <button key={t.id} className="opt tpl" onClick={() => load(t.build())}>
-            {t.name}<small>{t.blurb}</small>
           </button>
         ))}
       </div>
@@ -565,7 +551,10 @@ export function Controls() {
     <>
       <DescribeBar />
       <CategorySwitch />
-      <TemplatePicker />
+      <Group title="Quick configure">
+        <TemplateBrowser />
+        <QuickConfigure />
+      </Group>
 
       {spec.category === 'ring' && <RingControls />}
       {spec.category === 'pendant' && <PendantControls />}

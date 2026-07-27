@@ -76,7 +76,9 @@ export interface BraceletGeo {
 }
 
 /** Necklace / chain, optionally carrying a pendant. */
-export type NecklaceStyle = 'cable' | 'curb' | 'rope' | 'figaro' | 'bead'
+export type NecklaceStyle =
+  | 'cable' | 'curb' | 'cuban' | 'rope' | 'figaro' | 'bead'
+  | 'box' | 'snake' | 'mariner' | 'herringbone' | 'rolo'
 /** Decorative motif hung on the chain, rendered as a medallion pendant. */
 export type NecklaceMotif = 'none' | 'celtic' | 'cross' | 'infinity' | 'heart' | 'halo' | 'cluster' | 'floral'
 /** Stones set at intervals along the chain — a "station" / "by-the-yard" necklace. */

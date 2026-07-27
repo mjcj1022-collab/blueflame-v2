@@ -33,4 +33,18 @@ describe('necklace chain geometry', () => {
     expect(NECKLACE_STYLES.map(s => s[0])).toContain('figaro')
     expect(NECKLACE_STYLES.length).toBeGreaterThanOrEqual(4)
   })
+
+  it('every listed chain style produces a valid non-empty soup', () => {
+    for (const [id] of NECKLACE_STYLES) {
+      const v = necklaceChainVertices(64, 0.6, id)
+      expect(v.length, id).toBeGreaterThan(0)
+      expect(v.length % 9, id).toBe(0)
+      expect(v.every(Number.isFinite), id).toBe(true)
+    }
+  })
+
+  it('includes the expanded chain range (box, cuban, snake, herringbone, mariner, rolo)', () => {
+    const ids = NECKLACE_STYLES.map(s => s[0])
+    for (const id of ['box', 'cuban', 'snake', 'herringbone', 'mariner', 'rolo']) expect(ids).toContain(id)
+  })
 })

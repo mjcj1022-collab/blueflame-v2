@@ -668,3 +668,19 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .sb-x{flex:0 0 auto;background:none;border:none;color:#A89A7E;font-size:16px;line-height:1;cursor:pointer;padding:0 2px}
 .sb-x:hover{color:#fff}
 @media(max-width:1040px){.suggestbar{bottom:16px}}
+
+/* Dropdown configurator — Quick configure (Design tab) + AI studio "pick by type" */
+.quick-config{display:flex;flex-direction:column;gap:8px}
+.qc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.qc-field{display:flex;flex-direction:column;gap:3px}
+.qc-field.qc-templates{margin-bottom:6px}
+.qc-field label{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--slate)}
+.qc-field select{width:100%;background:var(--paper);color:var(--graphite);border:1px solid var(--rule-dark);border-radius:8px;padding:7px 8px;font-family:var(--mono);font-size:11px;cursor:pointer}
+.qc-field select:hover{border-color:var(--karat)}
+.qc-field select:focus{outline:none;border-color:var(--karat);box-shadow:0 0 0 2px var(--karat-lt)}
+.ai-config{margin:10px 0 6px;border:1px solid var(--rule-dark);border-radius:12px;padding:10px 12px;background:var(--paper)}
+.ai-config>summary{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--karat);cursor:pointer;list-style:none}
+.ai-config>summary::-webkit-details-marker{display:none}
+.ai-config>summary::before{content:'▸ ';color:var(--slate)}
+.ai-config[open]>summary::before{content:'▾ '}
+.ai-config .quick-config{margin-top:10px}
