@@ -507,6 +507,12 @@ export function ModelerPanel() {
     flash(n ? `Assembled “${t.name}” — ${n} parts.` : 'Nothing to assemble.')
     if (n) runQa()
   }
+  /** Pull the piece from the AI / Design studio in as editable parts. */
+  const bringInDesign = () => {
+    const n = useModeler.getState().importFromDesign(useDesign.getState().spec, aiReplace)
+    flash(n ? `Brought in the studio piece — ${n} editable part${n === 1 ? '' : 's'}.` : 'Nothing in the studio to bring in yet.')
+    if (n) runQa()
+  }
   const copySpec = () => {
     const txt = designSpecText(objects, alloyId, alloy.name)
     navigator.clipboard?.writeText(txt).then(() => flash('Design spec copied.'), () => flash('Could not copy.'))
@@ -638,6 +644,11 @@ export function ModelerPanel() {
           </div>
         )}
         <p className="disc">The AI turns your description into real shank / stone / setting parts you can then refine with every tool below.</p>
+
+        <div className="opts" style={{ marginTop: 10 }}>
+          <button className="opt" onClick={bringInDesign} title="Import the piece from the AI / Design studio as editable parts">Bring in AI-studio piece →</button>
+        </div>
+        <p className="disc">Carries whatever you built on the AI / Design tab onto the bench. Switching to Sculpt with an empty bench does this automatically.</p>
 
         <h4 style={{ marginTop: 16 }}>Or start from a template</h4>
         <div className="opts c2">

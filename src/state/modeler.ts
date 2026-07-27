@@ -10,8 +10,9 @@ import { haloRadius, channelRailSpots, type RailAlong } from '../lib/constructio
 import { textureSoup, type TextureStyle } from '../lib/texture'
 import { milgrainSpots, milgrainCount, bridgePath } from '../lib/finishing'
 import { paveSpots as paveSpotsFn } from '../lib/pave'
-import { buildSculptFromDesign } from '../lib/aiAssemble'
+import { buildSculptFromDesign, patchFromSpec } from '../lib/aiAssemble'
 import type { AiDesignPatch } from '../lib/aiAssistant'
+import type { DesignSpec } from '../spec/types'
 import { refineDesign } from '../lib/designRules'
 import type { ModelerCommand } from '../lib/aiCommands'
 import { moveVertsBy, deleteVerticesFromSoup } from '../lib/vertexSelect'
@@ -220,6 +221,8 @@ interface ModelerStore {
   piercePattern: (id: string, count: number, mode: 'row' | 'ring', span: number, dia: number, axis: 'x' | 'y' | 'z') => number
   addSignet: (id: string, width: number, length: number, thickness: number) => boolean
   assembleDesign: (patch: AiDesignPatch, replace?: boolean) => number
+  /** Bring the current AI/Design-studio piece into the modeler as editable parts. */
+  importFromDesign: (spec: DesignSpec, replace?: boolean) => number
   runModelerCommands: (cmds: ModelerCommand[]) => { applied: string[]; skipped: string[] }
   /** A stone type armed for click-to-place on the stage (null = not placing). */
   placing: { stoneId: string; shapeId: string; carat: number; color?: number } | null
@@ -883,6 +886,14 @@ export const useModeler = create<ModelerStore>((set, get) => {
     const full: SculptObject[] = parts.map((p, i) => ({ ...p, id: newId(), name: p.name ?? `Part ${i + 1}` }))
     set(s => ({ objects: replace ? full : [...s.objects, ...full], selectedId: full[0].id }))
     return full.length
+  },
+
+  /** Bring the current parametric design into the modeler as editable parts,
+   *  matching its alloy. Flatten → assemble → adopt the alloy for pricing. */
+  importFromDesign: (spec, replace) => {
+    const n = get().assembleDesign(patchFromSpec(spec), replace ?? true)
+    if (n) get().setAlloy(spec.metal.alloyId)
+    return n
   },
 
   /** Execute an ordered list of AI-issued finishing/setting commands against the

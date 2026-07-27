@@ -1,9 +1,58 @@
 import { sizeToDiameter } from './sizing'
 import { stoneMm, shapeById, stoneById, alloyById } from '../catalog'
 import { haloRadius } from './construction'
-import { NO_STONE } from '../spec/types'
+import { NO_STONE, type DesignSpec } from '../spec/types'
 import type { AiDesignPatch } from './aiAssistant'
 import type { SculptObject } from '../state/modeler'
+
+const MM_PER_INCH = 25.4
+
+/**
+ * Flatten a full parametric DesignSpec (nested) into the flat AiDesignPatch the
+ * assembler consumes. This is the bridge that lets a piece built in the AI /
+ * Design studio be handed to the Sculpt modeler as real editable parts.
+ */
+export function patchFromSpec(spec: DesignSpec): AiDesignPatch {
+  const p: AiDesignPatch = {
+    category: spec.category,
+    alloyId: spec.metal.alloyId,
+    shapeId: spec.center.shapeId,
+    stoneTypeId: spec.center.stoneTypeId,
+    carat: spec.center.carat,
+    settingId: spec.setting.typeId,
+    finish: spec.finish,
+  }
+  if (spec.setting.melee?.stoneId) p.accentStoneId = spec.setting.melee.stoneId
+  switch (spec.category) {
+    case 'ring':
+      p.size = spec.ring.size
+      p.bandWidth = spec.ring.width
+      p.bandProfile = spec.ring.profile
+      break
+    case 'necklace':
+      p.necklaceLength = spec.necklace.length
+      p.chainStyle = spec.necklace.chainStyle
+      if (spec.necklace.motif && spec.necklace.motif !== 'none') p.motif = spec.necklace.motif
+      if (spec.necklace.station) {
+        p.stationStoneId = spec.necklace.station.stoneId
+        p.stationCarat = spec.necklace.station.carat
+        p.stationEveryIn = spec.necklace.station.everyIn
+      }
+      break
+    case 'earring':
+      p.dropLength = spec.earring.dropLength
+      break
+    case 'bracelet':
+      p.braceletKind = spec.bracelet.kind
+      break
+    case 'body':
+      p.bodyStyle = spec.body.style
+      p.bodyGauge = spec.body.gauge
+      p.bodySize = spec.body.size
+      break
+  }
+  return p
+}
 
 /**
  * Turn a parametric design (the same patch the AI produces) into real, editable
@@ -103,8 +152,33 @@ export function buildSculptFromDesign(d: AiDesignPatch): NewPart[] {
     return parts
   }
 
-  // Categories without a natural single-part assembly (necklace/bracelet/body)
-  // start from a lone stone the maker can build around.
+  if (category === 'necklace' || category === 'bracelet') {
+    // A wearable loop as a torus, sized from the piece length, plus any
+    // station stones spaced around it and a motif/pendant hung at the base.
+    const inches = category === 'necklace'
+      ? (d.necklaceLength ?? 18)
+      : ((d.bodySize ?? 180) / MM_PER_INCH) // bracelet wrist ~7"
+    const R = (inches * MM_PER_INCH) / (Math.PI * 2)
+    parts.push(metal('torus', category === 'necklace' ? 'Chain' : 'Bangle',
+      { position: [0, 0, 0], scale: [R / 3, R / 3, R / 3], size: 3 }, mc))
+
+    if (d.stationStoneId && (d.stationEveryIn ?? 0) > 0 && (d.stationCarat ?? 0) > 0) {
+      const count = Math.max(1, Math.min(60, Math.round(inches / (d.stationEveryIn ?? 2))))
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2
+        parts.push(gem(`Station ${i + 1}`, [Math.cos(a) * R, Math.sin(a) * R, 0],
+          d.shapeId ?? 'rd', d.stationCarat ?? 0.05, [0, 0, 0], d.stationStoneId))
+      }
+    }
+    // Pendant / motif drop, or a lone centre stone, at the base of the loop.
+    if (hasStone(d)) {
+      parts.push(gem('Center stone', [0, -R - 6, 0], d.shapeId ?? 'rd', d.carat ?? 1, [0, 0, 0], stoneType))
+    }
+    return parts
+  }
+
+  // Categories without a natural single-part assembly (body) start from a lone
+  // stone the maker can build around.
   if (hasStone(d)) parts.push(gem('Stone', [0, 6, 0], d.shapeId ?? 'rd', d.carat ?? 1, [0, 0, 0], stoneType))
   return parts
 }

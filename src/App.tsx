@@ -127,6 +127,16 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Carry an AI/Design-studio piece into the Sculpt modeler: on switching to
+  // Sculpt with an empty bench, bring the current design in as editable parts.
+  // Only when empty, so hand-sculpted work is never clobbered (the panel has a
+  // manual "Bring in" button for that case).
+  useEffect(() => {
+    if (mode !== 'model') return
+    if (useModeler.getState().objects.length > 0) return
+    useModeler.getState().importFromDesign(useDesign.getState().spec, true)
+  }, [mode])
+
   // Autosave both workspaces (debounced) on every change.
   useEffect(() => {
     const unsubD = useDesign.subscribe((st, prev) => { if (st.spec !== prev.spec) autosave.writeDesign(st.spec) })
