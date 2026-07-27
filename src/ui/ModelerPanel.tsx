@@ -19,6 +19,10 @@ import { modelerToSvg } from '../lib/svgSpec'
 import { sculptAppraisalText } from '../lib/sculptAppraisal'
 import { quoteMessage } from '../lib/quoteMessage'
 import { leadTime } from '../lib/leadTime'
+import { skuFor } from '../lib/sku'
+import { bomCsv, stoneOrderCsv } from '../lib/csvExport'
+import { compareDesigns } from '../lib/designCompare'
+import { lineSheetText } from '../lib/lineSheet'
 import type { PaveMode } from '../lib/pave'
 import type { RailAlong } from '../lib/construction'
 import { stoneSchedule, stoneScheduleText } from '../lib/stoneSchedule'
@@ -332,6 +336,8 @@ export function ModelerPanel() {
   const [staged, setStaged] = useState(false)
   const [waxG, setWaxG] = useState(2)
   const [waxResin, setWaxResin] = useState(false)
+  const [cmpA, setCmpA] = useState('')
+  const [cmpB, setCmpB] = useState('')
   const [benchQ, setBenchQ] = useState('')
   const [benchA, setBenchA] = useState<{ text: string; ai: boolean } | null>(null)
   const [benchBusy, setBenchBusy] = useState(false)
@@ -1406,6 +1412,32 @@ export function ModelerPanel() {
             )
           })()}
 
+        {saved.length >= 1 && (
+          <div style={{ marginTop: 12 }}>
+            <div className="row"><label>Compare two designs</label>
+              <button className="mini" style={{ marginLeft: 'auto' }} onClick={() => { download(lineSheetText(saved, alloyId, shopName), 'blue-flame-line-sheet.txt', 'text/plain'); flash('Line sheet saved.') }} title="Price list across all saved designs">Line sheet</button>
+            </div>
+            <div className="row" style={{ marginTop: 6, gap: 4 }}>
+              <select className="lib-name" style={{ width: '48%' }} value={cmpA} onChange={e => setCmpA(e.target.value)}><option value="">Design A…</option>{saved.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+              <select className="lib-name" style={{ width: '48%', marginLeft: 'auto' }} value={cmpB} onChange={e => setCmpB(e.target.value)}><option value="">Design B…</option>{saved.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+            </div>
+            {(() => {
+              const a = saved.find(s => s.id === cmpA), b = saved.find(s => s.id === cmpB)
+              if (!a || !b) return null
+              const c = compareDesigns(a.objects, b.objects, alloyId)
+              const d = (n: number, suffix = '') => `${n > 0 ? '+' : ''}${n.toFixed(suffix === ' g' ? 2 : suffix === '' ? 0 : 2)}${suffix}`
+              return (
+                <table className="stone-sched" style={{ marginTop: 8 }}><tbody>
+                  <tr><td></td><td><b>{a.name}</b></td><td><b>{b.name}</b></td><td>Δ</td></tr>
+                  <tr><td>Weight</td><td>{c.a.metalGrams.toFixed(2)} g</td><td>{c.b.metalGrams.toFixed(2)} g</td><td>{d(c.delta.metalGrams, ' g')}</td></tr>
+                  <tr><td>Stones</td><td>{c.a.gemCount} · {c.a.carats.toFixed(2)} ct</td><td>{c.b.gemCount} · {c.b.carats.toFixed(2)} ct</td><td>{d(c.delta.carats, ' ct')}</td></tr>
+                  <tr><td>Price</td><td>{money(c.a.price)}</td><td>{money(c.b.price)}</td><td>{d(c.delta.price)}</td></tr>
+                </tbody></table>
+              )
+            })()}
+          </div>
+        )}
+
         {apiConfigured() && (
           <>
             <div className="row" style={{ marginTop: 18 }}>
@@ -1462,6 +1494,7 @@ export function ModelerPanel() {
                 <tr><td>Cast weight</td><td>{ps.castG.toFixed(2)} g · {alloy.name}</td></tr>
                 <tr><td>Stones</td><td>{ps.gemCount} · {ps.carats.toFixed(2)} ct</td></tr>
                 <tr><td>Warnings</td><td>{ps.warnings}</td></tr>
+                <tr><td>SKU</td><td><span style={{ fontFamily: 'var(--mono)' }}>{skuFor(objects, alloyId)}</span> <button className="mini" onClick={() => navigator.clipboard?.writeText(skuFor(objects, alloyId)).then(() => flash('SKU copied.'), () => {})}>copy</button></td></tr>
               </tbody>
             </table>
           </div>
@@ -1550,7 +1583,10 @@ export function ModelerPanel() {
           <div className="panel-block">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
               <h4 style={{ margin: 0 }}>Bill of materials</h4>
-              <button className="mini" onClick={() => { navigator.clipboard?.writeText(sculptBomText(objects, alloyId, shopName)).then(() => flash('BOM copied.'), () => flash('Could not copy.')) }}>Copy</button>
+              <span style={{ display: 'flex', gap: 6 }}>
+                <button className="mini" onClick={() => { navigator.clipboard?.writeText(sculptBomText(objects, alloyId, shopName)).then(() => flash('BOM copied.'), () => flash('Could not copy.')) }}>Copy</button>
+                <button className="mini" onClick={() => { download(bomCsv(objects, alloyId), 'blue-flame-bom.csv', 'text/csv'); flash('BOM CSV saved.') }}>CSV</button>
+              </span>
             </div>
             <table className="stone-sched">
               <tbody>
@@ -1689,7 +1725,10 @@ export function ModelerPanel() {
           <div className="panel-block">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
               <h4 style={{ margin: 0 }}>Stones to order</h4>
-              <button className="mini" onClick={() => navigator.clipboard?.writeText(stoneOrderText(objects, shopName)).then(() => flash('Order list copied.'), () => flash('Could not copy.'))}>Copy</button>
+              <span style={{ display: 'flex', gap: 6 }}>
+                <button className="mini" onClick={() => navigator.clipboard?.writeText(stoneOrderText(objects, shopName)).then(() => flash('Order list copied.'), () => flash('Could not copy.'))}>Copy</button>
+                <button className="mini" onClick={() => { download(stoneOrderCsv(objects), 'blue-flame-stones.csv', 'text/csv'); flash('Stones CSV saved.') }}>CSV</button>
+              </span>
             </div>
             <table className="stone-sched"><tbody>
               {so.rows.map((r, i) => (

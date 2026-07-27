@@ -210,6 +210,9 @@ interface ModelerStore {
   /** Exploded-view spread (mm). 0 = assembled; view-only, not persisted. */
   explode: number
   setExplode: (v: number) => void
+  /** Lighting environment for the modeler stage (drei preset). View-only. */
+  envPreset: string
+  setEnvPreset: (p: string) => void
   engraveOnPart: (targetId: string, text: string, font: string, op: SurfaceOp) => boolean
   wrapTextOnBand: (targetId: string, text: string, font: string, op: SurfaceOp, angleDeg?: number, inside?: boolean) => boolean
   toggleSnap: () => void
@@ -311,6 +314,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
   future: [],
   importedSig: null,
   explode: 0,
+  envPreset: 'studio',
   snapshots: [],
   placing: null,
 
@@ -508,6 +512,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
     return obj.id
   },
   setExplode: v => set({ explode: Math.max(0, v) }),
+  setEnvPreset: p => set({ envPreset: p }),
 
   resizeRing: (shankId, toSize) => {
     const shank = get().objects.find(o => o.id === shankId && o.kind === 'shank')

@@ -16,6 +16,8 @@ export function ModelerScene() {
   const placing = useModeler(s => s.placing)
   const addStone = useModeler(s => s.addStone)
   const explode = useModeler(s => s.explode)
+  const envPreset = useModeler(s => s.envPreset)
+  const setEnvPreset = useModeler(s => s.setEnvPreset)
 
   // Exploded view: push each part outward from the assembly centre by `explode`.
   const cx = objects.length ? objects.reduce((s, o) => s + o.position[0], 0) / objects.length : 0
@@ -39,7 +41,7 @@ export function ModelerScene() {
         <color attach="background" args={['#0E1113']} />
         <EnvBoundary>
           <Suspense fallback={null}>
-            <Environment preset="studio" environmentIntensity={0.85} />
+            <Environment preset={envPreset as never} environmentIntensity={0.85} />
           </Suspense>
         </EnvBoundary>
         <ambientLight intensity={0.35} />
@@ -74,6 +76,13 @@ export function ModelerScene() {
         </GizmoHelper>
       </Canvas>
 
+      <select className="stage-env" value={envPreset} onChange={e => setEnvPreset(e.target.value)} title="Lighting environment">
+        <option value="studio">Studio</option>
+        <option value="city">Daylight</option>
+        <option value="sunset">Warm</option>
+        <option value="apartment">Soft</option>
+        <option value="warehouse">Dramatic</option>
+      </select>
       <ObjectListOverlay />
       <ModelerToolbar />
       {sketching && <SketchDock />}
