@@ -74,7 +74,11 @@ export function modelerToStep(objects: SculptObject[], opts: { metalOnly?: boole
 
   for (const [a, b, c] of tris) {
     const pa = points[a], pb = points[b], pc = points[c]
-    const n = normalize(cross({ x: pb.x - pa.x, y: pb.y - pa.y, z: pb.z - pa.z }, { x: pc.x - pa.x, y: pc.y - pa.y, z: pc.z - pa.z }))
+    // Skip zero-area (collinear) triangles: their face normal is (0,0,0), which
+    // would emit an invalid DIRECTION('',(0.,0.,0.)) that strict importers reject.
+    const raw = cross({ x: pb.x - pa.x, y: pb.y - pa.y, z: pb.z - pa.z }, { x: pc.x - pa.x, y: pc.y - pa.y, z: pc.z - pa.z })
+    if (Math.hypot(raw.x, raw.y, raw.z) < 1e-9) continue
+    const n = normalize(raw)
     const ref = normalize({ x: pb.x - pa.x, y: pb.y - pa.y, z: pb.z - pa.z })
     const origin = E(`CARTESIAN_POINT('',(${num(pa.x)},${num(pa.y)},${num(pa.z)}))`)
     const axis = E(`DIRECTION('',(${num(n.x)},${num(n.y)},${num(n.z)}))`)
@@ -86,10 +90,14 @@ export function modelerToStep(objects: SculptObject[], opts: { metalOnly?: boole
     faceIds.push(E(`ADVANCED_FACE('',(#${bound}),#${plane},.T.)`))
   }
 
-  const shell = E(`CLOSED_SHELL('',(${faceIds.map(f => `#${f}`).join(',')}))`)
-  const brep = E(`MANIFOLD_SOLID_BREP('BlueFlame',#${shell})`)
-  const repr = E(`ADVANCED_BREP_SHAPE_REPRESENTATION('',(#${brep}),#${geoCtx})`)
-  E(`SHAPE_DEFINITION_REPRESENTATION(#${pds},#${repr})`)
+  // Only emit a solid when there are real faces — an empty CLOSED_SHELL /
+  // MANIFOLD_SOLID_BREP is an invalid (empty) solid.
+  if (faceIds.length) {
+    const shell = E(`CLOSED_SHELL('',(${faceIds.map(f => `#${f}`).join(',')}))`)
+    const brep = E(`MANIFOLD_SOLID_BREP('BlueFlame',#${shell})`)
+    const repr = E(`ADVANCED_BREP_SHAPE_REPRESENTATION('',(#${brep}),#${geoCtx})`)
+    E(`SHAPE_DEFINITION_REPRESENTATION(#${pds},#${repr})`)
+  }
 
   const header = [
     'ISO-10303-21;',

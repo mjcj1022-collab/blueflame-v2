@@ -23,6 +23,21 @@ describe('STEP export (faceted solid B-rep)', () => {
     // shared vertices → points far fewer than 3 per face
     expect(points).toBeLessThan(faces * 3)
   })
+  it('skips collinear (zero-area) triangles — no invalid zero-vector DIRECTION', () => {
+    // one real triangle + one collinear (a,b,c on a line) as a mesh part
+    const soup = [0, 0, 0, 1, 0, 0, 0, 1, 0, /* collinear: */ 0, 0, 0, 1, 0, 0, 2, 0, 0]
+    const mesh: SculptObject = { id: 'm', kind: 'mesh', name: 'M', vertices: soup, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0, material: 'metal', color: 0 }
+    const step = modelerToStep([mesh])
+    expect(step).not.toMatch(/DIRECTION\('',\(0,0,0\)\)/)   // no zero-length normal
+    expect(step).toMatch(/MANIFOLD_SOLID_BREP/)             // still has the one good face
+  })
+  it('emits no solid (not an empty shell) for an all-degenerate mesh', () => {
+    const soup = [0, 0, 0, 1, 0, 0, 2, 0, 0]                // a single collinear triangle
+    const mesh: SculptObject = { id: 'm', kind: 'mesh', name: 'M', vertices: soup, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0, material: 'metal', color: 0 }
+    const step = modelerToStep([mesh])
+    expect(step).not.toMatch(/MANIFOLD_SOLID_BREP/)
+    expect(step).not.toMatch(/CLOSED_SHELL\('',\(\)\)/)     // no empty shell either
+  })
   it('every entity reference resolves to a defined entity', () => {
     const step = modelerToStep([shank()])
     const defined = new Set<number>()
