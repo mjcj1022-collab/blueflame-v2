@@ -12,6 +12,7 @@ import { StoneSourcePanel } from './ui/StoneSourcePanel'
 import { ProductionPanel } from './ui/ProductionPanel'
 import { VariantsPanel } from './ui/VariantsPanel'
 import { CustomersPanel } from './ui/CustomersPanel'
+import { TeamPanel } from './ui/TeamPanel'
 import { LibraryPanel } from './ui/LibraryPanel'
 import { ProjectsPanel } from './ui/ProjectsPanel'
 import { ModelerPanel } from './ui/ModelerPanel'
@@ -160,6 +161,7 @@ export default function App() {
                 {show('metalOptions') && <MetalOptionsPanel />}
                 {show('production') && <ProductionPanel />}
                 {show('customers') && <CustomersPanel />}
+                <TeamPanel />
                 {show('library') && <LibraryPanel />}
                 {show('projects') && <ProjectsPanel />}
               </div>

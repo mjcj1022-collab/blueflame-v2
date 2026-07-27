@@ -21,6 +21,14 @@ export interface ServerOrder {
   approved_at: string | null
 }
 
+/** A team member (user) in the shop, as the server returns it. */
+export interface TeamMember {
+  id: string
+  email: string
+  role: string
+  created_at: string
+}
+
 /** A CRM customer record. */
 export interface Customer {
   id: string
@@ -116,6 +124,10 @@ export const api = {
   login: (email: string, password: string) => req('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   register: (shop: string, email: string, password: string) => req('/api/auth/register', { method: 'POST', body: JSON.stringify({ shop, email, password }) }),
   me: () => req('/api/me'),
+  listTeam: () => req('/api/team') as Promise<TeamMember[]>,
+  addTeam: (email: string, password: string, role: string) => req('/api/team', { method: 'POST', body: JSON.stringify({ email, password, role }) }) as Promise<{ id: string; role: string }>,
+  setTeamRole: (id: string, role: string) => req(`/api/team/${id}`, { method: 'PATCH', body: JSON.stringify({ role }) }) as Promise<{ updated: number }>,
+  removeTeam: (id: string) => req(`/api/team/${id}`, { method: 'DELETE' }) as Promise<{ deleted: number }>,
   listDesigns: () => req('/api/designs'),
   saveDesign: (name: string, spec: unknown) => req('/api/designs', { method: 'POST', body: JSON.stringify({ name, spec }) }),
   loadDesign: (id: string) => req(`/api/designs/${id}`),
