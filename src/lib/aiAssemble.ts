@@ -2,6 +2,7 @@ import { sizeToDiameter } from './sizing'
 import { stoneMm, shapeById, stoneById, alloyById } from '../catalog'
 import { haloRadius } from './construction'
 import { NO_STONE, type DesignSpec } from '../spec/types'
+import { necklaceChainVertices, type NecklaceStyle } from './necklaceChain'
 import type { AiDesignPatch } from './aiAssistant'
 import type { SculptObject } from '../state/modeler'
 
@@ -163,26 +164,33 @@ export function buildSculptFromDesign(d: AiDesignPatch): NewPart[] {
   }
 
   if (category === 'necklace' || category === 'bracelet') {
-    // A wearable loop as a torus, sized from the piece length, plus any
-    // station stones spaced around it and a motif/pendant hung at the base.
-    const inches = category === 'necklace'
-      ? (d.necklaceLength ?? 18)
-      : ((d.bodySize ?? 180) / MM_PER_INCH) // bracelet wrist ~7"
+    // Bring in the SAME interlocking-chain geometry the parametric render uses,
+    // so the bench matches the studio piece instead of a smooth torus. The loop
+    // is a circle in the XY plane stretched 1.15× in Y (the drape), and station
+    // stones sit on that stretched loop exactly like the viewer places them.
+    const inches = category === 'necklace' ? (d.necklaceLength ?? 18) : 7.5
     const R = (inches * MM_PER_INCH) / (Math.PI * 2)
-    parts.push(metal('torus', category === 'necklace' ? 'Chain' : 'Bangle',
-      { position: [0, 0, 0], scale: [R / 3, R / 3, R / 3], size: 3 }, mc))
+    const wireR = 0.6                       // ≈ 1.2 mm chain gauge
+    const stretch: [number, number, number] = [1, 1.15, 1]
+    const soup = necklaceChainVertices(R, wireR, (d.chainStyle as NecklaceStyle) ?? 'cable')
+    parts.push({
+      kind: 'mesh', name: category === 'necklace' ? 'Chain' : 'Bracelet',
+      material: 'metal', color: mc,
+      position: [0, 0, 0], rotation: [0, 0, 0], scale: stretch, size: 0,
+      vertices: soup,
+    })
 
     if (d.stationStoneId && (d.stationEveryIn ?? 0) > 0 && (d.stationCarat ?? 0) > 0) {
       const count = Math.max(1, Math.min(60, Math.round(inches / (d.stationEveryIn ?? 2))))
       for (let i = 0; i < count; i++) {
-        const a = (i / count) * Math.PI * 2
-        parts.push(gem(`Station ${i + 1}`, [Math.cos(a) * R, Math.sin(a) * R, 0],
+        const a = (i / count) * Math.PI * 2 + Math.PI / 2
+        parts.push(gem(`Station ${i + 1}`, [Math.cos(a) * R, Math.sin(a) * R * 1.15, 0],
           d.shapeId ?? 'rd', d.stationCarat ?? 0.05, [0, 0, 0], d.stationStoneId))
       }
     }
     // Pendant / motif drop, or a lone centre stone, at the base of the loop.
     if (hasStone(d)) {
-      parts.push(gem('Center stone', [0, -R - 6, 0], d.shapeId ?? 'rd', d.carat ?? 1, [0, 0, 0], stoneType))
+      parts.push(gem('Center stone', [0, -R * 1.15 - 6, 0], d.shapeId ?? 'rd', d.carat ?? 1, [0, 0, 0], stoneType))
     }
     return parts
   }
