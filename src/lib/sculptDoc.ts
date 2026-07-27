@@ -1,6 +1,7 @@
 import type { SculptObject } from '../state/modeler'
 import { alloyById, stoneById } from '../catalog'
 import { sculptEstimate, sculptWarnings, boundingSize } from './sculpt'
+import { laborBreakdown, formatMinutes } from './laborTime'
 import { money, gToDwt } from './units'
 import type { SculptHandoff } from './sculptHandoff'
 
@@ -106,6 +107,16 @@ export function sculptTechSheet(objects: SculptObject[], alloyId: string, brand 
     `  Cast, finish      ${money(est.finishFee)}`,
     `  ESTIMATE          ${money(est.total)}`,
     '',
+    ...(() => {
+      const lb = laborBreakdown(objects, alloyId)
+      if (!lb.lines.length) return []
+      return [
+        'BENCH TIME',
+        ...lb.lines.map(l => `  ${pad(l.op, 18)}${pad(l.detail, 16)}${pad(formatMinutes(l.minutes), 10)}${money(l.cost)}`),
+        `  ${pad('TOTAL', 18)}${pad('', 16)}${pad(formatMinutes(lb.totalMinutes), 10)}${money(lb.laborCost)}`,
+        '',
+      ]
+    })(),
     'PRODUCTION NOTES',
     '  Geometry is a custom sculpt — confirm wall thickness and stone seats',
     '  before casting. Overlapping metal parts double-count in the volume',

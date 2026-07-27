@@ -26,6 +26,7 @@ import { MACROS } from '../lib/commandMacros'
 import { describePiece } from '../lib/describePiece'
 import { overhangReport, symmetryScore, type OverhangReport } from '../lib/castCheck'
 import { alloyCostTable } from '../lib/alloyCost'
+import { laborBreakdown, formatMinutes } from '../lib/laborTime'
 import { sculptMetalVolume } from '../lib/sculpt'
 import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
@@ -1303,6 +1304,27 @@ export function ModelerPanel() {
               </tbody>
             </table>
             <p className="disc">Same metal volume ({(vol / 1000).toFixed(3)} cm³) cast in each alloy, at the shop's current spot factor. Stones and labor not included.</p>
+          </div>
+        )
+      })()}
+
+      {metalCount > 0 && (() => {
+        const lb = laborBreakdown(objects, alloyId)
+        if (!lb.lines.length) return null
+        return (
+          <div className="panel-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <h4 style={{ margin: 0 }}>Labor &amp; bench time</h4>
+              <b style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{formatMinutes(lb.totalMinutes)} · {money(lb.laborCost)}</b>
+            </div>
+            <table className="stone-sched">
+              <tbody>
+                {lb.lines.map((l, i) => (
+                  <tr key={i}><td>{l.op}</td><td>{l.detail}</td><td>{formatMinutes(l.minutes)}</td><td>{money(l.cost)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="disc">Estimated bench time by operation at {money(MARKET.laborRate)}/hr (set on the Design tab’s cost settings). Setting scales with each stone’s size; finishing with metal mass.</p>
           </div>
         )
       })()}

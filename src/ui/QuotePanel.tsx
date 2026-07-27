@@ -234,6 +234,7 @@ export function QuotePanel() {
           <label>Finish $/g<input type="number" step={0.5} value={market.finishPerGram} onChange={e => setMarket({ finishPerGram: Math.max(0, +e.target.value) })} /></label>
           <label>Setting base $<input type="number" step={5} value={market.settingBase} onChange={e => setMarket({ settingBase: Math.max(0, +e.target.value) })} /></label>
           <label>Melee labor $<input type="number" step={1} value={market.meleeLabor} onChange={e => setMarket({ meleeLabor: Math.max(0, +e.target.value) })} /></label>
+          <label>Labor $/hr<input type="number" step={5} value={market.laborRate} onChange={e => setMarket({ laborRate: Math.max(0, +e.target.value) })} /></label>
         </div>
       )}
       <p className="disc">

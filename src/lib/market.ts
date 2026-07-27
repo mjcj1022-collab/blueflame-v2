@@ -11,13 +11,14 @@ export interface Market {
   meleeLabor: number    // setting labor per accent stone, $
   settingBase: number   // baseline setting labor per main stone, $ (scaled by size)
   rhodiumFee: number    // rhodium plating pass, $
+  laborRate: number     // bench labor, $/hour — drives the time-based estimate
 }
 
 export const DEFAULT_MARKET: Market = {
   spotFactor: 1, margin: 1.35,
   finishFee: 95, finishPerGram: 2.5,
   meleeLabor: 12, settingBase: 55,
-  rhodiumFee: 45,
+  rhodiumFee: 45, laborRate: 65,
 }
 
 export const MARKET: Market = { ...DEFAULT_MARKET }
