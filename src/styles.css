@@ -689,3 +689,13 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .print-gate.pass{border-left:3px solid var(--karat)}
 .print-gate.warn{border-left:3px solid var(--warn)}
 .print-gate.fail{border-left:3px solid #C0392B}
+
+/* Modeler panel — collapsible section for the analysis/costing/production cards */
+.mp-section{border:1px solid var(--rule-dark);border-radius:12px;margin:10px 0;background:var(--paper)}
+.mp-section>summary{list-style:none;cursor:pointer;padding:11px 14px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--karat)}
+.mp-section>summary::-webkit-details-marker{display:none}
+.mp-section>summary::before{content:'▸ ';color:var(--slate)}
+.mp-section[open]>summary::before{content:'▾ '}
+.mp-section>summary span{color:var(--slate);font-weight:400;text-transform:none;letter-spacing:0}
+.mp-section>.panel-block{border:none;border-top:1px solid var(--rule);border-radius:0;margin:0}
+.mp-section[open]{padding-bottom:4px}

@@ -948,7 +948,9 @@ export function ModelerPanel() {
         </div>
         <p className="disc">Bench repairs: <b>Retip</b> adds fresh metal beads at a head’s prong tips; <b>New shank</b> swaps a worn or over-edited band for a clean one at the same finger size. <b>Stamp hallmark</b> cuts the metal purity mark and your maker’s mark inside the band.</p>
 
-        <h4 style={{ marginTop: 18 }}>Free draw</h4>
+        <details className="mp-section" style={{ marginTop: 12 }}>
+        <summary>Advanced modeling <span>— sketch · lattice · text · vertex edit</span></summary>
+        <h4 style={{ marginTop: 14 }}>Free draw</h4>
         <div className="opts"><button className="opt tpl" aria-pressed={sketching} onClick={() => setSketching(!sketching)}>{sketching ? 'Sketching… (drawing on stage)' : 'Sketch a shape…'}</button></div>
         <div className="row" style={{ marginTop: 10 }}><label>Profile presets</label></div>
         <div className="opts c2">
@@ -1038,6 +1040,7 @@ export function ModelerPanel() {
             <p className="disc">Select a part, then <b>drag on its surface</b> to {surfaceOp === 'cut' ? 'cut an engraved groove into it' : 'raise an embossed line on it'}. Each stroke becomes a tube that’s {surfaceOp === 'cut' ? 'subtracted from' : 'fused onto'} the part — undo reverts it.</p>
           </>
         )}
+        </details>
       </div>
 
       <div className="panel-block metalreq quote">
@@ -1465,6 +1468,9 @@ export function ModelerPanel() {
         )
       })()}
 
+      <details className="mp-section">
+        <summary>Analysis, costing &amp; production <span>— BOM · quote · casting · stones · QC · handoff</span></summary>
+
       {metalCount > 0 && (() => {
         const vol = sculptMetalVolume(objects)
         const rows = alloyCostTable(vol)
@@ -1835,6 +1841,7 @@ export function ModelerPanel() {
             </>
           )}
       </div>
+      </details>
 
       {objects.length > 0 && (() => {
         const pr = printReadiness(objects, alloyId)
