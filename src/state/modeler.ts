@@ -10,7 +10,7 @@ import { haloRadius, channelRailSpots, type RailAlong } from '../lib/constructio
 import { textureSoup, type TextureStyle } from '../lib/texture'
 import { milgrainSpots, milgrainCount, bridgePath } from '../lib/finishing'
 import { paveSpots as paveSpotsFn } from '../lib/pave'
-import { buildSculptFromDesign, patchFromSpec } from '../lib/aiAssemble'
+import { buildSculptFromDesign, patchFromSpec, designSignature } from '../lib/aiAssemble'
 import type { AiDesignPatch } from '../lib/aiAssistant'
 import type { DesignSpec } from '../spec/types'
 import { refineDesign } from '../lib/designRules'
@@ -221,6 +221,9 @@ interface ModelerStore {
   piercePattern: (id: string, count: number, mode: 'row' | 'ring', span: number, dia: number, axis: 'x' | 'y' | 'z') => number
   addSignet: (id: string, width: number, length: number, thickness: number) => boolean
   assembleDesign: (patch: AiDesignPatch, replace?: boolean) => number
+  /** Signature of the studio design the current bench was imported from, or null
+   *  if the bench was never imported (hand-built) this session. In-memory only. */
+  importedSig: string | null
   /** Bring the current AI/Design-studio piece into the modeler as editable parts. */
   importFromDesign: (spec: DesignSpec, replace?: boolean) => number
   runModelerCommands: (cmds: ModelerCommand[]) => { applied: string[]; skipped: string[] }
@@ -271,6 +274,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
   sketchEditId: null,
   past: [],
   future: [],
+  importedSig: null,
   placing: null,
 
   undo: () => set(s => {
@@ -892,7 +896,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
    *  matching its alloy. Flatten → assemble → adopt the alloy for pricing. */
   importFromDesign: (spec, replace) => {
     const n = get().assembleDesign(patchFromSpec(spec), replace ?? true)
-    if (n) get().setAlloy(spec.metal.alloyId)
+    if (n) { get().setAlloy(spec.metal.alloyId); set({ importedSig: designSignature(spec) }) }
     return n
   },
 

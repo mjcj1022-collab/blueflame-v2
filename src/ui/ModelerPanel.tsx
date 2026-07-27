@@ -31,6 +31,8 @@ import { textToPdf, bodyAfterTitle } from '../lib/pdf'
 import { ALLOYS, SHAPES, STONES, alloyById, shapeById, stoneMm } from '../catalog'
 import { MARKET } from '../lib/market'
 import { useDesign } from '../state/design'
+import { designSignature } from '../lib/aiAssemble'
+import { stoneOnPiece } from '../spec/types'
 import { textVertices, TEXT_FONT_NAMES } from '../lib/text3d'
 import { money } from '../lib/units'
 import { PartsLibrary } from './PartsLibrary'
@@ -608,8 +610,27 @@ export function ModelerPanel() {
   const openSaved = (id: string) => { const rec = sculptLibrary.get(id); if (rec) { load(rec.objects); flash(`Loaded “${rec.name}”.`) } }
   const removeSaved = (id: string) => { sculptLibrary.remove(id); setSaved(sculptLibrary.list()) }
 
+  // Does the bench still match the studio design, or has an AI/Design-studio
+  // piece been built/changed since (so we should offer to bring it over)?
+  const studioSpec = useDesign.getState().spec
+  const studioSig = designSignature(studioSpec)
+  const importedSig = useModeler(s => s.importedSig)
+  const studioHasPiece = stoneOnPiece(studioSpec) || studioSpec.category !== 'ring' || studioSpec.setting.typeId !== 'p4'
+  const studioOutOfSync = studioHasPiece && studioSig !== importedSig
+
   return (
     <>
+      {studioOutOfSync && (
+        <div className="panel-block studio-sync" style={{ borderLeft: '3px solid var(--karat)' }}>
+          <p style={{ margin: '0 0 8px' }}>
+            <b>Your AI-studio piece isn’t on the bench.</b> {objects.length ? 'Bring it in to sculpt it (this replaces what’s here — undoable).' : 'Bring it in to start sculpting it.'}
+          </p>
+          <div className="opts c2">
+            <button className="primary" onClick={bringInDesign}>Bring it onto the bench →</button>
+            <button className="opt" onClick={() => useModeler.setState({ importedSig: studioSig })} title="Keep what’s on the bench and hide this">Keep bench as is</button>
+          </div>
+        </div>
+      )}
       <div className="panel-block">
         <h4>Build with AI ✦</h4>
         <textarea className="ai-asm-in" rows={2} value={aiText} onChange={e => setAiText(e.target.value)}

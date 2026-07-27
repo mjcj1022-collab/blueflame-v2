@@ -12,6 +12,16 @@ const MM_PER_INCH = 25.4
  * assembler consumes. This is the bridge that lets a piece built in the AI /
  * Design studio be handed to the Sculpt modeler as real editable parts.
  */
+/**
+ * A stable fingerprint of the parametric design, used to tell whether the piece
+ * currently on the Sculpt bench still matches the studio design or has drifted
+ * (so the bench can offer to re-import). Ignores view-only fields (hidden).
+ */
+export function designSignature(spec: DesignSpec): string {
+  const { hidden: _hidden, ...rest } = spec
+  return JSON.stringify(rest)
+}
+
 export function patchFromSpec(spec: DesignSpec): AiDesignPatch {
   const p: AiDesignPatch = {
     category: spec.category,
