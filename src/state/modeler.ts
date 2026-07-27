@@ -10,6 +10,12 @@ import { haloRadius, channelRailSpots, type RailAlong } from '../lib/constructio
 import { textureSoup, type TextureStyle } from '../lib/texture'
 import { milgrainSpots, milgrainCount, bridgePath } from '../lib/finishing'
 import { paveSpots as paveSpotsFn } from '../lib/pave'
+import { buildSculptFromDesign } from '../lib/aiAssemble'
+import type { AiDesignPatch } from '../lib/aiAssistant'
+import { domeSoup } from '../lib/dome'
+import { symmetrizeSoup } from '../lib/symmetrize'
+import { bestPrintOrientation, rotateSoup } from '../lib/printOrient'
+import type { Axis } from '../lib/castCheck'
 
 export interface PaveFillOptions {
   count: number
@@ -205,6 +211,13 @@ interface ModelerStore {
   bridgeWire: (aId: string, bId: string, wire: number) => boolean
   piercePattern: (id: string, count: number, mode: 'row' | 'ring', span: number, dia: number, axis: 'x' | 'y' | 'z') => number
   addSignet: (id: string, width: number, length: number, thickness: number) => boolean
+  assembleDesign: (patch: AiDesignPatch, replace?: boolean) => number
+  domeTop: (id: string, height: number) => boolean
+  addSizingBeads: (id: string) => boolean
+  symmetrizeMesh: (id: string, axis: Axis) => boolean
+  autoOrientForPrint: () => number
+  addGallery: (id: string) => boolean
+  subtractFromAll: (cutterId: string) => number
   select: (id: string | null) => void
   setMode: (mode: TransformMode) => void
   setAlloy: (id: string) => void
@@ -828,6 +841,119 @@ export const useModeler = create<ModelerStore>((set, get) => {
     }
     set(s => ({ objects: [...s.objects, signet], selectedId: signet.id }))
     return true
+  },
+
+  /** Assemble a design patch (from the AI or a preset) into real editable parts. */
+  assembleDesign: (patch, replace) => {
+    const parts = buildSculptFromDesign(patch)
+    if (!parts.length) return 0
+    record()
+    const full: SculptObject[] = parts.map((p, i) => ({ ...p, id: newId(), name: p.name ?? `Part ${i + 1}` }))
+    set(s => ({ objects: replace ? full : [...s.objects, ...full], selectedId: full[0].id }))
+    return full.length
+  },
+
+  /** Dome the top of a part into a cabochon / comfort bulge. */
+  domeTop: (id, height) => {
+    const src = get().objects.find(o => o.id === id)
+    if (!src || height === 0) return false
+    const bv = bakedVertices(src)
+    if (bv.length < 9) return false
+    record()
+    const out = domeSoup(bv, height)
+    set(s => ({ objects: s.objects.map(o => o.id === id ? { ...o, kind: 'mesh', vertices: out, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 } : o) }))
+    return true
+  },
+
+  /** Add two sizing beads on the inner bottom of a band to snug the fit. */
+  addSizingBeads: id => {
+    const src = get().objects.find(o => o.id === id)
+    if (!src) return false
+    const bv = bakedVertices(src)
+    if (bv.length < 9) return false
+    let minY = Infinity, minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity
+    for (let i = 0; i + 2 < bv.length; i += 3) {
+      minY = Math.min(minY, bv[i + 1])
+      minX = Math.min(minX, bv[i]); maxX = Math.max(maxX, bv[i])
+      minZ = Math.min(minZ, bv[i + 2]); maxZ = Math.max(maxZ, bv[i + 2])
+    }
+    const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2
+    const bead = Math.max(0.6, (maxX - minX) * 0.06)
+    record()
+    const beads: SculptObject[] = [-1, 1].map((sgn, i) => ({
+      id: newId(), name: `Sizing bead ${i + 1}`, kind: 'sphere',
+      position: [cx + sgn * bead * 1.3, minY + bead * 0.6, cz], rotation: [0, 0, 0],
+      scale: [1, 1, 1], size: bead, material: 'metal', color: GOLD,
+    }))
+    set(s => ({ objects: [...s.objects, ...beads], selectedId: beads[0].id }))
+    return true
+  },
+
+  /** Force a part perfectly symmetric across a plane by mirroring one half. */
+  symmetrizeMesh: (id, axis) => {
+    const src = get().objects.find(o => o.id === id)
+    if (!src) return false
+    const bv = bakedVertices(src)
+    if (bv.length < 9) return false
+    const out = symmetrizeSoup(bv, axis)
+    if (out.length < 9) return false
+    record()
+    set(s => ({ objects: s.objects.map(o => o.id === id ? { ...o, kind: 'mesh', vertices: out, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 } : o) }))
+    return true
+  },
+
+  /** Rotate the whole piece to the print orientation that needs least support.
+   *  Returns the new downward-facing fraction (0..1), or -1 if already optimal. */
+  autoOrientForPrint: () => {
+    const objs = get().objects
+    if (!objs.length) return -1
+    const best = bestPrintOrientation(objs)
+    if (best.rotation.every(r => r === 0)) return -1
+    record()
+    set(s => ({
+      objects: s.objects.map(o => ({
+        ...o, kind: 'mesh', vertices: rotateSoup(bakedVertices(o), best.rotation),
+        position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0,
+      })),
+    }))
+    return best.fraction
+  },
+
+  /** Drop a decorative gallery ring beneath a set stone (or any part). */
+  addGallery: id => {
+    const src = get().objects.find(o => o.id === id)
+    if (!src) return false
+    const isGem = src.material === 'gem'
+    const r = isGem ? gemDiameterMm(src) * 0.42 : 3
+    const [x, y, z] = src.position
+    record()
+    const gallery: SculptObject = {
+      id: newId(), name: 'Gallery', kind: 'torus',
+      position: [x, y - (isGem ? gemDiameterMm(src) * 0.5 : 2), z], rotation: [Math.PI / 2, 0, 0],
+      scale: [r / 1.5, r / 1.5, r / 1.5], size: 3, material: 'metal', color: GOLD,
+    }
+    set(s => ({ objects: [...s.objects, gallery], selectedId: gallery.id }))
+    return true
+  },
+
+  /** Subtract one part (a cutter) from every other metal part at once. */
+  subtractFromAll: cutterId => {
+    const cutter = get().objects.find(o => o.id === cutterId)
+    if (!cutter) return 0
+    const targets = get().objects.filter(o => o.id !== cutterId && o.material === 'metal')
+    if (!targets.length) return 0
+    record()
+    let cut = 0
+    const updated = new Map<string, SculptObject>()
+    for (const t of targets) {
+      try {
+        const v = booleanOp(t, cutter, 'subtract')
+        if (v.length) { updated.set(t.id, { ...t, kind: 'mesh', vertices: v, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 }); cut++ }
+      } catch { /* skip a target that fails; keep the rest */ }
+    }
+    if (!cut) return 0
+    set(s => ({ objects: s.objects.map(o => updated.get(o.id) ?? o) }))
+    return cut
   },
 
   select: id => set(s => (id === s.selectedId ? { selectedId: id } : { selectedId: id, selectedVertex: null })),

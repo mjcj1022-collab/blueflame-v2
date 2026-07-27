@@ -38,7 +38,9 @@ export interface AiDesignPatch {
   bodyGauge?: number         // body jewelry wire gauge, mm
   bodySize?: number          // body jewelry length / diameter, mm
 }
-export interface AiReply { reply: string; design: AiDesignPatch | null; matched: string[] }
+/** One of three distinct "build routes" the assistant offers for a new piece. */
+export interface AiRoute { label: string; note: string; design: AiDesignPatch; matched: string[] }
+export interface AiReply { reply: string; design: AiDesignPatch | null; matched: string[]; routes: AiRoute[] }
 export interface ChatTurn { role: 'user' | 'assistant'; content: string }
 
 const list = (rows: { id: string; name: string }[]) => rows.map(r => `${r.id} (${r.name})`).join(', ')
@@ -47,11 +49,25 @@ const list = (rows: { id: string; name: string }[]) => rows.map(r => `${r.id} ($
  *  the strict JSON envelope we parse. Built from the live catalog. */
 export function buildSystemPrompt(): string {
   return [
-    'You are the design assistant for Blue Flame, a fine-jewelry CAD app.',
-    'Help the user design a piece. When they describe (or show a photo/sketch of) a piece, translate it into the app\'s parametric design.',
-    'ALWAYS reply with a single JSON object and nothing else, in this exact shape:',
-    '{ "reply": "<one or two friendly sentences>", "design": { ...fields... } | null }',
-    'Include only the design fields you are changing. Use ONLY these ids:',
+    'You are the design assistant for Blue Flame, a fine-jewelry CAD app. You turn a maker\'s words (or a reference photo/sketch) into the app\'s REAL parametric design, using ONLY the catalog ids listed below.',
+    'Reply with a SINGLE JSON object and NOTHING else — no prose before or after, no markdown code fences.',
+    '',
+    'CHOOSE ONE OF TWO SHAPES:',
+    '(A) BUILD MODE — when the user asks you to build / design / create / make / mock up a NEW piece, or asks for ideas/options. Return THREE distinct build routes:',
+    '{ "reply": "<one friendly sentence>", "options": [',
+    '  { "label": "<3–5 word name>", "note": "<one short clause on what makes this route distinct>", "design": { ...fields... } },',
+    '  { "label": "...", "note": "...", "design": { ... } },',
+    '  { "label": "...", "note": "...", "design": { ... } } ] }',
+    'The three routes must be genuinely DIFFERENT interpretations of the SAME request — e.g. classic vs. modern vs. bold, or different stone/cut/setting/proportions — each a COMPLETE, buildable design (fill every field the request implies). Not three near-identical variants.',
+    '(B) EDIT MODE — when the user asks for a small change, asks a question, or is chatting. Return a single patch (only the fields that change), or null:',
+    '{ "reply": "<answer in one or two sentences>", "design": { ...changed fields... } | null }',
+    '',
+    'ACCURACY RULES (follow strictly):',
+    '- Use ONLY ids from the lists below. NEVER invent an id. If the exact thing isn\'t listed, pick the CLOSEST listed id.',
+    '- ALWAYS set "category". ALWAYS translate descriptive words into concrete fields — never leave the geometry generic.',
+    '- Before you output, silently verify every id you used appears in the lists.',
+    '',
+    'IDS:',
     `category: ${CATEGORIES.join(', ')}`,
     `alloyId: ${list(ALLOYS)}`,
     `shapeId (stone cut): ${list(SHAPES)}`,
@@ -59,30 +75,62 @@ export function buildSystemPrompt(): string {
     `settingId: ${list(SETTINGS)}`,
     `finish: ${list(FINISHES)}`,
     'carat: number 0.05–20. size: US ring size 2–16.',
-    `motif (a medallion on a necklace): ${MOTIFS.map(([id, name]) => `${id} (${name})`).join(', ')}, or "none". Set category to "necklace" and pick the motif whenever the request names one — e.g. Celtic/knotwork/triquetra→celtic, cross/crucifix→cross, infinity/eternity→infinity, heart→heart, halo→halo, cluster→cluster, flower/floral→floral.`,
+    `motif (a medallion on a necklace): ${MOTIFS.map(([id, name]) => `${id} (${name})`).join(', ')}, or "none". Set category to "necklace" and pick the motif whenever the request names one — Celtic/knotwork/triquetra→celtic, cross/crucifix→cross, infinity/eternity→infinity, heart→heart, halo→halo, cluster→cluster, flower/floral→floral.`,
     '--- Dimensional fields — set these to shape the real geometry, not just the category: ---',
-    'RING: bandWidth (mm, 1–12, e.g. a wide band is 6–8), bandProfile (round, flat, dshape, knife).',
+    'RING: bandWidth (mm, 1–12; a wide band is 6–8), bandProfile (round, flat, dshape, knife).',
     `NECKLACE: chainStyle (${NECKLACE_STYLES.map(([id]) => id).join(', ')}), necklaceLength (inches, 14–30; 16=choker, 18=princess, 24=opera).`,
     'BRACELET: braceletKind (tennis, bangle, cuff, chain).',
     'EARRING: dropLength (mm, 0 for a stud, >0 for a drop/dangle).',
     `BODY (barbells, rings, plugs): bodyStyle (${BODY_STYLES.map(([id]) => id).join(', ')}), bodyGauge (mm, 0.8–3.2; 1.6=14g, 1.2=16g), bodySize (mm; barbell length or ring/plug diameter). Set category to "body".`,
-    'Always translate descriptive words into these fields — "wide hammered band" → bandProfile+bandWidth+finish; "16g gold septum" → category body, bodyStyle septum, bodyGauge 1.2; "20-inch rope chain" → chainStyle rope, necklaceLength 20.',
-    'If the request is a question or chit-chat, set "design" to null and just answer in "reply".'
+    'Translate examples: "wide hammered band" → bandProfile+bandWidth+finish hammered; "16g gold septum" → category body, bodyStyle septum, bodyGauge 1.2; "20-inch rope chain" → chainStyle rope, necklaceLength 20.',
+    '',
+    'EXAMPLES (ids are real — copy this structure):',
+    'User: "design a round-diamond solitaire in white gold"',
+    '{"reply":"Three takes on a round-diamond solitaire.","options":[',
+    '{"label":"Classic six-prong","note":"tall timeless solitaire","design":{"category":"ring","alloyId":"14kw","shapeId":"rd","stoneTypeId":"dia","carat":1,"settingId":"p6","size":6.5,"bandWidth":2,"bandProfile":"round","finish":"polish"}},',
+    '{"label":"Sleek bezel","note":"modern low-profile, protective","design":{"category":"ring","alloyId":"18kw","shapeId":"rd","stoneTypeId":"dia","carat":1,"settingId":"bz","size":6.5,"bandWidth":2.5,"bandProfile":"flat","finish":"satin"}},',
+    '{"label":"Bold halo","note":"maximises sparkle and spread","design":{"category":"ring","alloyId":"14kw","shapeId":"rd","stoneTypeId":"dia","carat":1.25,"settingId":"hal","size":6.5,"bandWidth":2,"bandProfile":"round","finish":"polish"}}]}',
+    'User: "make the band wider and hammered"',
+    '{"reply":"Widened to a 6 mm hammered band.","design":{"bandWidth":6,"finish":"hammered"}}',
+    'User: "what karat is best for daily wear?"',
+    '{"reply":"14K is the sweet spot — harder and more scratch-resistant than 18K, while still rich in colour.","design":null}'
   ].join('\n')
 }
 
 /** Pull the JSON envelope out of a model reply that may be fenced or chatty. */
 export function parseAiReply(text: string): AiReply {
   const raw = extractJson(text)
-  if (!raw) return { reply: text.trim() || 'Done.', design: null, matched: [] }
-  let obj: { reply?: unknown; design?: unknown }
-  try { obj = JSON.parse(raw) } catch { return { reply: text.trim(), design: null, matched: [] } }
-  const design = normalizeAiDesign(obj.design)
+  if (!raw) return { reply: text.trim() || 'Done.', design: null, matched: [], routes: [] }
+  let obj: { reply?: unknown; design?: unknown; options?: unknown; routes?: unknown }
+  try { obj = JSON.parse(raw) } catch { return { reply: text.trim(), design: null, matched: [], routes: [] } }
+
+  // Build mode: an array of distinct routes. Accept "options" or "routes".
+  const routes = normalizeRoutes(obj.options ?? obj.routes)
+  const design = routes.length ? null : normalizeAiDesign(obj.design)
+  const fallback = routes.length ? 'Here are three ways to build it — pick one.' : (design ? 'Updated the design.' : 'Done.')
   return {
-    reply: typeof obj.reply === 'string' && obj.reply.trim() ? obj.reply.trim() : (design ? 'Updated the design.' : 'Done.'),
+    reply: typeof obj.reply === 'string' && obj.reply.trim() ? obj.reply.trim() : fallback,
     design,
-    matched: describe(design)
+    matched: describe(design),
+    routes,
   }
+}
+
+/** Validate a list of build routes: keep those whose design has ≥1 real field. */
+function normalizeRoutes(raw: unknown): AiRoute[] {
+  if (!Array.isArray(raw)) return []
+  const out: AiRoute[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const r = item as Record<string, unknown>
+    const design = normalizeAiDesign(r.design)
+    if (!design) continue
+    const label = typeof r.label === 'string' && r.label.trim() ? r.label.trim() : `Option ${out.length + 1}`
+    const note = typeof r.note === 'string' ? r.note.trim() : (typeof r.description === 'string' ? (r.description as string).trim() : '')
+    out.push({ label, note, design, matched: describe(design) })
+    if (out.length === 3) break
+  }
+  return out
 }
 
 function extractJson(text: string): string | null {
@@ -209,9 +257,9 @@ export async function askAssistant(history: ChatTurn[], image?: string | null): 
   // Trace the round-trip so a "nothing happened" report is diagnosable from the
   // browser console (F12 → Console, filter "[AI]"): raw model text + parse result.
   console.log('[AI] raw server response:', res)
-  if (res.disabled) { console.log('[AI] assistant reports disabled (no key)'); return { reply: '', design: null, matched: [], disabled: true } }
+  if (res.disabled) { console.log('[AI] assistant reports disabled (no key)'); return { reply: '', design: null, matched: [], routes: [], disabled: true } }
   const parsed = parseAiReply(res.text ?? '')
-  console.log('[AI] parsed reply:', parsed.reply, '| design patch:', parsed.design, '| matched:', parsed.matched)
+  console.log('[AI] parsed reply:', parsed.reply, '| design patch:', parsed.design, '| routes:', parsed.routes.length, '| matched:', parsed.matched)
   return parsed
 }
 

@@ -15,6 +15,11 @@ import { modelerToObj, blueFlameMtl } from '../lib/cadExport'
 import type { PaveMode } from '../lib/pave'
 import type { RailAlong } from '../lib/construction'
 import { stoneSchedule, stoneScheduleText } from '../lib/stoneSchedule'
+import { askAssistant, type AiRoute } from '../lib/aiAssistant'
+import { overhangReport, symmetryScore, type OverhangReport } from '../lib/castCheck'
+import { alloyCostTable } from '../lib/alloyCost'
+import { sculptMetalVolume } from '../lib/sculpt'
+import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
 import { sculptTechSheet, sculptQuote } from '../lib/sculptDoc'
 import { textToPdf, bodyAfterTitle } from '../lib/pdf'
@@ -220,7 +225,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -243,6 +248,13 @@ export function ModelerPanel() {
   const [pierce, setPierce] = useState<{ count: number; mode: 'row' | 'ring'; span: number; dia: number; axis: 'x' | 'y' | 'z' }>({ count: 6, mode: 'ring', span: 4, dia: 1, axis: 'y' })
   const [signet, setSignet] = useState({ width: 10, length: 12, thickness: 1.5 })
   const [wire, setWire] = useState(1)
+  const [aiText, setAiText] = useState('')
+  const [aiAsm, setAiAsm] = useState<{ busy: boolean; err: string | null; routes: AiRoute[] }>({ busy: false, err: null, routes: [] })
+  const [aiReplace, setAiReplace] = useState(true)
+  const [domeH, setDomeH] = useState(1.5)
+  const [symAxis, setSymAxis] = useState<'x' | 'y' | 'z'>('x')
+  const [over, setOver] = useState<OverhangReport | null>(null)
+  const [sym, setSym] = useState<number | null>(null)
   const [saveName, setSaveName] = useState('')
   const [saved, setSaved] = useState<SavedSculpt[]>(() => sculptLibrary.list())
   const [dfm, setDfm] = useState<{ id: string; r: DfmReport } | null>(null)
@@ -431,9 +443,38 @@ export function ModelerPanel() {
   const doBridge = () => { const b = objects.find(o => o.id === otherId); if (sel && b && bridgeWire(sel.id, b.id, wire)) flash(`Bridged ${sel.name} → ${b.name}.`); else flash('Select a part and pick a second in the Boolean list.') }
   const doPierce = () => { if (!sel) { flash('Select a part to pierce.'); return } const n = piercePattern(sel.id, pierce.count, pierce.mode, pierce.span, pierce.dia, pierce.axis); flash(n ? `Pierced ${n} holes through ${sel.name}.` : 'Piercing missed the part — adjust span/diameter.') }
   const doSignet = () => { if (sel && addSignet(sel.id, signet.width, signet.length, signet.thickness)) flash('Added a signet face on top.'); else flash('Select a part first.') }
+  const doDome = () => { if (sel && domeTop(sel.id, domeH)) flash(`Domed ${sel.name} by ${domeH} mm.`); else flash('Select a part to dome.') }
+  const doSizingBeads = () => { if (sel && addSizingBeads(sel.id)) flash('Added sizing beads inside the band.'); else flash('Select the band first.') }
+  const checkOverhang = () => setOver(overhangReport(objects))
+  const checkSymmetry = () => { if (!sel) { flash('Select a part to check symmetry.'); return } setSym(symmetryScore(bakedVertices(sel), symAxis)) }
+  const doSymmetrize = () => { if (sel && symmetrizeMesh(sel.id, symAxis)) { setSym(1); flash(`Symmetrised ${sel.name} across ${symAxis.toUpperCase()}.`) } else flash('Select a part to symmetrise.') }
+  const doAutoOrient = () => { const f = autoOrientForPrint(); flash(f < 0 ? 'Already in the best print orientation.' : `Re-oriented — now ${Math.round(f * 100)}% down-facing.`); setOver(null) }
+  const doGallery = () => { if (sel && addGallery(sel.id)) flash('Added a gallery ring under the stone.'); else flash('Select a stone or part first.') }
+  const doSubtractAll = () => { if (!sel) { flash('Select the cutter part first.'); return } const n = subtractFromAll(sel.id); flash(n ? `Cut ${n} metal part${n === 1 ? '' : 's'} with ${sel.name}.` : 'Nothing to cut — need another metal part it overlaps.') }
+  const copySummary = () => { const txt = pieceSummaryText(pieceSummary(objects, alloyId), alloy.name); navigator.clipboard?.writeText(txt).then(() => flash('Piece summary copied.'), () => flash('Could not copy.')) }
   const copySchedule = () => {
     const txt = stoneScheduleText(stoneSchedule(objects))
     navigator.clipboard?.writeText(txt).then(() => flash('Stone schedule copied.'), () => flash('Could not copy.'))
+  }
+  const runAiAssemble = async () => {
+    const q = aiText.trim()
+    if (!q || aiAsm.busy) return
+    setAiAsm({ busy: true, err: null, routes: [] })
+    try {
+      const res = await askAssistant([{ role: 'user', content: q }])
+      if (res.disabled) { setAiAsm({ busy: false, err: 'AI is off — add AI_API_KEY on the backend.', routes: [] }); return }
+      if (res.routes.length) { setAiAsm({ busy: false, err: null, routes: res.routes }); return }
+      if (res.design) { const n = assembleDesign(res.design, aiReplace); flash(n ? `Assembled ${n} editable parts.` : 'Nothing to assemble from that.') }
+      else flash(res.reply || 'No buildable design in that request.')
+      setAiAsm({ busy: false, err: null, routes: [] })
+    } catch { setAiAsm({ busy: false, err: 'AI request failed — try again.', routes: [] }) }
+  }
+  const buildAiRoute = (i: number) => {
+    const r = aiAsm.routes[i]
+    if (!r) return
+    const n = assembleDesign(r.design, aiReplace)
+    flash(n ? `Built “${r.label}” — ${n} editable parts.` : 'Nothing to assemble.')
+    setAiAsm(a => ({ ...a, routes: [] }))
   }
 
   const metalCount = objects.filter(o => o.material === 'metal').length
@@ -492,6 +533,31 @@ export function ModelerPanel() {
 
   return (
     <>
+      <div className="panel-block">
+        <h4>Build with AI ✦</h4>
+        <textarea className="ai-asm-in" rows={2} value={aiText} onChange={e => setAiText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void runAiAssemble() } }}
+          placeholder="Describe a piece — e.g. 6-prong round solitaire, 1.5 ct, white gold, size 6.5" disabled={aiAsm.busy} />
+        <div className="opts c2" style={{ marginTop: 6 }}>
+          <button className="primary" onClick={() => void runAiAssemble()} disabled={aiAsm.busy || !aiText.trim()}>{aiAsm.busy ? 'Designing…' : 'Assemble parts ✦'}</button>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={aiReplace} onChange={e => setAiReplace(e.target.checked)} /> Start fresh</label>
+        </div>
+        {aiAsm.err && <p className="disc" style={{ color: 'var(--warn)' }}>{aiAsm.err}</p>}
+        {aiAsm.routes.length > 0 && (
+          <div className="ai-asm-routes">
+            <p className="disc" style={{ marginTop: 10 }}>Pick a build route — it assembles as editable parts:</p>
+            {aiAsm.routes.map((r, i) => (
+              <div key={i} className="ai-asm-route">
+                <div><b>{i + 1}. {r.label}</b>{r.note && <span className="ai-asm-note"> — {r.note}</span>}</div>
+                {r.matched.length > 0 && <div className="ai-chips">{r.matched.map((c, j) => <span key={j} className="ai-chip">{c}</span>)}</div>}
+                <button className="opt" style={{ width: '100%', marginTop: 5 }} onClick={() => buildAiRoute(i)}>Build this in modeler</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="disc">The AI turns your description into real shank / stone / setting parts you can then refine with every tool below.</p>
+      </div>
+
       <div className="panel-block">
         <h4>Jewelry parts</h4>
         <div className="opts c2">
@@ -613,6 +679,32 @@ export function ModelerPanel() {
           <button className="opt tpl" onClick={checkBalance} title="Center of mass — will the ring sit still or rotate on the finger?">Check balance ⚖</button>
           <button className="opt tpl" onClick={() => setSeatRep(seatReport(objects))} title="Do the prongs/bezel cover the girdle and hold the stone?">Check stone seat 💎</button>
         </div>
+        <div className="opts c2" style={{ marginTop: 8 }}>
+          <button className="opt tpl" onClick={checkOverhang} title="How much downward-facing surface a resin/FDM print would need supports under">Check print supports 🖨</button>
+          <button className="opt tpl" onClick={checkSymmetry} title="How mirror-symmetric the selected part is across a plane">Check symmetry ⟷</button>
+        </div>
+        <div className="opts" style={{ marginTop: 6 }}>
+          {(['x', 'y', 'z'] as const).map(ax => <button key={ax} className="opt" aria-pressed={symAxis === ax} onClick={() => setSymAxis(ax)} title={`Mirror plane for the symmetry check / symmetrise`}>{ax.toUpperCase()}</button>)}
+        </div>
+        <div className="opts c2" style={{ marginTop: 6 }}>
+          <button className="opt tpl" onClick={doSymmetrize} title={`Mirror one half across ${symAxis.toUpperCase()} to force perfect symmetry`}>Symmetrise across {symAxis.toUpperCase()}</button>
+          <button className="opt tpl" onClick={doAutoOrient} title="Rotate the whole piece to the orientation needing least support">Auto-orient for print</button>
+        </div>
+        {over && (
+          <div className="dfm">
+            <div className="dfm-metrics"><span>down-facing {Math.round(over.fraction * 100)}%</span></div>
+            <p className={`dfm-line ${over.level === 'good' ? 'pass' : over.level === 'some' ? 'warn' : 'fail'}`}>
+              <b>{over.level === 'good' ? 'Prints clean' : over.level === 'some' ? 'Some supports' : 'Heavy supports'}</b> — {over.note}
+            </p>
+          </div>
+        )}
+        {sym !== null && (
+          <div className="dfm">
+            <p className={`dfm-line ${sym > 0.9 ? 'pass' : sym > 0.75 ? 'warn' : 'fail'}`}>
+              <b>Symmetry {Math.round(sym * 100)}%</b> across {symAxis.toUpperCase()} — {sym > 0.9 ? 'the two halves match well.' : sym > 0.75 ? 'slightly off — worth a look.' : 'the halves diverge; mirror one side if they should match.'}
+            </p>
+          </div>
+        )}
         {bal && (
           <div className={`dfm bal-${bal.verdict}`}>
             <div className="dfm-metrics">
@@ -790,6 +882,7 @@ export function ModelerPanel() {
             {OPS.map(([op, label]) => <button key={op} className="opt" onClick={() => doBoolean(op)}>{label}</button>)}
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={keepCutter} onChange={e => setKeepCutter(e.target.checked)} /> Keep the cutter (reuse it on other parts)</label>
+          <button className="opt" style={{ width: '100%', marginTop: 8 }} onClick={doSubtractAll} title="Subtract the selected part from every other metal part at once">Cut all metal with this part</button>
 
           <h4 style={{ marginTop: 20 }}>Channel rails</h4>
           <div className="opts c2" style={{ marginBottom: 6 }}>
@@ -819,6 +912,11 @@ export function ModelerPanel() {
           <div className="opts c2" style={{ marginTop: 4 }}>
             <button className="opt" onClick={doMilgrain}>Add milgrain ring</button>
             <button className="opt" onClick={doSignet}>Add signet face</button>
+          </div>
+          <div className="row" style={{ marginTop: 10 }}><label>Dome height mm</label><input className="lib-name" style={{ width: 64 }} type="number" min={0.1} step={0.1} value={domeH} onChange={e => setDomeH(Math.max(0.1, +e.target.value))} /></div>
+          <div className="opts c2" style={{ marginTop: 4 }}>
+            <button className="opt" onClick={doDome} title="Bulge the top into a cabochon / comfort dome">Dome the top</button>
+            <button className="opt" onClick={doSizingBeads} title="Two beads on the inner band bottom to snug the fit">Add sizing beads</button>
           </div>
           <div className="opts c2" style={{ marginTop: 6 }}>
             <button className="opt" onClick={doBridge}>Bridge wire → Boolean pick</button>
@@ -860,6 +958,7 @@ export function ModelerPanel() {
               <button className="opt" onClick={doFitBezel}>Fit bezel</button>
             </div>
             <button className="opt" style={{ width: '100%', marginTop: 6 }} onClick={doFlush}>Flush / gypsy set into metal below</button>
+            <button className="opt" style={{ width: '100%', marginTop: 6 }} onClick={doGallery}>Add gallery ring under stone</button>
             <p className="disc">Head or bezel auto-sized to this stone's girdle. Flush-set carves a seat in the metal directly beneath and sinks the stone level with the surface.</p>
 
             <h4 style={{ marginTop: 18 }}>Halo</h4>
@@ -946,6 +1045,44 @@ export function ModelerPanel() {
           <p className="disc">{sched.totalStones} stones · {sched.totalCarat.toFixed(2)} ct total. Copy hands your supplier the exact order.</p>
         </div>
       )}
+
+      {objects.length > 0 && (() => {
+        const ps = pieceSummary(objects, alloyId)
+        return (
+          <div className="panel-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <h4 style={{ margin: 0 }}>Piece summary</h4>
+              <button className="mini" onClick={copySummary}>Copy</button>
+            </div>
+            <table className="stone-sched">
+              <tbody>
+                <tr><td>Overall</td><td>{ps.dims[0].toFixed(1)} × {ps.dims[1].toFixed(1)} × {ps.dims[2].toFixed(1)} mm</td></tr>
+                <tr><td>Cast weight</td><td>{ps.castG.toFixed(2)} g · {alloy.name}</td></tr>
+                <tr><td>Stones</td><td>{ps.gemCount} · {ps.carats.toFixed(2)} ct</td></tr>
+                <tr><td>Warnings</td><td>{ps.warnings}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        )
+      })()}
+
+      {metalCount > 0 && (() => {
+        const vol = sculptMetalVolume(objects)
+        const rows = alloyCostTable(vol)
+        return (
+          <div className="panel-block">
+            <h4 style={{ margin: 0 }}>Metal cost by alloy</h4>
+            <table className="stone-sched">
+              <tbody>
+                {rows.slice(0, 8).map(r => (
+                  <tr key={r.id}><td>{r.name}</td><td>{r.grams.toFixed(2)} g</td><td>${r.cost.toFixed(2)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="disc">Same metal volume ({(vol / 1000).toFixed(3)} cm³) cast in each alloy, at the shop's current spot factor. Stones and labor not included.</p>
+          </div>
+        )
+      })()}
 
       <div className="panel-block quote">
         <div className="qact"><button className="primary" onClick={exportStl}>Export STL</button><button className="ghost" onClick={exportObj} title="Named parts + metal/gem groups, for ZBrush / Blender / Matrix / RhinoGold">Export OBJ</button><button className="ghost" onClick={quotePdf}>Quote PDF</button><button className="ghost" onClick={techSheet}>Tech sheet</button></div>

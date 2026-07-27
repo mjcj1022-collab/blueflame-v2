@@ -25,6 +25,45 @@ describe('AI assistant reply parsing', () => {
     const r = parseAiReply('A halo setting frames the center stone with accent diamonds.')
     expect(r.design).toBeNull()
     expect(r.reply).toContain('halo')
+    expect(r.routes).toEqual([])
+  })
+
+  it('parses three build routes and validates each design', () => {
+    const text = JSON.stringify({
+      reply: 'Three takes.',
+      options: [
+        { label: 'Classic six-prong', note: 'timeless', design: { category: 'ring', alloyId: '14kw', shapeId: 'rd', stoneTypeId: 'dia', carat: 1, settingId: 'p6' } },
+        { label: 'Sleek bezel', note: 'modern', design: { category: 'ring', alloyId: '18kw', shapeId: 'rd', settingId: 'bz' } },
+        { label: 'Bold halo', note: 'sparkle', design: { category: 'ring', alloyId: '14kw', shapeId: 'rd', settingId: 'hal', carat: 1.25 } },
+      ],
+    })
+    const r = parseAiReply(text)
+    expect(r.design).toBeNull()
+    expect(r.routes).toHaveLength(3)
+    expect(r.routes[0].label).toBe('Classic six-prong')
+    expect(r.routes[0].design.settingId).toBe('p6')
+    expect(r.routes[0].matched.length).toBeGreaterThan(0)
+  })
+
+  it('caps routes at three and drops routes whose design is all hallucinated', () => {
+    const text = JSON.stringify({
+      reply: 'Ideas',
+      options: [
+        { label: 'A', design: { category: 'ring', alloyId: '14kw' } },
+        { label: 'Bad', design: { alloyId: 'not-real', settingId: 'nope' } }, // no valid field → dropped
+        { label: 'C', design: { category: 'pendant' } },
+        { label: 'D', design: { category: 'necklace' } },
+        { label: 'E', design: { category: 'earring' } },
+      ],
+    })
+    const r = parseAiReply(text)
+    expect(r.routes.length).toBe(3)
+    expect(r.routes.map(x => x.label)).toEqual(['A', 'C', 'D'])
+  })
+
+  it('accepts the "routes" key as an alias for "options"', () => {
+    const text = JSON.stringify({ reply: 'x', routes: [{ label: 'R', design: { category: 'ring' } }] })
+    expect(parseAiReply(text).routes).toHaveLength(1)
   })
 
   it('drops hallucinated ids but keeps the valid ones', () => {

@@ -16,7 +16,7 @@ const SUGGESTIONS = [
  * request still running) never loses your work — only Reset or a page reload clears it.
  */
 export function AIStudioPanel() {
-  const { enabled, messages, input, image, busy, error, checkEnabled, setInput, setImage, send, reset } = useAiChat()
+  const { enabled, messages, input, image, busy, error, routes, checkEnabled, setInput, setImage, send, applyRoute, reset } = useAiChat()
   const scroller = useRef<HTMLDivElement>(null)
   const [elapsed, setElapsed] = useState(0)
 
@@ -68,7 +68,9 @@ export function AIStudioPanel() {
                 </div>
               </div>
             )}
-            {messages.map((m, i) => (
+            {messages.map((m, i) => {
+              const liveRoutes = m.routes && routes.length && m.routes === routes
+              return (
               <div key={i} className={`ai-msg ${m.role}`}>
                 {m.image && <img src={m.image} alt="upload" className="ai-thumb" />}
                 <div className="ai-bubble">
@@ -76,9 +78,23 @@ export function AIStudioPanel() {
                   {m.matched && m.matched.length > 0 && (
                     <div className="ai-chips">{m.matched.map((c, j) => <span key={j} className="ai-chip">{c}</span>)}</div>
                   )}
+                  {m.routes && m.routes.length > 0 && (
+                    <div className="ai-routes">
+                      {m.routes.map((r, j) => (
+                        <div key={j} className="ai-route">
+                          <div className="ai-route-head"><span className="ai-route-n">{j + 1}</span><b>{r.label}</b></div>
+                          {r.note && <p className="ai-route-note">{r.note}</p>}
+                          {r.matched.length > 0 && <div className="ai-chips">{r.matched.map((c, k) => <span key={k} className="ai-chip">{c}</span>)}</div>}
+                          {liveRoutes
+                            ? <button className="primary ai-route-build" onClick={() => applyRoute(j)}>Build this ✦</button>
+                            : <span className="ai-route-done">choice made above</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-            ))}
+            )})}
             {busy && <div className="ai-msg assistant"><div className="ai-bubble ai-typing">Designing… {elapsed}s{elapsed > 8 ? ' · waking the server can take up to a minute' : ''}</div></div>}
           </div>
 
