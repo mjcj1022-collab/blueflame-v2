@@ -196,6 +196,8 @@ interface ModelerStore {
   addMount: (style: string, stoneMm?: number) => string | null
   /** Stamp the alloy purity hallmark (+ optional maker's mark) inside a band. */
   stampHallmark: (shankId: string, makersMark?: string) => boolean
+  /** Mirror the whole assembly into a matched second piece (earring pair). */
+  makeMatchedPair: () => number
   /** Repair: add retip beads at a head's prong tips. */
   retipProngs: (headId: string) => number
   /** Repair: replace a shank with a fresh parametric band at the same size. */
@@ -531,6 +533,28 @@ export const useModeler = create<ModelerStore>((set, get) => {
     }
     set(s => ({ objects: [...s.objects, obj], selectedId: obj.id }))
     return obj.id
+  },
+
+  makeMatchedPair: () => {
+    const src = get().objects
+    if (!src.length) return 0
+    // Overall X span → offset the mirrored copy clear of the original.
+    let minX = Infinity, maxX = -Infinity
+    for (const o of src) { const v = bakedVertices(o); for (let i = 0; i < v.length; i += 3) { minX = Math.min(minX, v[i]); maxX = Math.max(maxX, v[i]) } }
+    const span = isFinite(maxX - minX) ? maxX - minX : 12
+    const gap = span + Math.max(4, span * 0.3)
+    record()
+    const mirrored: SculptObject[] = src.map(o => ({
+      ...o,
+      id: newId(),
+      name: `${o.name} (R)`,
+      vertices: o.vertices ? [...o.vertices] : undefined,
+      // mirror across X, then shift the whole copy to the side
+      position: [-o.position[0] + gap, o.position[1], o.position[2]],
+      scale: [-o.scale[0], o.scale[1], o.scale[2]],
+    }))
+    set(s => ({ objects: [...s.objects, ...mirrored], selectedId: mirrored[0]?.id ?? s.selectedId }))
+    return mirrored.length
   },
 
   stampHallmark: (shankId, makersMark) => {

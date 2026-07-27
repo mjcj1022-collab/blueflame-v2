@@ -5,7 +5,7 @@ import { booleanOp, sculptEstimate, sculptWarnings, boundingSize, sketchSummary,
 import { balanceReport, type BalanceReport } from '../lib/balance'
 import { voronoiLatticeVertices, latticeHoleCount } from '../lib/latticeGeo'
 import { chainVertices, chainSpan } from '../lib/chainGeo'
-import { sculptLibrary, type SavedSculpt } from '../lib/sculptLibrary'
+import { sculptLibrary, searchSculpts, allTags, parseTags, type SavedSculpt } from '../lib/sculptLibrary'
 import { sculptHandoff, sculptRestore, SculptHandoffError } from '../lib/sculptHandoff'
 import { api, apiConfigured } from '../lib/api'
 import { analyzeMesh, type DfmReport } from '../lib/dfm'
@@ -34,6 +34,9 @@ import { findShank, sizingReport, ringSizeOptions, euForSize } from '../lib/ring
 import { measurements } from '../lib/measure'
 import { castingPlan } from '../lib/casting'
 import { clientSheetHtml } from '../lib/clientSheet'
+import { settingSecurity } from '../lib/settingSecurity'
+import { modelerToDxf } from '../lib/dxfExport'
+import { stockPlan } from '../lib/stock'
 import { sculptMetalVolume } from '../lib/sculpt'
 import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
@@ -256,7 +259,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, resizeRing, addMount, retipProngs, replaceShank, stampHallmark, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, resizeRing, addMount, retipProngs, replaceShank, stampHallmark, makeMatchedPair, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -299,6 +302,9 @@ export function ModelerPanel() {
   const [over, setOver] = useState<OverhangReport | null>(null)
   const [sym, setSym] = useState<number | null>(null)
   const [saveName, setSaveName] = useState('')
+  const [saveTags, setSaveTags] = useState('')
+  const [libQuery, setLibQuery] = useState('')
+  const [libTag, setLibTag] = useState('')
   const [saved, setSaved] = useState<SavedSculpt[]>(() => sculptLibrary.list())
   const [dfm, setDfm] = useState<{ id: string; r: DfmReport } | null>(null)
   const [msg, setMsg] = useState('')
@@ -708,7 +714,7 @@ export function ModelerPanel() {
   const save = () => {
     if (!objects.length) { flash('Nothing to save.'); return }
     const name = saveName.trim() || describePiece(objects, alloyId).name
-    sculptLibrary.save(name, objects); setSaveName(''); setSaved(sculptLibrary.list()); flash('Saved.')
+    sculptLibrary.save(name, objects, parseTags(saveTags)); setSaveName(''); setSaveTags(''); setSaved(sculptLibrary.list()); flash('Saved.')
   }
   const openSaved = (id: string) => { const rec = sculptLibrary.get(id); if (rec) { load(rec.objects); flash(`Loaded “${rec.name}”.`) } }
   const removeSaved = (id: string) => { sculptLibrary.remove(id); setSaved(sculptLibrary.list()) }
@@ -885,8 +891,9 @@ export function ModelerPanel() {
           <button className="opt" disabled={!sel || sel.kind !== 'head'} onClick={() => { if (sel) { const n = retipProngs(sel.id); flash(n ? `Retipped ${n} prong${n === 1 ? '' : 's'}.` : 'Select a prong head first.'); if (n) runQa() } }}>Retip prongs</button>
           <button className="opt" disabled={!sel || sel.kind !== 'shank'} onClick={() => { if (sel && replaceShank(sel.id)) { flash('Replaced with a fresh shank at the same size.'); runQa() } else flash('Select the shank to replace.'); }}>New shank</button>
         </div>
-        <div className="opts" style={{ marginTop: 6 }}>
+        <div className="opts c2" style={{ marginTop: 6 }}>
           <button className="opt" disabled={!sel || sel.material !== 'metal'} title="Engrave the alloy purity mark + your maker's mark inside the band" onClick={() => { if (sel && stampHallmark(sel.id, shopName)) { flash(`Stamped ${alloy.hallmark} + maker's mark inside the band.`); runQa() } else flash('Select the band to hallmark.'); }}>Stamp hallmark ({alloy.hallmark})</button>
+          <button className="opt" disabled={!objects.length} title="Mirror the whole piece into a matched second one — for an earring pair" onClick={() => { const n = makeMatchedPair(); flash(n ? `Made a matched pair — mirrored ${n} part${n === 1 ? '' : 's'}.` : 'Nothing to pair.'); if (n) runQa() }}>Make matched pair</button>
         </div>
         <p className="disc">Bench repairs: <b>Retip</b> adds fresh metal beads at a head’s prong tips; <b>New shank</b> swaps a worn or over-edited band for a clean one at the same finger size. <b>Stamp hallmark</b> cuts the metal purity mark and your maker’s mark inside the band.</p>
 
@@ -1316,16 +1323,34 @@ export function ModelerPanel() {
             onChange={e => setSaveName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') save() }} />
           <button className="primary" onClick={save}>Save</button>
         </div>
-        {saved.length === 0 && <p className="disc">Nothing saved yet. Saved sculpts live in this browser.</p>}
-        {saved.map(s => (
-          <div key={s.id} className="lib-row obj-row">
-            <div className="lib-meta"><b>{s.name}</b><small>{s.objects.length} part{s.objects.length === 1 ? '' : 's'} · {new Date(s.at).toLocaleDateString()}</small></div>
-            <div className="lib-acts">
-              <button className="mini" onClick={() => openSaved(s.id)}>Load</button>
-              <button className="mini danger" onClick={() => removeSaved(s.id)}>×</button>
-            </div>
-          </div>
-        ))}
+        <input className="lib-name" style={{ width: '100%', marginTop: 6 }} placeholder="Tags (comma-separated) — e.g. engagement, halo, client-smith" value={saveTags} onChange={e => setSaveTags(e.target.value)} />
+        {saved.length === 0
+          ? <p className="disc">Nothing saved yet. Saved sculpts live in this browser. Add tags to find them fast later.</p>
+          : (() => {
+            const tags = allTags(saved)
+            const shown = searchSculpts(saved, libQuery, libTag)
+            return (
+              <>
+                <input className="lib-name" style={{ width: '100%', marginTop: 8 }} placeholder={`Search ${saved.length} saved… (name or tag)`} value={libQuery} onChange={e => setLibQuery(e.target.value)} />
+                {tags.length > 0 && (
+                  <div className="ai-chips" style={{ marginTop: 6 }}>
+                    <span className={`ai-chip${libTag === '' ? ' on' : ''}`} style={{ cursor: 'pointer' }} onClick={() => setLibTag('')}>all</span>
+                    {tags.map(t => <span key={t} className="ai-chip" style={{ cursor: 'pointer', outline: libTag === t ? '1px solid var(--karat)' : 'none' }} onClick={() => setLibTag(libTag === t ? '' : t)}>{t}</span>)}
+                  </div>
+                )}
+                {shown.length === 0 && <p className="disc">No saved sculpts match.</p>}
+                {shown.map(s => (
+                  <div key={s.id} className="lib-row obj-row">
+                    <div className="lib-meta"><b>{s.name}</b><small>{s.objects.length} part{s.objects.length === 1 ? '' : 's'} · {new Date(s.at).toLocaleDateString()}{s.tags && s.tags.length ? ` · ${s.tags.join(', ')}` : ''}</small></div>
+                    <div className="lib-acts">
+                      <button className="mini" onClick={() => openSaved(s.id)}>Load</button>
+                      <button className="mini danger" onClick={() => removeSaved(s.id)}>×</button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )
+          })()}
 
         {apiConfigured() && (
           <>
@@ -1504,8 +1529,23 @@ export function ModelerPanel() {
         )
       })()}
 
+      {(() => {
+        const sec = settingSecurity(objects)
+        if (!sec.length) return null
+        return (
+          <div className="panel-block">
+            <h4 style={{ margin: 0 }}>Setting security</h4>
+            <div className="dfm" style={{ marginTop: 8 }}>
+              {sec.map((s, i) => <p key={i} className={`dfm-line ${s.level}`}><b>{s.title}</b> — {s.detail}</p>)}
+            </div>
+            <p className="disc">Checks each stone against its mount — enough prongs for the size, real bezel wall, and room between stones to set without chipping.</p>
+          </div>
+        )
+      })()}
+
       {metalCount > 0 && (() => {
         const plan = castingPlan(objects, alloyId, treeCount)
+        const sk = stockPlan(objects, alloyId, treeCount)
         return (
           <div className="panel-block">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -1518,7 +1558,12 @@ export function ModelerPanel() {
               <tr><td>Button</td><td>{plan.buttonGrams.toFixed(2)} g</td><td></td></tr>
               <tr><td><b>Metal to pour</b></td><td><b>{plan.pourGrams.toFixed(2)} g</b></td><td>{plan.alloyName}</td></tr>
             </tbody></table>
-            <p className="disc">Total {plan.alloyName} to melt for {plan.count} {plan.count === 1 ? 'copy' : 'copies'} — parts + sprues + shrinkage + a feed button, so the mould never starves.</p>
+            <table className="stone-sched" style={{ marginTop: 6 }}><tbody>
+              <tr><td><b>Stock to order</b></td><td><b>{sk.orderGrams.toFixed(0)} g</b></td><td>{money(sk.stockCost)}</td></tr>
+              <tr><td>Becomes jewelry</td><td>{sk.finishedGrams.toFixed(2)} g</td><td>{sk.recoveryPct.toFixed(0)}% yield</td></tr>
+              <tr><td>Scrap (recoverable)</td><td>{sk.scrapGrams.toFixed(2)} g</td><td></td></tr>
+            </tbody></table>
+            <p className="disc">To pour: {plan.alloyName} — parts + sprues + shrinkage + feed button. Order {sk.orderGrams.toFixed(0)} g of stock ({money(sk.stockCost)}); {sk.recoveryPct.toFixed(0)}% ends up in the pieces, the rest is recoverable scrap.</p>
           </div>
         )
       })()}
@@ -1584,6 +1629,7 @@ export function ModelerPanel() {
             <input type="file" accept=".stl,model/stl" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) importStlFile(f); e.target.value = '' }} />
           </label>
           <button className="ghost" onClick={quotePdf}>Quote PDF</button><button className="ghost" onClick={techSheet}>Tech sheet</button><button className="ghost" onClick={clientSheet} title="A customer-facing one-pager: render, specs and price">Client sheet</button>
+          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to export.'); return } download(modelerToDxf(objects), `blue-flame-sculpt-${Date.now()}.dxf`, 'application/dxf'); flash('Exported DXF — top-view template for laser / CAM.') }} title="2D top-view wireframe (DXF R12) for laser engraving / wax milling alignment">Export DXF</button>
         </div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={fuse} disabled={metalCount < 2}>Fuse metal</button></div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={clear}>Clear all</button></div>
