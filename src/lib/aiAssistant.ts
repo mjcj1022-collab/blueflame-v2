@@ -76,6 +76,45 @@ export function lockCategory(d: AiDesignPatch, current: ProductCategory | undefi
   return { ...d, category: current }
 }
 
+/** Does the message ask for stones distributed ALONG a chain (not one centre
+ *  stone)? Returns the spacing in inches, or null if it's not that kind of ask. */
+export function stationSpacingFrom(text: string): number | null {
+  const t = text.toLowerCase()
+  const distributed = /(every\s+(other\s+)?\d*\s*inch|along the|around the (whole|entire|chain|piece|necklace)|spaced|stations?|by the yard)/.test(t)
+  if (!distributed) return null
+  if (/every\s+other\s+inch/.test(t)) return 2
+  const n = /every\s+(\d+)\s*(?:inch(?:es)?|in)\b/.exec(t)
+  if (n) return Math.min(6, Math.max(0.5, +n[1]))
+  if (/every\s+inch/.test(t)) return 1
+  return 2 // "along the chain" / "stations" with no explicit spacing
+}
+
+/**
+ * Force a "rubies every other inch"-style request onto the necklace STATION
+ * fields, whatever fields the model actually returned. Models keep reaching for
+ * the single centre-stone fields (which a plain chain can't render), so when the
+ * piece is a necklace and the ask is for distributed stones, we move the chosen
+ * stone into stationStoneId + spacing and clear the centre-stone fields.
+ */
+export function coerceStationStones(d: AiDesignPatch, userText: string, currentCat: ProductCategory | undefined): AiDesignPatch {
+  const isNecklace = d.category === 'necklace' || (currentCat === 'necklace' && !d.category)
+  if (!isNecklace) return d
+  const spacing = stationSpacingFrom(userText)
+  if (spacing === null) return d
+  if (d.stationStoneId) return d // model already used the right fields
+  const stone = d.stoneTypeId && d.stoneTypeId !== NO_STONE ? d.stoneTypeId : null
+  if (!stone) return d
+  const out: AiDesignPatch = { ...d }
+  out.stationStoneId = stone
+  out.stationCarat = d.stationCarat ?? (d.carat && d.carat <= 0.3 ? d.carat : 0.05)
+  out.stationEveryIn = d.stationEveryIn ?? spacing
+  // clear the centre-stone fields that a plain chain can't use
+  delete out.stoneTypeId
+  delete out.settingId
+  delete out.carat
+  return out
+}
+
 /** Which product category, if any, the user's message explicitly names. Used to
  *  decide whether an edit is allowed to change the piece type. */
 export function mentionsCategory(text: string): ProductCategory | null {
@@ -388,9 +427,11 @@ export async function askAssistant(history: ChatTurn[], image?: string | null, o
   let currentCat: ProductCategory | undefined
   try { currentCat = useDesign.getState().spec.category } catch { /* ignore */ }
   const askedCat = mentionsCategory(lastUserMsg)
-  const keepCat = (d: AiDesignPatch): AiDesignPatch => (opts?.forceRoutes ? d : lockCategory(d, currentCat, askedCat))
-  if (parsed.design) { const d = keepCat(parsed.design); parsed = { ...parsed, design: d, matched: describe(d) } }
-  if (parsed.routes.length) parsed = { ...parsed, routes: parsed.routes.map(r => { const d = keepCat(r.design); return { ...r, design: d, matched: describe(d) } }) }
+  // fix = piece-lock the category, then coerce "stones along the chain" onto the
+  // station fields so distributed-stone requests actually render.
+  const fix = (d: AiDesignPatch): AiDesignPatch => coerceStationStones(opts?.forceRoutes ? d : lockCategory(d, currentCat, askedCat), lastUserMsg, currentCat)
+  if (parsed.design) { const d = fix(parsed.design); parsed = { ...parsed, design: d, matched: describe(d) } }
+  if (parsed.routes.length) parsed = { ...parsed, routes: parsed.routes.map(r => { const d = fix(r.design); return { ...r, design: d, matched: describe(d) } }) }
 
   // Three-directions guarantee: for a build request (or when the caller forces
   // it), the maker must see three routes BEFORE anything renders. If the model
@@ -411,8 +452,8 @@ export async function askAssistant(history: ChatTurn[], image?: string | null, o
     if (!parsed.routes.length && parsed.design) {
       parsed = { ...parsed, routes: synthesizeRoutes(parsed.design), design: null, reply: parsed.reply || 'Here are three ways to build it — pick one.' }
     }
-    // Any freshly-generated routes are piece-locked too (studio path).
-    if (parsed.routes.length) parsed = { ...parsed, routes: parsed.routes.map(r => { const d = keepCat(r.design); return { ...r, design: d, matched: describe(d) } }) }
+    // Any freshly-generated routes are piece-locked + station-coerced too.
+    if (parsed.routes.length) parsed = { ...parsed, routes: parsed.routes.map(r => { const d = fix(r.design); return { ...r, design: d, matched: describe(d) } }) }
   }
 
   console.log('[AI] parsed reply:', parsed.reply, '| design patch:', parsed.design, '| routes:', parsed.routes.length, '| assumptions:', parsed.assumptions, '| matched:', parsed.matched)

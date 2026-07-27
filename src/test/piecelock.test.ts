@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { lockCategory, mentionsCategory } from '../lib/aiAssistant'
+import { lockCategory, mentionsCategory, stationSpacingFrom, coerceStationStones } from '../lib/aiAssistant'
 
 describe('mentionsCategory', () => {
   it('detects an explicit piece type', () => {
@@ -37,5 +37,40 @@ describe('lockCategory (studio piece-lock)', () => {
   })
   it('is a no-op with no current piece', () => {
     expect(lockCategory({ category: 'bracelet' }, undefined, null).category).toBe('bracelet')
+  })
+})
+
+describe('stationSpacingFrom', () => {
+  it('reads the spacing from natural phrasing', () => {
+    expect(stationSpacingFrom('add rubies every other inch')).toBe(2)
+    expect(stationSpacingFrom('rubies every inch on the chain')).toBe(1)
+    expect(stationSpacingFrom('sapphires every 3 inches')).toBe(3)
+    expect(stationSpacingFrom('stations of ruby along the chain')).toBe(2)
+  })
+  it('is null when the ask is not distributed', () => {
+    expect(stationSpacingFrom('a 1ct ruby center')).toBeNull()
+    expect(stationSpacingFrom('make it wider')).toBeNull()
+  })
+})
+
+describe('coerceStationStones', () => {
+  it('moves a centre ruby onto the station fields for a necklace', () => {
+    // what the model wrongly returned: centre-stone ruby + flush on a necklace
+    const d = coerceStationStones({ category: 'necklace', stoneTypeId: 'rub', shapeId: 'rd', carat: 0.1, settingId: 'fl' }, 'add rubies every other inch', 'necklace')
+    expect(d.stationStoneId).toBe('rub')
+    expect(d.stationEveryIn).toBe(2)
+    expect(d.stationCarat).toBeCloseTo(0.1, 6)
+    // centre-stone fields cleared so a plain chain doesn't try to use them
+    expect(d.stoneTypeId).toBeUndefined()
+    expect(d.settingId).toBeUndefined()
+  })
+  it('uses the current category when the patch omits it', () => {
+    const d = coerceStationStones({ stoneTypeId: 'sap', carat: 0.05 }, 'sapphires every inch', 'necklace')
+    expect(d.stationStoneId).toBe('sap')
+    expect(d.stationEveryIn).toBe(1)
+  })
+  it('leaves a ring or a non-distributed ask alone', () => {
+    expect(coerceStationStones({ category: 'ring', stoneTypeId: 'rub', carat: 1 }, 'a ruby ring', 'ring').stationStoneId).toBeUndefined()
+    expect(coerceStationStones({ category: 'necklace', stoneTypeId: 'rub' }, 'a ruby pendant', 'necklace').stationStoneId).toBeUndefined()
   })
 })
