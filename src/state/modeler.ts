@@ -13,6 +13,7 @@ import { paveSpots as paveSpotsFn } from '../lib/pave'
 import { buildSculptFromDesign, patchFromSpec, designSignature } from '../lib/aiAssemble'
 import { repairMesh } from '../lib/meshRepair'
 import { findingVertices, findingById } from '../lib/findings'
+import { basketVertices } from '../lib/settingParts'
 import { RING_SIZE_MIN, RING_SIZE_MAX } from '../lib/ringSizing'
 import type { AiDesignPatch } from '../lib/aiAssistant'
 import type { DesignSpec } from '../spec/types'
@@ -203,6 +204,8 @@ interface ModelerStore {
   buildCastingTree: (count: number) => number
   /** Repair: add retip beads at a head's prong tips. */
   retipProngs: (headId: string) => number
+  /** Add a basket (two galleries + wires) under the selected head or stone. */
+  addBasket: (id: string) => boolean
   /** Repair: replace a shank with a fresh parametric band at the same size. */
   replaceShank: (shankId: string) => boolean
   /** Version history — named snapshots of the whole bench (in-memory this session). */
@@ -622,6 +625,23 @@ export const useModeler = create<ModelerStore>((set, get) => {
     const mark = `${hall}${makersMark && makersMark.trim() ? '   ' + makersMark.trim() : ''}`
     // Cut it into the inside of the band, seated at the base (270°).
     return get().wrapTextOnBand(shankId, mark, 'Serif', 'cut', 270, true)
+  },
+
+  addBasket: id => {
+    const src = get().objects.find(o => o.id === id)
+    if (!src) return false
+    const topR = src.kind === 'gem' ? gemDiameterMm(src) * 0.48 : (src.params?.stoneW ?? 6.5) / 2 * 0.95
+    const height = Math.max(2.5, topR * 1.2)
+    const [x, y, z] = src.position
+    // seat the basket just under the head/stone
+    const topY = y - (src.params?.height ? (src.params.height as number) * 0.35 : (src.kind === 'gem' ? gemDiameterMm(src) * 0.4 : 1.5))
+    record()
+    const basket: SculptObject = {
+      id: newId(), kind: 'mesh', name: 'Basket', vertices: basketVertices(topR, height, 4),
+      position: [x, topY, z], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0, material: 'metal', color: src.material === 'metal' ? src.color : GOLD,
+    }
+    set(s => ({ objects: [...s.objects, basket], selectedId: basket.id }))
+    return true
   },
 
   retipProngs: headId => {

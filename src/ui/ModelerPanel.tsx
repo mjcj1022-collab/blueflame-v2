@@ -301,7 +301,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, resizeRing, addMount, retipProngs, replaceShank, stampHallmark, makeMatchedPair, buildCastingTree, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, resizeRing, addMount, addBasket, retipProngs, replaceShank, stampHallmark, makeMatchedPair, buildCastingTree, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -947,7 +947,11 @@ export function ModelerPanel() {
           </select>
           <button className="opt" style={{ marginLeft: 'auto' }} onClick={() => { const id = addMount(mountPick); if (id) { flash('Added a mount — drop a stone in and Cut seat to bearing it.'); runQa() } }}>Add mount</button>
         </div>
-        <p className="disc">Editable prong heads and bezels, sized to a ~1 ct stone by default. Add one, place your stone, then <b>Cut seat under stone</b> for the bearing.</p>
+        <div className="opts c2" style={{ marginTop: 6 }}>
+          <button className="opt" disabled={!sel || (sel.kind !== 'head' && sel.material !== 'gem')} title="Add a basket (two galleries + wires) under the selected head or stone" onClick={() => { if (sel && addBasket(sel.id)) { flash('Added a basket under it.'); runQa() } else flash('Select a head or a stone first.'); }}>Add basket</button>
+          <button className="opt" disabled={!sel} title="Add a gallery rail around the selected part" onClick={() => { if (sel && addGallery(sel.id)) { flash('Added a gallery rail.'); runQa() } else flash('Select a head or stone first.'); }}>Gallery rail</button>
+        </div>
+        <p className="disc">Editable prong heads and bezels, sized to a ~1 ct stone by default. Add one, place your stone, then <b>Cut seat under stone</b> for the bearing. <b>Basket</b> and <b>gallery rail</b> build the cradle under the head.</p>
 
         <h4 style={{ marginTop: 18 }}>Repair</h4>
         <div className="opts c2">
