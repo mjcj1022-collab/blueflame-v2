@@ -31,6 +31,8 @@ import { FINDINGS } from '../lib/findings'
 import { sculptBom, sculptBomText } from '../lib/sculptBom'
 import { askBenchAdvisor } from '../lib/benchAdvisor'
 import { findShank, sizingReport, ringSizeOptions, euForSize } from '../lib/ringSizing'
+import { measurements } from '../lib/measure'
+import { castingPlan } from '../lib/casting'
 import { sculptMetalVolume } from '../lib/sculpt'
 import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
@@ -253,7 +255,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, resizeRing, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, resizeRing, addMount, retipProngs, replaceShank, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -285,6 +287,9 @@ export function ModelerPanel() {
   const [stonePick, setStonePick] = useState<{ stoneId: string; shapeId: string; carat: number; hue: number; custom: boolean }>({ stoneId: 'dia', shapeId: 'rd', carat: 0.5, hue: 200, custom: false })
   const [findingPick, setFindingPick] = useState('jump')
   const [sizeTarget, setSizeTarget] = useState<number | null>(null)
+  const [mountPick, setMountPick] = useState('p6')
+  const [treeCount, setTreeCount] = useState(1)
+  const [snapName, setSnapName] = useState('')
   const [benchQ, setBenchQ] = useState('')
   const [benchA, setBenchA] = useState<{ text: string; ai: boolean } | null>(null)
   const [benchBusy, setBenchBusy] = useState(false)
@@ -832,6 +837,27 @@ export function ModelerPanel() {
           <button className="opt" style={{ marginLeft: 'auto' }} onClick={() => { const id = addFinding(findingPick); if (id) { flash(`Added a ${FINDINGS.find(f => f.id === findingPick)?.name}. Drag it into place, then solder.`); runQa() } }}>Add finding</button>
         </div>
         <p className="disc">Clasps, jump rings, bails, ear posts &amp; backs, toggles and pins — drop one on the bench, position it, and it joins the metal weight, BOM and quote.</p>
+
+        <h4 style={{ marginTop: 18 }}>Stone mounts</h4>
+        <div className="row">
+          <select className="lib-name" style={{ width: '62%' }} value={mountPick} onChange={e => setMountPick(e.target.value)}>
+            <option value="p4">4-prong head</option>
+            <option value="p6">6-prong head</option>
+            <option value="p8">8-prong head</option>
+            <option value="dc">Double-claw head</option>
+            <option value="bz">Bezel</option>
+            <option value="hb">Half bezel</option>
+          </select>
+          <button className="opt" style={{ marginLeft: 'auto' }} onClick={() => { const id = addMount(mountPick); if (id) { flash('Added a mount — drop a stone in and Cut seat to bearing it.'); runQa() } }}>Add mount</button>
+        </div>
+        <p className="disc">Editable prong heads and bezels, sized to a ~1 ct stone by default. Add one, place your stone, then <b>Cut seat under stone</b> for the bearing.</p>
+
+        <h4 style={{ marginTop: 18 }}>Repair</h4>
+        <div className="opts c2">
+          <button className="opt" disabled={!sel || sel.kind !== 'head'} onClick={() => { if (sel) { const n = retipProngs(sel.id); flash(n ? `Retipped ${n} prong${n === 1 ? '' : 's'}.` : 'Select a prong head first.'); if (n) runQa() } }}>Retip prongs</button>
+          <button className="opt" disabled={!sel || sel.kind !== 'shank'} onClick={() => { if (sel && replaceShank(sel.id)) { flash('Replaced with a fresh shank at the same size.'); runQa() } else flash('Select the shank to replace.'); }}>New shank</button>
+        </div>
+        <p className="disc">Bench repairs: <b>Retip</b> adds fresh metal beads at a head’s prong tips; <b>New shank</b> swaps a worn or over-edited band for a clean one at the same finger size.</p>
 
         <h4 style={{ marginTop: 18 }}>Free draw</h4>
         <div className="opts"><button className="opt tpl" aria-pressed={sketching} onClick={() => setSketching(!sketching)}>{sketching ? 'Sketching… (drawing on stage)' : 'Sketch a shape…'}</button></div>
@@ -1429,6 +1455,70 @@ export function ModelerPanel() {
           </div>
         )
       })()}
+
+      {objects.length > 0 && (() => {
+        const m = measurements(objects, alloyId)
+        return (
+          <div className="panel-block">
+            <h4 style={{ margin: 0 }}>Measurements</h4>
+            <table className="stone-sched"><tbody>
+              <tr><td>Overall</td><td>{m.overall[0].toFixed(1)} × {m.overall[1].toFixed(1)} × {m.overall[2].toFixed(1)} mm</td></tr>
+              {m.ringSize != null && <tr><td>Ring size</td><td>US {m.ringSize} · {m.ringInnerMm?.toFixed(2)} mm ID</td></tr>}
+              {m.bandWidth != null && <tr><td>Band</td><td>{m.bandWidth.toFixed(1)} mm wide × {m.bandThickness?.toFixed(1)} mm</td></tr>}
+              {m.stoneSpread && <tr><td>Largest stone</td><td>{m.stoneSpread[0].toFixed(2)} × {m.stoneSpread[1].toFixed(2)} mm</td></tr>}
+              <tr><td>Cast weight</td><td>{m.castGrams.toFixed(2)} g</td></tr>
+            </tbody></table>
+            <p className="disc">Measured from the real geometry — the same numbers your calipers and the tech pack read.</p>
+          </div>
+        )
+      })()}
+
+      {metalCount > 0 && (() => {
+        const plan = castingPlan(objects, alloyId, treeCount)
+        return (
+          <div className="panel-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <h4 style={{ margin: 0 }}>Casting tree</h4>
+              <span style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}><small style={{ color: 'var(--slate)' }}>copies</small><input className="lib-name" style={{ width: 48 }} type="number" min={1} max={200} value={treeCount} onChange={e => setTreeCount(Math.max(1, Math.min(200, Math.round(+e.target.value))))} /></span>
+            </div>
+            <table className="stone-sched"><tbody>
+              <tr><td>Per piece</td><td>{plan.pieceGrams.toFixed(2)} g</td><td>+{plan.sprueGrams.toFixed(2)} g sprue</td></tr>
+              <tr><td>Tree ×{plan.count}</td><td>{plan.treeGrams.toFixed(2)} g</td><td>+{plan.shrinkGrams.toFixed(2)} g shrink</td></tr>
+              <tr><td>Button</td><td>{plan.buttonGrams.toFixed(2)} g</td><td></td></tr>
+              <tr><td><b>Metal to pour</b></td><td><b>{plan.pourGrams.toFixed(2)} g</b></td><td>{plan.alloyName}</td></tr>
+            </tbody></table>
+            <p className="disc">Total {plan.alloyName} to melt for {plan.count} {plan.count === 1 ? 'copy' : 'copies'} — parts + sprues + shrinkage + a feed button, so the mould never starves.</p>
+          </div>
+        )
+      })()}
+
+      <div className="panel-block">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <h4 style={{ margin: 0 }}>Version history</h4>
+          <span style={{ display: 'flex', gap: 6 }}>
+            <input className="lib-name" style={{ width: 90 }} placeholder="name…" value={snapName} onChange={e => setSnapName(e.target.value)} />
+            <button className="mini" disabled={!objects.length} onClick={() => { const id = saveSnapshot(snapName); if (id) { setSnapName(''); flash('Snapshot saved.') } }}>Save</button>
+          </span>
+        </div>
+        {snapshots.length === 0
+          ? <p className="disc">Save a snapshot of the bench, then branch freely — restore any version, and compare its part count and weight to what’s on the bench now.</p>
+          : (
+            <>
+              {snapshots.map(s => {
+                const dParts = s.objects.length - objects.length
+                return (
+                  <div key={s.id} className="attr-row">
+                    <span>{s.name} <small style={{ color: 'var(--slate)' }}>{s.objects.length} part{s.objects.length === 1 ? '' : 's'}{dParts ? ` (${dParts > 0 ? '+' : ''}${dParts} vs now)` : ''}</small></span>
+                    <span className="attr-acts">
+                      <button onClick={() => { if (restoreSnapshot(s.id)) { flash(`Restored “${s.name}”.`); runQa() } }}>Restore</button>
+                      <button onClick={() => deleteSnapshot(s.id)}>Delete</button>
+                    </span>
+                  </div>
+                )
+              })}
+            </>
+          )}
+      </div>
 
       {objects.length > 0 && (() => {
         const pr = printReadiness(objects, alloyId)

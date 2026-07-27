@@ -192,6 +192,17 @@ interface ModelerStore {
   /** Resize a parametric shank to a target US finger size. Returns the applied
    *  size, or null if there's no resizable shank. */
   resizeRing: (shankId: string, toSize: number) => number | null
+  /** Add a stone mount (prong head / bezel) as an editable part, sized to a stone. */
+  addMount: (style: string, stoneMm?: number) => string | null
+  /** Repair: add retip beads at a head's prong tips. */
+  retipProngs: (headId: string) => number
+  /** Repair: replace a shank with a fresh parametric band at the same size. */
+  replaceShank: (shankId: string) => boolean
+  /** Version history — named snapshots of the whole bench (in-memory this session). */
+  snapshots: { id: string; name: string; at: number; objects: SculptObject[]; alloyId: string }[]
+  saveSnapshot: (name?: string) => string
+  restoreSnapshot: (id: string) => boolean
+  deleteSnapshot: (id: string) => void
   /** Exploded-view spread (mm). 0 = assembled; view-only, not persisted. */
   explode: number
   setExplode: (v: number) => void
@@ -296,6 +307,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
   future: [],
   importedSig: null,
   explode: 0,
+  snapshots: [],
   placing: null,
 
   undo: () => set(s => {
@@ -502,6 +514,79 @@ export const useModeler = create<ModelerStore>((set, get) => {
     set(s => ({ objects: s.objects.map(o => o.id === shankId ? { ...o, params: { ...o.params, ringSize: to } } : o) }))
     return to
   },
+
+  addMount: (style, stoneMm) => {
+    const w = stoneMm && stoneMm > 0 ? stoneMm : 6.5   // ~1 ct round default
+    record()
+    let obj: SculptObject
+    if (style === 'bz' || style === 'hb') {
+      const h = Math.max(2, w * 0.5)
+      obj = { id: newId(), kind: 'bezel', name: style === 'hb' ? 'Half bezel' : 'Bezel', position: [0, 6, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 6, material: 'metal', color: GOLD, params: { stoneW: w, height: h, wall: Math.max(0.4, w * 0.09) } }
+    } else {
+      const prongs = style === 'p6' ? 6 : style === 'p8' ? 8 : style === 'dc' ? 8 : 4
+      const h = Math.max(3, w * 0.62)
+      obj = { id: newId(), kind: 'head', name: `${prongs}-prong head`, position: [0, 6, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 6, material: 'metal', color: GOLD, params: { prongs, stoneW: w, height: h } }
+    }
+    set(s => ({ objects: [...s.objects, obj], selectedId: obj.id }))
+    return obj.id
+  },
+
+  retipProngs: headId => {
+    const head = get().objects.find(o => o.id === headId && o.kind === 'head')
+    if (!head) return 0
+    const prongs = Math.max(3, Math.round(head.params?.prongs ?? 4))
+    const w = head.params?.stoneW ?? 6
+    const h = head.params?.height ?? 4
+    const r = (w / 2) * 0.98
+    const topY = head.position[1] + h * 0.45
+    record()
+    const beads: SculptObject[] = Array.from({ length: prongs }, (_, i) => {
+      const a = (i / prongs) * Math.PI * 2
+      return {
+        id: newId(), kind: 'sphere', name: 'Retip', size: Math.max(0.5, w * 0.11),
+        position: [head.position[0] + Math.cos(a) * r, topY, head.position[2] + Math.sin(a) * r],
+        rotation: [0, 0, 0], scale: [1, 1, 1], material: 'metal', color: head.color,
+      }
+    })
+    set(s => ({ objects: [...s.objects, ...beads], selectedId: beads[0]?.id ?? s.selectedId }))
+    return beads.length
+  },
+
+  replaceShank: shankId => {
+    const old = get().objects.find(o => o.id === shankId)
+    if (!old) return false
+    record()
+    const fresh: SculptObject = {
+      id: newId(), kind: 'shank', name: 'New shank',
+      position: old.kind === 'shank' ? old.position : [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 6,
+      material: 'metal', color: old.color,
+      params: {
+        ringSize: (old.params?.ringSize as number) ?? 7,
+        width: (old.params?.width as number) ?? 2.2,
+        thickness: (old.params?.thickness as number) ?? 1.8,
+        profile: (old.params?.profile as ShankProfile) ?? 'round',
+      },
+    }
+    set(s => ({ objects: s.objects.map(o => o.id === shankId ? fresh : o), selectedId: fresh.id }))
+    return true
+  },
+
+  saveSnapshot: name => {
+    const id = newId()
+    const objs = get().objects.map(o => ({ ...o, vertices: o.vertices ? [...o.vertices] : undefined }))
+    const at = Date.now()
+    const snap = { id, name: name?.trim() || `v${get().snapshots.length + 1}`, at, objects: objs, alloyId: get().alloyId }
+    set(s => ({ snapshots: [snap, ...s.snapshots].slice(0, 30) }))
+    return id
+  },
+  restoreSnapshot: id => {
+    const snap = get().snapshots.find(x => x.id === id)
+    if (!snap) return false
+    record()
+    set({ objects: snap.objects.map(o => ({ ...o })), selectedId: null, alloyId: snap.alloyId })
+    return true
+  },
+  deleteSnapshot: id => set(s => ({ snapshots: s.snapshots.filter(x => x.id !== id) })),
 
   toggleSnap: () => set(s => ({ snap: !s.snap })),
   toggleMeasuring: () => set(s => ({ measuring: !s.measuring })),
