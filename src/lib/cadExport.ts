@@ -1,4 +1,8 @@
-import { bakedVertices } from './sculpt'
+import * as THREE from 'three'
+import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
+import { zipSync, strToU8 } from 'fflate'
+import { bakedVertices, bakedGeometry } from './sculpt'
 import type { SculptObject } from '../state/modeler'
 
 /**
@@ -102,4 +106,89 @@ function fmt(n: number): string {
   // round to 1e-4 mm (0.1 micron) — well past any casting/print tolerance
   const r = Math.round(n * 1e4) / 1e4
   return Object.is(r, -0) ? '0' : String(r)
+}
+
+/* ---------- Binary STL ---------- */
+
+/** Binary STL of the whole piece — the compact, slicer-standard mesh format.
+ *  Smaller and faster to load than ASCII; a caster/printer imports it directly. */
+export function modelerToStlBinary(objects: SculptObject[], opts: ObjExportOptions = {}): ArrayBuffer {
+  const group = new THREE.Group()
+  const geos: THREE.BufferGeometry[] = []
+  for (const o of objects) {
+    if (opts.metalOnly && o.material !== 'metal') continue
+    const g = bakedGeometry(o); geos.push(g)
+    group.add(new THREE.Mesh(g))
+  }
+  const dv = new STLExporter().parse(group, { binary: true }) as unknown as DataView
+  geos.forEach(g => g.dispose())
+  return (dv.buffer as ArrayBuffer).slice(dv.byteOffset, dv.byteOffset + dv.byteLength)
+}
+
+/* ---------- 3MF (zipped, per-part objects) ---------- */
+
+const xmlNum = (n: number) => (Math.round(n * 1e4) / 1e4).toString()
+
+/** 3MF package — the modern manufacturing container (millimetres, per-part
+ *  objects, colour). A zip of model XML + rels, valid for Cura/PrusaSlicer/CAD. */
+export function modelerTo3mf(objects: SculptObject[], opts: ObjExportOptions = {}): Uint8Array {
+  const names = uniqueNames(objects)
+  const chosen = objects.filter(o => (opts.metalOnly ? o.material === 'metal' : true))
+
+  const objXml: string[] = []
+  const buildXml: string[] = []
+  let id = 1
+  for (const o of chosen) {
+    const v = bakedVertices(o)
+    const triCount = Math.floor(v.length / 9)
+    if (!triCount) continue
+    const verts: string[] = []
+    const tris: string[] = []
+    for (let i = 0; i < triCount * 3; i++) {
+      verts.push(`<vertex x="${xmlNum(v[i * 3])}" y="${xmlNum(v[i * 3 + 1])}" z="${xmlNum(v[i * 3 + 2])}"/>`)
+    }
+    for (let t = 0; t < triCount; t++) tris.push(`<triangle v1="${t * 3}" v2="${t * 3 + 1}" v3="${t * 3 + 2}"/>`)
+    objXml.push(
+      `<object id="${id}" type="model" name="${names[objects.indexOf(o)]}"><mesh><vertices>${verts.join('')}</vertices><triangles>${tris.join('')}</triangles></mesh></object>`
+    )
+    buildXml.push(`<item objectid="${id}"/>`)
+    id++
+  }
+
+  const model = `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+ <metadata name="Application">Blue Flame</metadata>
+ <resources>${objXml.join('')}</resources>
+ <build>${buildXml.join('')}</build>
+</model>`
+
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+ <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+ <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
+</Types>`
+
+  const rels = `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+ <Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>
+</Relationships>`
+
+  return zipSync({
+    '[Content_Types].xml': strToU8(contentTypes),
+    '_rels/.rels': strToU8(rels),
+    '3D/3dmodel.model': strToU8(model),
+  })
+}
+
+/* ---------- STL import ---------- */
+
+/** Parse an STL file (binary or ASCII) into a world-space triangle soup a maker
+ *  can drop onto the bench to modify — an existing model, a scan, a supplier part. */
+export function stlToVertices(buffer: ArrayBuffer): number[] {
+  const geo = new STLLoader().parse(buffer)
+  const pos = geo.getAttribute('position')
+  if (!pos) { geo.dispose(); return [] }
+  const out = Array.from(pos.array as Float32Array)
+  geo.dispose()
+  return out
 }

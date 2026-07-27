@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useModeler, SCULPT_COLORS, type PrimitiveKind, type JewelryKind, type SculptMaterial, type SculptObject, type ShankProfile, type SketchDef } from '../state/modeler'
 import { profileThumb } from '../lib/sketchPresets'
-import { booleanOp, modelerToStl, sculptEstimate, sculptWarnings, boundingSize, sketchSummary, profileThinnest, weightScaleFactor, bakedVertices, MIN_SECTION_MM, type BooleanOp } from '../lib/sculpt'
+import { booleanOp, sculptEstimate, sculptWarnings, boundingSize, sketchSummary, profileThinnest, weightScaleFactor, bakedVertices, MIN_SECTION_MM, type BooleanOp } from '../lib/sculpt'
 import { balanceReport, type BalanceReport } from '../lib/balance'
 import { voronoiLatticeVertices, latticeHoleCount } from '../lib/latticeGeo'
 import { chainVertices, chainSpan } from '../lib/chainGeo'
@@ -14,7 +14,7 @@ import { minWallForAlloy } from '../lib/manufacture'
 import { meleeOptions, caratForMm, mmForCarat, MELEE_MM } from '../lib/stoneSize'
 import { HEATMAP_MIN_WALL } from '../lib/heatmap'
 import { seatReport, type SeatReport } from '../lib/seatCheck'
-import { modelerToObj, blueFlameMtl } from '../lib/cadExport'
+import { modelerToObj, blueFlameMtl, modelerToStlBinary, modelerTo3mf, stlToVertices } from '../lib/cadExport'
 import type { PaveMode } from '../lib/pave'
 import type { RailAlong } from '../lib/construction'
 import { stoneSchedule, stoneScheduleText } from '../lib/stoneSchedule'
@@ -248,7 +248,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -577,11 +577,34 @@ export function ModelerPanel() {
     const bad = r.issues.filter(i => i.level === 'fail').map(i => i.title).join('; ')
     return window.confirm(`This piece isn’t print-ready — ${bad}.\n\nRun “Fix for print” first (button above). Export anyway?`)
   }
+  const downloadBlob = (data: BlobPart, name: string, mime: string) => {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: mime })); a.download = name; a.click(); URL.revokeObjectURL(a.href)
+  }
   const exportStl = () => {
     if (!objects.length) { flash('Nothing to export.'); return }
     if (!printGateOk()) return
-    const blob = new Blob([modelerToStl(objects)], { type: 'model/stl' })
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `blue-flame-sculpt-${Date.now()}.stl`; a.click(); URL.revokeObjectURL(a.href)
+    downloadBlob(modelerToStlBinary(objects), `blue-flame-sculpt-${Date.now()}.stl`, 'model/stl')
+    flash('Exported binary STL — the slicer/caster-standard mesh.')
+  }
+  const export3mf = () => {
+    if (!objects.length) { flash('Nothing to export.'); return }
+    if (!printGateOk()) return
+    const z = modelerTo3mf(objects)
+    downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), `blue-flame-sculpt-${Date.now()}.3mf`, 'model/3mf')
+    flash('Exported 3MF — parts stay separate, millimetre-accurate.')
+  }
+  const importStlFile = (file: File) => {
+    const r = new FileReader()
+    r.onload = () => {
+      try {
+        const v = stlToVertices(r.result as ArrayBuffer)
+        if (v.length < 9) { flash('That STL had no readable geometry.'); return }
+        const id = importMesh(v, file.name.replace(/\.stl$/i, ''))
+        flash(id ? `Imported “${file.name}” — ${Math.floor(v.length / 9)} triangles onto the bench.` : 'Import failed.')
+        if (id) runQa()
+      } catch { flash('Couldn’t parse that STL file.') }
+    }
+    r.readAsArrayBuffer(file)
   }
   const runFixForPrint = () => {
     if (!objects.length) { flash('Nothing to fix yet.'); return }
@@ -1310,7 +1333,14 @@ export function ModelerPanel() {
       })()}
 
       <div className="panel-block quote">
-        <div className="qact"><button className="primary" onClick={exportStl}>Export STL</button><button className="ghost" onClick={exportObj} title="Named parts + metal/gem groups, for ZBrush / Blender / Matrix / RhinoGold">Export OBJ</button><button className="ghost" onClick={quotePdf}>Quote PDF</button><button className="ghost" onClick={techSheet}>Tech sheet</button></div>
+        <div className="qact"><button className="primary" onClick={exportStl} title="Binary STL — the slicer/caster standard">Export STL</button><button className="ghost" onClick={export3mf} title="3MF — modern container, parts stay separate">Export 3MF</button><button className="ghost" onClick={exportObj} title="Named parts + metal/gem groups, for ZBrush / Blender / Matrix / RhinoGold">Export OBJ</button></div>
+        <div className="qact" style={{ marginTop: 8 }}>
+          <label className="ghost" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }} title="Bring in an existing STL model or scan to modify on the bench">
+            Import STL…
+            <input type="file" accept=".stl,model/stl" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) importStlFile(f); e.target.value = '' }} />
+          </label>
+          <button className="ghost" onClick={quotePdf}>Quote PDF</button><button className="ghost" onClick={techSheet}>Tech sheet</button>
+        </div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={fuse} disabled={metalCount < 2}>Fuse metal</button></div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={clear}>Clear all</button></div>
         {metalCount >= 2 && <p className="disc">Fuse unions all {metalCount} metal parts into one watertight solid for printing (gems untouched).</p>}

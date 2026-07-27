@@ -182,6 +182,9 @@ interface ModelerStore {
   /** Weld/cap every metal mesh part so the whole piece is print/cast ready.
    *  Returns aggregate repair stats (one undo step). Primitives are already clean. */
   fixForPrint: () => { parts: number; welded: number; degenerate: number; duplicate: number; holes: number; watertight: boolean }
+  /** Drop an imported mesh (e.g. from an STL) onto the bench, recentred & on the
+   *  floor so it's visible. Returns the new part id (or null if empty). */
+  importMesh: (vertices: number[], name?: string) => string | null
   engraveOnPart: (targetId: string, text: string, font: string, op: SurfaceOp) => boolean
   wrapTextOnBand: (targetId: string, text: string, font: string, op: SurfaceOp, angleDeg?: number, inside?: boolean) => boolean
   toggleSnap: () => void
@@ -444,6 +447,27 @@ export const useModeler = create<ModelerStore>((set, get) => {
     }
     set(s => ({ objects: s.objects.map(o => patched.has(o.id) ? { ...o, vertices: patched.get(o.id)! } : o) }))
     return { parts: targets.length, welded, degenerate, duplicate, holes, watertight: allTight }
+  },
+
+  importMesh: (vertices, name) => {
+    if (!vertices || vertices.length < 9) return null
+    // Recentre on X/Z and drop the lowest point to y=0 so it lands on the stage.
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, minZ = Infinity, maxZ = -Infinity
+    for (let i = 0; i < vertices.length; i += 3) {
+      minX = Math.min(minX, vertices[i]); maxX = Math.max(maxX, vertices[i])
+      minY = Math.min(minY, vertices[i + 1])
+      minZ = Math.min(minZ, vertices[i + 2]); maxZ = Math.max(maxZ, vertices[i + 2])
+    }
+    const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2
+    const v = vertices.slice()
+    for (let i = 0; i < v.length; i += 3) { v[i] -= cx; v[i + 1] -= minY; v[i + 2] -= cz }
+    record()
+    const obj: SculptObject = {
+      id: newId(), kind: 'mesh', name: name || 'Imported mesh', vertices: v,
+      position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0, material: 'metal', color: GOLD,
+    }
+    set(s => ({ objects: [...s.objects, obj], selectedId: obj.id }))
+    return obj.id
   },
 
   toggleSnap: () => set(s => ({ snap: !s.snap })),
