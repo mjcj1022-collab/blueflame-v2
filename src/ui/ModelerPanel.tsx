@@ -14,7 +14,11 @@ import { minWallForAlloy } from '../lib/manufacture'
 import { meleeOptions, caratForMm, mmForCarat, MELEE_MM } from '../lib/stoneSize'
 import { HEATMAP_MIN_WALL } from '../lib/heatmap'
 import { seatReport, type SeatReport } from '../lib/seatCheck'
-import { modelerToObj, blueFlameMtl, modelerToStlBinary, modelerTo3mf, stlToVertices } from '../lib/cadExport'
+import { modelerToObj, blueFlameMtl, modelerToStlBinary, modelerTo3mf, stlToVertices, objToVertices } from '../lib/cadExport'
+import { modelerToSvg } from '../lib/svgSpec'
+import { sculptAppraisalText } from '../lib/sculptAppraisal'
+import { quoteMessage } from '../lib/quoteMessage'
+import { leadTime } from '../lib/leadTime'
 import type { PaveMode } from '../lib/pave'
 import type { RailAlong } from '../lib/construction'
 import { stoneSchedule, stoneScheduleText } from '../lib/stoneSchedule'
@@ -699,18 +703,19 @@ export function ModelerPanel() {
     downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), `blue-flame-sculpt-${Date.now()}.3mf`, 'model/3mf')
     flash('Exported 3MF — parts stay separate, millimetre-accurate.')
   }
-  const importStlFile = (file: File) => {
+  const importModelFile = (file: File) => {
+    const isObj = /\.obj$/i.test(file.name)
     const r = new FileReader()
     r.onload = () => {
       try {
-        const v = stlToVertices(r.result as ArrayBuffer)
-        if (v.length < 9) { flash('That STL had no readable geometry.'); return }
-        const id = importMesh(v, file.name.replace(/\.stl$/i, ''))
+        const v = isObj ? objToVertices(r.result as string) : stlToVertices(r.result as ArrayBuffer)
+        if (v.length < 9) { flash(`That ${isObj ? 'OBJ' : 'STL'} had no readable geometry.`); return }
+        const id = importMesh(v, file.name.replace(/\.(stl|obj)$/i, ''))
         flash(id ? `Imported “${file.name}” — ${Math.floor(v.length / 9)} triangles onto the bench.` : 'Import failed.')
         if (id) runQa()
-      } catch { flash('Couldn’t parse that STL file.') }
+      } catch { flash(`Couldn’t parse that ${isObj ? 'OBJ' : 'STL'} file.`) }
     }
-    r.readAsArrayBuffer(file)
+    if (isObj) r.readAsText(file); else r.readAsArrayBuffer(file)
   }
   const runFixForPrint = () => {
     if (!objects.length) { flash('Nothing to fix yet.'); return }
@@ -1641,6 +1646,22 @@ export function ModelerPanel() {
       })()}
 
       {metalCount > 0 && (() => {
+        const lt = leadTime(objects, alloyId)
+        return (
+          <div className="panel-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <h4 style={{ margin: 0 }}>Lead time</h4>
+              <b style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>~{lt.totalDays} business days</b>
+            </div>
+            <table className="stone-sched"><tbody>
+              {lt.stages.map((s, i) => <tr key={i}><td>{s.stage}</td><td>{s.days} day{s.days === 1 ? '' : 's'}</td></tr>)}
+            </tbody></table>
+            <p className="disc">Realistic calendar promise from approval — CAD, casting turnaround, setting and finishing, spread over working days.</p>
+          </div>
+        )
+      })()}
+
+      {metalCount > 0 && (() => {
         const pe = printEstimate(objects)
         return (
           <div className="panel-block">
@@ -1844,13 +1865,16 @@ export function ModelerPanel() {
         <div className="qact"><button className="primary" onClick={exportStl} title="Binary STL — the slicer/caster standard">Export STL</button><button className="ghost" onClick={export3mf} title="3MF — modern container, parts stay separate">Export 3MF</button><button className="ghost" onClick={exportObj} title="Named parts + metal/gem groups, for ZBrush / Blender / Matrix / RhinoGold">Export OBJ</button></div>
         <div className="qact" style={{ marginTop: 8 }}>
           <label className="ghost" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }} title="Bring in an existing STL model or scan to modify on the bench">
-            Import STL…
-            <input type="file" accept=".stl,model/stl" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) importStlFile(f); e.target.value = '' }} />
+            Import STL / OBJ…
+            <input type="file" accept=".stl,.obj,model/stl" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) importModelFile(f); e.target.value = '' }} />
           </label>
           <button className="ghost" onClick={quotePdf}>Quote PDF</button><button className="ghost" onClick={techSheet}>Tech sheet</button><button className="ghost" onClick={clientSheet} title="A customer-facing one-pager: render, specs and price">Client sheet</button>
           <button className="ghost" onClick={jobTicket} title="Shop build sheet: parts, pour weight, bench ops, sign-off">Job ticket</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to check yet.'); return } const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); textToPdf(shopName, 'QC Checklist', bodyAfterTitle(qcChecklistText(objects, alloyId, shopName)), `${slug}-qc.pdf`); flash('QC checklist exported.') }} title="Quality-control checklist tailored to this piece">QC checklist</button>
           <button className="ghost" onClick={careSheet} title="Consumer care sheet from the piece's metal and stones">Care sheet</button>
+          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to appraise yet.'); return } const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); textToPdf(shopName, 'Insurance Appraisal', bodyAfterTitle(sculptAppraisalText(objects, alloyId, shopName, new Date().toISOString().slice(0, 10))), `${slug}-appraisal.pdf`); flash('Appraisal exported.') }} title="Formal insurance appraisal with replacement value">Appraisal</button>
+          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to draw yet.'); return } const m = measurements(objects, alloyId); downloadBlob(modelerToSvg(objects, { brand: shopName, name: describePiece(objects, alloyId).name, ringSize: m.ringSize }), `blue-flame-spec-${Date.now()}.svg`, 'image/svg+xml'); flash('SVG spec drawing saved.') }} title="Dimensioned top-view technical drawing (SVG)">Spec drawing</button>
+          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to quote yet.'); return } navigator.clipboard?.writeText(quoteMessage(objects, alloyId, { name: describePiece(objects, alloyId).name, brand: shopName })).then(() => flash('Quote message copied — paste into an email or text.'), () => flash('Could not copy.')) }} title="Copy a ready-to-send customer quote message">Quote message</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to export.'); return } download(modelerToDxf(objects), `blue-flame-sculpt-${Date.now()}.dxf`, 'application/dxf'); flash('Exported DXF — top-view template for laser / CAM.') }} title="2D top-view wireframe (DXF R12) for laser engraving / wax milling alignment">Export DXF</button>
         </div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={fuse} disabled={metalCount < 2}>Fuse metal</button></div>

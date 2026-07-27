@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 import { zipSync, strToU8 } from 'fflate'
 import { bakedVertices, bakedGeometry } from './sculpt'
 import type { SculptObject } from '../state/modeler'
@@ -190,5 +191,21 @@ export function stlToVertices(buffer: ArrayBuffer): number[] {
   if (!pos) { geo.dispose(); return [] }
   const out = Array.from(pos.array as Float32Array)
   geo.dispose()
+  return out
+}
+
+/** Parse an OBJ file (text) into a merged world-space triangle soup — bring a
+ *  model out of Blender / ZBrush / another CAD onto the bench to modify. */
+export function objToVertices(text: string): number[] {
+  const group = new OBJLoader().parse(text)
+  const out: number[] = []
+  group.traverse(n => {
+    const mesh = n as THREE.Mesh
+    if (!mesh.isMesh || !mesh.geometry) return
+    const g = (mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry) as THREE.BufferGeometry
+    const pos = g.getAttribute('position') as THREE.BufferAttribute | undefined
+    if (pos) for (let i = 0; i < pos.count; i++) out.push(pos.getX(i), pos.getY(i), pos.getZ(i))
+    if (g !== mesh.geometry) g.dispose()
+  })
   return out
 }
