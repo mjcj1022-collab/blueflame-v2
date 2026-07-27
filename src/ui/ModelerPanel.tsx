@@ -23,6 +23,11 @@ import { skuFor } from '../lib/sku'
 import { bomCsv, stoneOrderCsv } from '../lib/csvExport'
 import { compareDesigns } from '../lib/designCompare'
 import { lineSheetText } from '../lib/lineSheet'
+import { pricingTiers } from '../lib/pricingTiers'
+import { invoiceText } from '../lib/invoice'
+import { certificateHtml } from '../lib/certificate'
+import { intakeFormHtml } from '../lib/intakeForm'
+import { batchStlZip } from '../lib/cadExport'
 import type { PaveMode } from '../lib/pave'
 import type { RailAlong } from '../lib/construction'
 import { stoneSchedule, stoneScheduleText } from '../lib/stoneSchedule'
@@ -1414,9 +1419,13 @@ export function ModelerPanel() {
 
         {saved.length >= 1 && (
           <div style={{ marginTop: 12 }}>
-            <div className="row"><label>Compare two designs</label>
-              <button className="mini" style={{ marginLeft: 'auto' }} onClick={() => { download(lineSheetText(saved, alloyId, shopName), 'blue-flame-line-sheet.txt', 'text/plain'); flash('Line sheet saved.') }} title="Price list across all saved designs">Line sheet</button>
+            <div className="row"><label>Collection</label>
+              <span style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+                <button className="mini" onClick={() => { download(lineSheetText(saved, alloyId, shopName), 'blue-flame-line-sheet.txt', 'text/plain'); flash('Line sheet saved.') }} title="Price list across all saved designs">Line sheet</button>
+                <button className="mini" onClick={() => { const z = batchStlZip(saved.map(s => ({ name: s.name, objects: s.objects }))); downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), 'blue-flame-collection-stl.zip', 'application/zip'); flash(`Zipped ${saved.length} STL${saved.length === 1 ? '' : 's'}.`) }} title="Every saved design as an STL, zipped for a caster">STL zip</button>
+              </span>
             </div>
+            <div className="row" style={{ marginTop: 6 }}><label>Compare two designs</label></div>
             <div className="row" style={{ marginTop: 6, gap: 4 }}>
               <select className="lib-name" style={{ width: '48%' }} value={cmpA} onChange={e => setCmpA(e.target.value)}><option value="">Design A…</option>{saved.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
               <select className="lib-name" style={{ width: '48%', marginLeft: 'auto' }} value={cmpB} onChange={e => setCmpB(e.target.value)}><option value="">Design B…</option>{saved.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
@@ -1664,6 +1673,22 @@ export function ModelerPanel() {
               <tr><td><b>Profit</b></td><td></td><td><b>{money(p.profit)}</b></td></tr>
             </tbody></table>
             <p className="disc">What the piece costs the shop (metal + stones + bench labor) versus what it sells for. Tune margin and the labor rate on the Design tab.</p>
+          </div>
+        )
+      })()}
+
+      {metalCount > 0 && (() => {
+        const t = pricingTiers(objects, alloyId)
+        return (
+          <div className="panel-block">
+            <h4 style={{ margin: 0 }}>Pricing tiers</h4>
+            <table className="stone-sched"><tbody>
+              <tr><td>Cost</td><td>{money(t.cost)}</td></tr>
+              <tr><td>Wholesale</td><td>{money(t.wholesale)}</td></tr>
+              <tr><td>Keystone (2×)</td><td>{money(t.keystone)}</td></tr>
+              <tr><td><b>Retail</b></td><td><b>{money(t.retail)}</b></td></tr>
+            </tbody></table>
+            <p className="disc">Quote any channel from one place — cost, wholesale for stockists, keystone, and your retail (at the margin set on the Design tab).</p>
           </div>
         )
       })()}
@@ -1921,6 +1946,9 @@ export function ModelerPanel() {
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to appraise yet.'); return } const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); textToPdf(shopName, 'Insurance Appraisal', bodyAfterTitle(sculptAppraisalText(objects, alloyId, shopName, new Date().toISOString().slice(0, 10))), `${slug}-appraisal.pdf`); flash('Appraisal exported.') }} title="Formal insurance appraisal with replacement value">Appraisal</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to draw yet.'); return } const m = measurements(objects, alloyId); downloadBlob(modelerToSvg(objects, { brand: shopName, name: describePiece(objects, alloyId).name, ringSize: m.ringSize }), `blue-flame-spec-${Date.now()}.svg`, 'image/svg+xml'); flash('SVG spec drawing saved.') }} title="Dimensioned top-view technical drawing (SVG)">Spec drawing</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to quote yet.'); return } navigator.clipboard?.writeText(quoteMessage(objects, alloyId, { name: describePiece(objects, alloyId).name, brand: shopName })).then(() => flash('Quote message copied — paste into an email or text.'), () => flash('Could not copy.')) }} title="Copy a ready-to-send customer quote message">Quote message</button>
+          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to invoice yet.'); return } const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); textToPdf(shopName, 'Invoice', bodyAfterTitle(invoiceText(objects, alloyId, { brand: shopName, invoiceNo: String(Date.now()).slice(-6), today: new Date().toISOString().slice(0, 10) })), `${slug}-invoice.pdf`); flash('Invoice exported.') }} title="Itemized invoice with balance due">Invoice</button>
+          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to certify yet.'); return } const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); downloadBlob(certificateHtml(shopName, describePiece(objects, alloyId).name, objects, alloyId, new Date().toISOString().slice(0, 10)), `${slug}-certificate.html`, 'text/html'); flash('Certificate of authenticity saved.') }} title="Certificate of authenticity for the customer">Certificate</button>
+          <button className="ghost" onClick={() => { const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); downloadBlob(intakeFormHtml(shopName), `${slug}-intake-form.html`, 'text/html'); flash('Intake form saved — printable custom-job questionnaire.') }} title="Printable custom-job intake questionnaire">Intake form</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to export.'); return } download(modelerToDxf(objects), `blue-flame-sculpt-${Date.now()}.dxf`, 'application/dxf'); flash('Exported DXF — top-view template for laser / CAM.') }} title="2D top-view wireframe (DXF R12) for laser engraving / wax milling alignment">Export DXF</button>
         </div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={fuse} disabled={metalCount < 2}>Fuse metal</button></div>

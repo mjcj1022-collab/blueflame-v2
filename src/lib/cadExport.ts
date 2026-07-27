@@ -181,6 +181,23 @@ export function modelerTo3mf(objects: SculptObject[], opts: ObjExportOptions = {
   })
 }
 
+/* ---------- Batch STL (collection zip) ---------- */
+
+/** Zip a set of named part-lists as individual binary STLs — hand a caster the
+ *  whole collection in one file. Names are slugged and de-duplicated. */
+export function batchStlZip(designs: { name: string; objects: SculptObject[] }[]): Uint8Array {
+  const files: Record<string, Uint8Array> = {}
+  const used = new Map<string, number>()
+  for (const d of designs) {
+    let base = (d.name || 'design').trim().replace(/\s+/g, '_').replace(/[^\w.\-]/g, '') || 'design'
+    const n = used.get(base) ?? 0; used.set(base, n + 1)
+    if (n > 0) base = `${base}_${n + 1}`
+    const buf = modelerToStlBinary(d.objects)
+    files[`${base}.stl`] = new Uint8Array(buf)
+  }
+  return zipSync(files)
+}
+
 /* ---------- STL import ---------- */
 
 /** Parse an STL file (binary or ASCII) into a world-space triangle soup a maker
