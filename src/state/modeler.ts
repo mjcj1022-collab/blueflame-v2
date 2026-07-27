@@ -198,6 +198,9 @@ interface ModelerStore {
   stampHallmark: (shankId: string, makersMark?: string) => boolean
   /** Mirror the whole assembly into a matched second piece (earring pair). */
   makeMatchedPair: () => number
+  /** Build a real sprue tree beside the piece: a central rod, N copies on sprues,
+   *  and a feed button — the layout you send to casting. Returns parts added. */
+  buildCastingTree: (count: number) => number
   /** Repair: add retip beads at a head's prong tips. */
   retipProngs: (headId: string) => number
   /** Repair: replace a shank with a fresh parametric band at the same size. */
@@ -572,6 +575,44 @@ export const useModeler = create<ModelerStore>((set, get) => {
     }))
     set(s => ({ objects: [...s.objects, ...mirrored], selectedId: mirrored[0]?.id ?? s.selectedId }))
     return mirrored.length
+  },
+
+  buildCastingTree: count => {
+    const metal = get().objects.filter(o => o.material === 'metal')
+    if (!metal.length) return 0
+    const n = Math.max(1, Math.min(24, Math.round(count)))
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity
+    for (const o of metal) { const v = bakedVertices(o); for (let i = 0; i < v.length; i += 3) { minX = Math.min(minX, v[i]); maxX = Math.max(maxX, v[i]); minY = Math.min(minY, v[i + 1]); maxY = Math.max(maxY, v[i + 1]); minZ = Math.min(minZ, v[i + 2]); maxZ = Math.max(maxZ, v[i + 2]) } }
+    if (!isFinite(minX)) return 0
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, cz = (minZ + maxZ) / 2
+    const w = maxX - minX, h = maxY - minY, d = maxZ - minZ
+    const pieceR = Math.max(w, d) / 2
+    const rodR = Math.max(1.2, pieceR * 0.14)
+    const R = pieceR + 5 + rodR
+    const levelH = Math.max(6, h + 4)
+    const treeH = 12 + n * levelH
+    const TX = cx + w / 2 + R + 14, TZ = cz    // tree to the side, clear of the piece
+
+    record()
+    const add: SculptObject[] = []
+    // Central sprue rod.
+    add.push({ id: newId(), kind: 'cylinder', name: 'Sprue rod', position: [TX, treeH / 2, TZ], rotation: [0, 0, 0], scale: [rodR * 2, treeH, rodR * 2], size: 1, material: 'metal', color: metal[0].color })
+    // Feed button at the base.
+    add.push({ id: newId(), kind: 'cylinder', name: 'Button', position: [TX, 2, TZ], rotation: [0, 0, 0], scale: [rodR * 3.4, 4, rodR * 3.4], size: 1, material: 'metal', color: metal[0].color })
+    for (let i = 0; i < n; i++) {
+      const a = i * 2.399963 // golden angle, spirals copies around the rod
+      const y = 12 + i * levelH
+      const ccx = TX + Math.cos(a) * R, ccz = TZ + Math.sin(a) * R
+      for (const o of metal) {
+        add.push({ ...o, id: newId(), name: `${o.name} #${i + 1}`, vertices: o.vertices ? [...o.vertices] : undefined,
+          position: [o.position[0] - cx + ccx, o.position[1] - cy + y, o.position[2] - cz + ccz] })
+      }
+      // Sprue: a bar from the rod out to this copy.
+      const g = Math.max(0.8, rodR * 0.7)
+      add.push({ id: newId(), kind: 'box', name: `Sprue ${i + 1}`, position: [TX + Math.cos(a) * R / 2, y, TZ + Math.sin(a) * R / 2], rotation: [0, -a, 0], scale: [R, g, g], size: 1, material: 'metal', color: metal[0].color })
+    }
+    set(s => ({ objects: [...s.objects, ...add], selectedId: add[0].id }))
+    return add.length
   },
 
   stampHallmark: (shankId, makersMark) => {

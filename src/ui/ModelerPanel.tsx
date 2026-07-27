@@ -301,7 +301,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, resizeRing, addMount, retipProngs, replaceShank, stampHallmark, makeMatchedPair, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, resizeRing, addMount, retipProngs, replaceShank, stampHallmark, makeMatchedPair, buildCastingTree, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -1828,7 +1828,10 @@ export function ModelerPanel() {
               <tr><td>Becomes jewelry</td><td>{sk.finishedGrams.toFixed(2)} g</td><td>{sk.recoveryPct.toFixed(0)}% yield</td></tr>
               <tr><td>Scrap (recoverable)</td><td>{sk.scrapGrams.toFixed(2)} g</td><td></td></tr>
             </tbody></table>
-            <p className="disc">To pour: {plan.alloyName} — parts + sprues + shrinkage + feed button. Order {sk.orderGrams.toFixed(0)} g of stock ({money(sk.stockCost)}); {sk.recoveryPct.toFixed(0)}% ends up in the pieces, the rest is recoverable scrap.</p>
+            <div className="opts" style={{ marginTop: 8 }}>
+              <button className="opt tpl" onClick={() => { const n = buildCastingTree(treeCount); flash(n ? `Built a casting tree — ${treeCount} ${treeCount === 1 ? 'copy' : 'copies'} on a sprue rod (${n} parts). Export STL to send to casting.` : 'Add a metal part first.'); if (n) runQa() }}>Build casting tree ({treeCount})</button>
+            </div>
+            <p className="disc">To pour: {plan.alloyName} — parts + sprues + shrinkage + feed button. Order {sk.orderGrams.toFixed(0)} g of stock ({money(sk.stockCost)}); {sk.recoveryPct.toFixed(0)}% ends up in the pieces, the rest is recoverable scrap. <b>Build casting tree</b> lays the copies on a real sprue rod beside the piece.</p>
             {(() => {
               const mix = alloyMix(alloyId, plan.pourGrams)
               const rv = refineValue(alloyId, sk.scrapGrams)
