@@ -40,6 +40,19 @@ const round1 = (n: number) => Math.round(n * 10) / 10
 
 const PRIMS: [PrimitiveKind, string][] = [['box', 'Box'], ['sphere', 'Sphere'], ['cylinder', 'Cylinder'], ['cone', 'Cone'], ['torus', 'Torus'], ['tube', 'Tube']]
 const PARTS: [JewelryKind, string][] = [['shank', 'Shank'], ['gem', 'Gem'], ['head', 'Prong head'], ['bezel', 'Bezel']]
+
+/** HSL hue (0–360) → a saturated hex colour, for the custom stone-colour slider. */
+function hueToHex(h: number): number {
+  const s = 0.72, l = 0.55
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const hp = ((h % 360) + 360) % 360 / 60
+  const x = c * (1 - Math.abs((hp % 2) - 1))
+  let r = 0, g = 0, b = 0
+  if (hp < 1) { r = c; g = x } else if (hp < 2) { r = x; g = c } else if (hp < 3) { g = c; b = x } else if (hp < 4) { g = x; b = c } else if (hp < 5) { r = x; b = c } else { r = c; b = x }
+  const m = l - c / 2
+  const to = (v: number) => Math.round((v + m) * 255)
+  return (to(r) << 16) | (to(g) << 8) | to(b)
+}
 const PROFILES: [ShankProfile, string][] = [['round', 'Round'], ['flat', 'Flat'], ['dshape', 'D-shape'], ['knife', 'Knife'], ['comfort', 'Comfort']]
 const OPS: [BooleanOp, string][] = [['union', 'Union'], ['subtract', 'Subtract'], ['intersect', 'Intersect']]
 
@@ -259,7 +272,7 @@ export function ModelerPanel() {
   const [aiQuality, setAiQuality] = useState<DesignQuality | null>(null)
   const [finText, setFinText] = useState('')
   const [finBusy, setFinBusy] = useState(false)
-  const [stonePick, setStonePick] = useState({ stoneId: 'dia', shapeId: 'rd', carat: 0.5 })
+  const [stonePick, setStonePick] = useState<{ stoneId: string; shapeId: string; carat: number; hue: number; custom: boolean }>({ stoneId: 'dia', shapeId: 'rd', carat: 0.5, hue: 200, custom: false })
   const [domeH, setDomeH] = useState(1.5)
   const [symAxis, setSymAxis] = useState<'x' | 'y' | 'z'>('x')
   const [over, setOver] = useState<OverhangReport | null>(null)
@@ -530,9 +543,10 @@ export function ModelerPanel() {
     const d = describePiece(objects, alloyId)
     navigator.clipboard?.writeText(`${d.name}\n${d.sentence}`).then(() => flash(`Copied: ${d.name}`), () => flash('Could not copy.'))
   }
-  const setPick = (patch: Partial<typeof stonePick>) => { const p = { ...stonePick, ...patch }; setStonePick(p); if (placing) setPlacing(p) }
-  const togglePlace = () => { setPlacing(placing ? null : stonePick); if (!placing) flash('Click the stage to drop stones. Click a part to select it.') }
-  const addOneStone = () => { addStone({ ...stonePick }); flash(`Added ${STONES.find(s => s.id === stonePick.stoneId)?.name ?? 'stone'} — drag the gizmo to move it.`) }
+  const armed = (p: typeof stonePick) => ({ stoneId: p.stoneId, shapeId: p.shapeId, carat: p.carat, color: p.custom ? hueToHex(p.hue) : undefined })
+  const setPick = (patch: Partial<typeof stonePick>) => { const p = { ...stonePick, ...patch }; setStonePick(p); if (placing) setPlacing(armed(p)) }
+  const togglePlace = () => { setPlacing(placing ? null : armed(stonePick)); if (!placing) flash('Click anywhere on the piece (or the stage) to drop stones. Click empty space to place, a part to place on it.') }
+  const addOneStone = () => { addStone(armed(stonePick)); flash(`Added ${STONES.find(s => s.id === stonePick.stoneId)?.name ?? 'stone'} — drag the gizmo to move it.`) }
 
   const metalCount = objects.filter(o => o.material === 'metal').length
   const sched = stoneSchedule(objects)
@@ -663,8 +677,16 @@ export function ModelerPanel() {
           </select>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}><input className="lib-name" style={{ width: 56 }} type="number" min={0.01} step={0.05} value={stonePick.carat} onChange={e => setPick({ carat: Math.max(0.01, +e.target.value) })} /><small style={{ color: 'var(--slate)' }}>ct</small></span>
         </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12, cursor: 'pointer' }}>
+          <input type="checkbox" checked={stonePick.custom} onChange={e => setPick({ custom: e.target.checked })} /> Custom colour
+          <span style={{ marginLeft: 'auto', width: 20, height: 14, borderRadius: 3, border: '1px solid var(--rule)', background: stonePick.custom ? `#${hueToHex(stonePick.hue).toString(16).padStart(6, '0')}` : '#ccc' }} />
+        </label>
+        {stonePick.custom && (
+          <input type="range" min={0} max={360} step={1} value={stonePick.hue} onChange={e => setPick({ hue: +e.target.value })}
+            style={{ width: '100%', marginTop: 6, accentColor: `#${hueToHex(stonePick.hue).toString(16).padStart(6, '0')}` }} />
+        )}
         <div className="opts c2" style={{ marginTop: 8 }}>
-          <button className="opt tpl" aria-pressed={!!placing} onClick={togglePlace}>{placing ? 'Placing… (click stage)' : 'Click to place'}</button>
+          <button className="opt tpl" aria-pressed={!!placing} onClick={togglePlace}>{placing ? 'Placing… (click piece)' : 'Click to place'}</button>
           <button className="opt" onClick={addOneStone}>Add one</button>
         </div>
         <p className="disc">Pick a stone, then <b>Click to place</b> and click on the stage to drop copies. Or <b>Add one</b>. To move any stone: click it and drag the move gizmo (Select/Move tools below).</p>

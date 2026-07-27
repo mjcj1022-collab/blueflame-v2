@@ -66,7 +66,14 @@ export function SculptMesh({ o }: { o: SculptObject }) {
       position={o.position}
       rotation={o.rotation}
       scale={o.scale}
-      onClick={e => { e.stopPropagation(); select(o.id) }}
+      onClick={e => {
+        e.stopPropagation()
+        // While a stone is armed for placement, clicking a part drops the stone
+        // ON that surface point ("anywhere on the feature"); otherwise select.
+        const p = useModeler.getState().placing
+        if (p) useModeler.getState().addStone({ ...p, position: [e.point.x, e.point.y, e.point.z] })
+        else select(o.id)
+      }}
       castShadow
     >
       {selected && <Edges scale={1.03} threshold={15} color="#C6A265" />}

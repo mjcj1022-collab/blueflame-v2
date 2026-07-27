@@ -26,6 +26,7 @@ export interface MeleeSpec {
   caratEach?: number   // override accent stone size
   quality?: string
   style?: string
+  stoneId?: string     // accent stone type (e.g. 'rub'); defaults to the centre stone
 }
 
-export const DEFAULT_MELEE: Required<MeleeSpec> = { count: 0, caratEach: 0.015, quality: 'gh', style: 'bright' }
+export const DEFAULT_MELEE: Required<MeleeSpec> = { count: 0, caratEach: 0.015, quality: 'gh', style: 'bright', stoneId: 'dia' }

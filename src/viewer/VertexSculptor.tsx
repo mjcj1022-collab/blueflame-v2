@@ -86,7 +86,7 @@ export function VertexSculptor({ vertices, color, falloff, symmetry, tool, selec
 
   const down = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return                       // left button only
-    if (tool === 'add' || tool === 'remove') return  // handled by click / dblclick
+    if (tool === 'add' || tool === 'remove' || tool === 'lasso') return  // add/remove: click/dblclick; lasso: own overlay
     e.stopPropagation()
     const pos = geom.getAttribute('position') as THREE.BufferAttribute
     const lp = e.eventObject.worldToLocal(e.point.clone())

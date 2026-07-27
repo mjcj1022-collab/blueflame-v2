@@ -41,6 +41,10 @@ describe('addStone', () => {
     expect(o.position).toEqual([3, 4, -2])
     expect(useModeler.getState().selectedId).toBe(id)
   })
+  it('honours a custom colour override', () => {
+    const id = useModeler.getState().addStone({ stoneId: 'dia', shapeId: 'rd', carat: 0.2, color: 0x22aa88 })
+    expect(useModeler.getState().objects.find(x => x.id === id)!.color).toBe(0x22aa88)
+  })
 })
 
 describe('necklace station stones (rubies by the yard)', () => {

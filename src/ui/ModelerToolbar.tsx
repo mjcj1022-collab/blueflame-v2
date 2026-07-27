@@ -16,6 +16,9 @@ export function ModelerToolbar() {
   const setMode = useModeler(s => s.setMode)
   const vertexTool = useModeler(s => s.vertexTool)
   const setVertexTool = useModeler(s => s.setVertexTool)
+  const selectedVerts = useModeler(s => s.selectedVerts)
+  const selectedId = useModeler(s => s.selectedId)
+  const deleteVertsGroup = useModeler(s => s.deleteVertsGroup)
 
   const move = () => { setEditMode('object'); setMode('translate') }
 
@@ -35,6 +38,10 @@ export function ModelerToolbar() {
         <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'edit'} onClick={() => setVertexTool('edit')} title="Left-click a vertex and drag to reshape">Edit</button>
         <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'add'} onClick={() => setVertexTool('add')} title="Click the surface to add a vertex">Add</button>
         <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'remove'} onClick={() => setVertexTool('remove')} title="Double-click a vertex to remove it">Remove</button>
+        <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'lasso'} onClick={() => setVertexTool('lasso')} title="Drag a lasso to select a group of vertices, then move them with the gizmo">Lasso</button>
+        {selectedVerts.length > 0 && selectedId && (
+          <button className="sbtn" onClick={() => deleteVertsGroup(selectedId, selectedVerts)} title="Delete the selected vertices">Delete ({selectedVerts.length})</button>
+        )}
         <button className="sbtn" aria-pressed={editMode === 'surface'} onClick={() => setEditMode('surface')} title="Draw on the surface">Surface</button>
       </div>
     </div>

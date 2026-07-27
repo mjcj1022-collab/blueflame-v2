@@ -14,6 +14,7 @@ import { buildSculptFromDesign } from '../lib/aiAssemble'
 import type { AiDesignPatch } from '../lib/aiAssistant'
 import { refineDesign } from '../lib/designRules'
 import type { ModelerCommand } from '../lib/aiCommands'
+import { moveVertsBy, deleteVerticesFromSoup } from '../lib/vertexSelect'
 import { domeSoup } from '../lib/dome'
 import { symmetrizeSoup } from '../lib/symmetrize'
 import { bestPrintOrientation, rotateSoup } from '../lib/printOrient'
@@ -52,7 +53,7 @@ export type TransformMode = 'translate' | 'rotate' | 'scale'
 export type EditMode = 'object' | 'vertex' | 'surface'
 /** In Vertices mode: 'select' highlights only; 'edit' left-click-drags a vertex;
  *  'add' single-clicks to add a vertex; 'remove' double-clicks to delete one. */
-export type VertexTool = 'select' | 'edit' | 'add' | 'remove'
+export type VertexTool = 'select' | 'edit' | 'add' | 'remove' | 'lasso'
 export type SurfaceOp = 'emboss' | 'cut'
 export type ShankProfile = 'round' | 'flat' | 'dshape' | 'knife' | 'comfort'
 
@@ -144,6 +145,8 @@ interface ModelerStore {
   editMode: EditMode
   vertexTool: VertexTool
   selectedVertex: number | null
+  /** Multi-vertex selection (lasso) — vertex indices into the editable mesh. */
+  selectedVerts: number[]
   falloff: number
   alloyId: string
   snap: boolean
@@ -159,6 +162,9 @@ interface ModelerStore {
   setEditMode: (m: EditMode) => void
   setVertexTool: (t: VertexTool) => void
   pickVertex: (i: number | null) => void
+  setSelectedVerts: (idx: number[]) => void
+  moveVertsGroup: (id: string, indices: number[], delta: [number, number, number]) => void
+  deleteVertsGroup: (id: string, indices: number[]) => void
   setFalloff: (r: number) => void
   setSurfaceOp: (op: SurfaceOp) => void
   setBrush: (r: number) => void
@@ -216,9 +222,9 @@ interface ModelerStore {
   assembleDesign: (patch: AiDesignPatch, replace?: boolean) => number
   runModelerCommands: (cmds: ModelerCommand[]) => { applied: string[]; skipped: string[] }
   /** A stone type armed for click-to-place on the stage (null = not placing). */
-  placing: { stoneId: string; shapeId: string; carat: number } | null
-  setPlacing: (p: { stoneId: string; shapeId: string; carat: number } | null) => void
-  addStone: (opts: { stoneId: string; shapeId: string; carat: number; position?: [number, number, number] }) => string
+  placing: { stoneId: string; shapeId: string; carat: number; color?: number } | null
+  setPlacing: (p: { stoneId: string; shapeId: string; carat: number; color?: number } | null) => void
+  addStone: (opts: { stoneId: string; shapeId: string; carat: number; position?: [number, number, number]; color?: number }) => string
   domeTop: (id: string, height: number) => boolean
   addSizingBeads: (id: string) => boolean
   symmetrizeMesh: (id: string, axis: Axis) => boolean
@@ -249,6 +255,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
   editMode: 'object',
   vertexTool: 'edit',
   selectedVertex: null,
+  selectedVerts: [],
   falloff: 2.5,
   alloyId: '14ky',
   snap: false,
@@ -274,10 +281,21 @@ export const useModeler = create<ModelerStore>((set, get) => {
     return { objects: next, future: s.future.slice(1), past: [...s.past, s.objects].slice(-HISTORY_LIMIT), selectedId: stillThere(s.selectedId, next) }
   }),
 
-  setEditMode: editMode => set({ editMode, selectedVertex: editMode === 'vertex' ? get().selectedVertex : null }),
+  setEditMode: editMode => set({ editMode, selectedVertex: editMode === 'vertex' ? get().selectedVertex : null, selectedVerts: editMode === 'vertex' ? get().selectedVerts : [] }),
   // Choosing Select or Edit implies you're in Vertices mode.
   setVertexTool: vertexTool => set({ vertexTool, editMode: 'vertex' }),
   pickVertex: selectedVertex => set({ selectedVertex }),
+  setSelectedVerts: selectedVerts => set({ selectedVerts }),
+  moveVertsGroup: (id, indices, delta) => {
+    if (!indices.length) return
+    record()
+    set(s => ({ objects: s.objects.map(o => o.id === id && o.vertices ? { ...o, vertices: moveVertsBy(o.vertices, indices, delta) } : o) }))
+  },
+  deleteVertsGroup: (id, indices) => {
+    if (!indices.length) return
+    record()
+    set(s => ({ objects: s.objects.map(o => o.id === id && o.vertices ? { ...o, vertices: deleteVerticesFromSoup(o.vertices, indices) } : o), selectedVerts: [] }))
+  },
   setFalloff: falloff => set({ falloff: Math.max(0.2, falloff) }),
   setSurfaceOp: surfaceOp => set({ surfaceOp }),
   setBrush: brush => set({ brush: Math.max(0.15, brush) }),
@@ -1020,20 +1038,20 @@ export const useModeler = create<ModelerStore>((set, get) => {
   setPlacing: p => set({ placing: p }),
   /** Drop a stone of a chosen type at a position (default just above the grid),
    *  coloured to match the stone. Used by the palette and by click-to-place. */
-  addStone: ({ stoneId, shapeId, carat, position }) => {
+  addStone: ({ stoneId, shapeId, carat, position, color }) => {
     record()
     const id = newId()
     const st = stoneById(stoneId)
     const gem: SculptObject = {
       id, name: `${st.name} ${carat} ct`, kind: 'gem',
       position: position ?? [0, 6, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 6,
-      material: 'gem', color: st.color, params: { shapeId, stoneTypeId: stoneId, carat },
+      material: 'gem', color: color ?? st.color, params: { shapeId, stoneTypeId: stoneId, carat },
     }
     set(s => ({ objects: [...s.objects, gem], selectedId: id }))
     return id
   },
 
-  select: id => set(s => (id === s.selectedId ? { selectedId: id } : { selectedId: id, selectedVertex: null })),
+  select: id => set(s => (id === s.selectedId ? { selectedId: id } : { selectedId: id, selectedVertex: null, selectedVerts: [] })),
   setMode: mode => set({ mode }),
   setAlloy: id => set(s => {
     // Recolour metal parts to the chosen alloy so the render matches the metal

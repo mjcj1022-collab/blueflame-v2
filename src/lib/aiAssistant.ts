@@ -36,6 +36,7 @@ export interface AiDesignPatch {
   stationStoneId?: string    // stones set along the chain (station / by-the-yard)
   stationCarat?: number      // per-station stone size
   stationEveryIn?: number    // spacing between stations, inches
+  accentStoneId?: string     // accent-stone type for an eternity/halo row around a ring
   braceletKind?: BraceletKind
   dropLength?: number        // earring drop, mm (0 = stud)
   bodyStyle?: BodyStyle
@@ -89,30 +90,47 @@ export function stationSpacingFrom(text: string): number | null {
   return 2 // "along the chain" / "stations" with no explicit spacing
 }
 
+/** True when the ask is for stones distributed AROUND/ALONG a piece rather than
+ *  one centre stone (handles "everyother", "going around", "eternity", etc.). */
+export function distributedStoneAsk(text: string): boolean {
+  const t = text.toLowerCase()
+  return /(every\s*other|everyother|every\s+\d*\s*inch|going\s+around|all\s+(the\s+way\s+)?around|around\s+(it|the)|eternity|spaced|stations?|by\s+the\s+yard)/.test(t)
+}
+
 /**
- * Force a "rubies every other inch"-style request onto the necklace STATION
- * fields, whatever fields the model actually returned. Models keep reaching for
- * the single centre-stone fields (which a plain chain can't render), so when the
- * piece is a necklace and the ask is for distributed stones, we move the chosen
- * stone into stationStoneId + spacing and clear the centre-stone fields.
+ * Route a "stones every other inch / around it" request onto the field the
+ * renderer can actually show — whatever fields the model returned:
+ *   necklace → station stones along the chain
+ *   ring     → an eternity accent row around the band (its own stone type, so the
+ *              centre stone is untouched)
+ * Keeps the piece's category; only fills the accent fields.
  */
 export function coerceStationStones(d: AiDesignPatch, userText: string, currentCat: ProductCategory | undefined): AiDesignPatch {
-  const isNecklace = d.category === 'necklace' || (currentCat === 'necklace' && !d.category)
-  if (!isNecklace) return d
-  const spacing = stationSpacingFrom(userText)
-  if (spacing === null) return d
-  if (d.stationStoneId) return d // model already used the right fields
-  const stone = d.stoneTypeId && d.stoneTypeId !== NO_STONE ? d.stoneTypeId : null
+  const eff = d.category ?? currentCat
+  if (!eff) return d
+  if (!distributedStoneAsk(userText)) return d
+  const stone = d.stationStoneId ?? d.accentStoneId ?? (d.stoneTypeId && d.stoneTypeId !== NO_STONE ? d.stoneTypeId : null)
   if (!stone) return d
-  const out: AiDesignPatch = { ...d }
-  out.stationStoneId = stone
-  out.stationCarat = d.stationCarat ?? (d.carat && d.carat <= 0.3 ? d.carat : 0.05)
-  out.stationEveryIn = d.stationEveryIn ?? spacing
-  // clear the centre-stone fields that a plain chain can't use
-  delete out.stoneTypeId
-  delete out.settingId
-  delete out.carat
-  return out
+
+  if (eff === 'necklace') {
+    if (d.stationStoneId) return { ...d, category: 'necklace' }
+    const out: AiDesignPatch = { ...d, category: 'necklace' }
+    out.stationStoneId = stone
+    out.stationCarat = d.stationCarat ?? (d.carat && d.carat <= 0.3 ? d.carat : 0.05)
+    out.stationEveryIn = d.stationEveryIn ?? (stationSpacingFrom(userText) ?? 2)
+    delete out.stoneTypeId; delete out.settingId; delete out.carat
+    return out
+  }
+
+  if (eff === 'ring') {
+    // Eternity accent row; keep the current centre stone by dropping any
+    // centre-stone fields the model attached to this "add stones" request.
+    const out: AiDesignPatch = { ...d, category: 'ring', settingId: 'etr', accentStoneId: stone }
+    delete out.stoneTypeId; delete out.shapeId; delete out.carat
+    delete out.stationStoneId; delete out.stationCarat; delete out.stationEveryIn
+    return out
+  }
+  return d
 }
 
 /** Which product category, if any, the user's message explicitly names. Used to
@@ -120,8 +138,10 @@ export function coerceStationStones(d: AiDesignPatch, userText: string, currentC
 export function mentionsCategory(text: string): ProductCategory | null {
   const t = text.toLowerCase()
   if (/\bbracelet|bangle|cuff\b/.test(t)) return 'bracelet'
-  if (/\bnecklace|pendant\b/.test(t)) return t.includes('pendant') ? 'pendant' : 'necklace'
-  if (/\bearring|stud|dangle\b/.test(t)) return 'earring'
+  // necklace, plus common misspellings (neckless / necklace / necklance) and "chain"
+  if (/pendant/.test(t)) return 'pendant'
+  if (/neck\s*l(a|e)ss|neckl(a|e)nce|necklace/.test(t)) return 'necklace'
+  if (/\bearring|\bstud|dangle/.test(t)) return 'earring'
   if (/\bbody|barbell|septum|plug\b/.test(t)) return 'body'
   if (/\bring\b/.test(t)) return 'ring'
   return null
@@ -289,6 +309,7 @@ export function normalizeAiDesign(raw: unknown): AiDesignPatch | null {
   if (typeof r.stationStoneId === 'string' && STONE_IDS.has(r.stationStoneId) && r.stationStoneId !== NO_STONE) out.stationStoneId = r.stationStoneId
   if (num(r.stationCarat)) out.stationCarat = clamp(r.stationCarat, 0.01, 2)
   if (num(r.stationEveryIn)) out.stationEveryIn = clamp(r.stationEveryIn, 0.5, 6)
+  if (typeof r.accentStoneId === 'string' && STONE_IDS.has(r.accentStoneId) && r.accentStoneId !== NO_STONE) out.accentStoneId = r.accentStoneId
   if (typeof r.braceletKind === 'string' && BRACELET_KINDS.has(r.braceletKind)) out.braceletKind = r.braceletKind as BraceletKind
   if (num(r.dropLength)) out.dropLength = clamp(r.dropLength, 0, 60)
   if (typeof r.bodyStyle === 'string' && BODY_STYLE_IDS.has(r.bodyStyle)) out.bodyStyle = r.bodyStyle as BodyStyle
@@ -352,6 +373,7 @@ export function applyAiDesign(patch: AiDesignPatch): void {
   if (d.chainStyle) s.setNecklace({ chainStyle: d.chainStyle })
   if (typeof d.necklaceLength === 'number') s.setNecklace({ length: d.necklaceLength })
   if (d.stationStoneId) s.setNecklace({ station: { stoneId: d.stationStoneId, shapeId: d.shapeId ?? 'rd', carat: d.stationCarat ?? 0.05, everyIn: d.stationEveryIn ?? 2 } })
+  if (d.accentStoneId) s.setMelee({ stoneId: d.accentStoneId })
   if (d.braceletKind) s.setBracelet({ kind: d.braceletKind })
   if (typeof d.dropLength === 'number') s.setEarring({ dropLength: d.dropLength })
   if (d.bodyStyle) s.setBody({ style: d.bodyStyle })
@@ -427,9 +449,11 @@ export async function askAssistant(history: ChatTurn[], image?: string | null, o
   let currentCat: ProductCategory | undefined
   try { currentCat = useDesign.getState().spec.category } catch { /* ignore */ }
   const askedCat = mentionsCategory(lastUserMsg)
-  // fix = piece-lock the category, then coerce "stones along the chain" onto the
-  // station fields so distributed-stone requests actually render.
-  const fix = (d: AiDesignPatch): AiDesignPatch => coerceStationStones(opts?.forceRoutes ? d : lockCategory(d, currentCat, askedCat), lastUserMsg, currentCat)
+  // Category-lock applies ONLY to edits of an existing piece — a build request
+  // ("i want a necklace") must be free to set its own piece type. Coercion of
+  // "stones around it" onto station/eternity fields runs for everything.
+  const isEditReq = !opts?.forceRoutes && !buildIntent(lastUserMsg)
+  const fix = (d: AiDesignPatch): AiDesignPatch => coerceStationStones(isEditReq ? lockCategory(d, currentCat, askedCat) : d, lastUserMsg, currentCat)
   if (parsed.design) { const d = fix(parsed.design); parsed = { ...parsed, design: d, matched: describe(d) } }
   if (parsed.routes.length) parsed = { ...parsed, routes: parsed.routes.map(r => { const d = fix(r.design); return { ...r, design: d, matched: describe(d) } }) }
 

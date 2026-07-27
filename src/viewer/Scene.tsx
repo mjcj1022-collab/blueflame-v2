@@ -90,6 +90,7 @@ const EDIT_HINT: Record<VertexTool, string> = {
   edit: 'Left-click a vertex and drag to reshape · scroll to zoom',
   add: 'Click the surface to add a vertex · scroll to zoom',
   remove: 'Double-click a vertex to remove it · scroll to zoom',
+  lasso: 'Drag a lasso around vertices · move them with the gizmo · Delete key removes them',
 }
 
 /** Publishes the renderer/scene/camera so the piece can be captured off-screen. */

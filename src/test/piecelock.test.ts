@@ -8,9 +8,28 @@ describe('mentionsCategory', () => {
     expect(mentionsCategory('design a ring')).toBe('ring')
     expect(mentionsCategory('diamond stud earrings')).toBe('earring')
   })
+  it('catches the "neckless" misspelling', () => {
+    expect(mentionsCategory('knotted neckless')).toBe('necklace')
+    expect(mentionsCategory('i want the knotted neckless')).toBe('necklace')
+  })
   it('does not treat "chain" or a plain add as a type switch', () => {
     expect(mentionsCategory('add rubies every other inch on the chain')).toBeNull()
     expect(mentionsCategory('make it wider')).toBeNull()
+  })
+})
+
+describe('coerceStationStones — ring eternity', () => {
+  it('routes "rubies around it" on a ring to an eternity accent row, keeping the centre', () => {
+    // model returned centre-stone fields on a ring "add rubies" edit
+    const d = coerceStationStones({ category: 'ring', stoneTypeId: 'rub', shapeId: 'rd', carat: 1 }, 'add rubies everyother inch going around it', 'ring')
+    expect(d.settingId).toBe('etr')            // eternity setting
+    expect(d.accentStoneId).toBe('rub')        // ruby accents
+    expect(d.stoneTypeId).toBeUndefined()      // centre stone left as-is
+    expect(d.carat).toBeUndefined()
+  })
+  it('handles the "everyother" no-space spelling and "going around"', () => {
+    const d = coerceStationStones({ category: 'necklace', stoneTypeId: 'rub' }, 'rubies everyother inch', 'necklace')
+    expect(d.stationStoneId).toBe('rub')
   })
 })
 

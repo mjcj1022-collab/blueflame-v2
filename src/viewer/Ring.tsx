@@ -62,7 +62,7 @@ export function Ring({ spec }: { spec: DesignSpec }) {
           tube={tube}
           count={spec.setting.melee?.count ?? setting.melee ?? 22}
           accentCt={spec.setting.melee?.caratEach ?? setting.accentCt ?? 0.05}
-          stoneTypeId={spec.center.stoneTypeId === NO_STONE ? 'dia' : spec.center.stoneTypeId}
+          stoneTypeId={spec.setting.melee?.stoneId ?? (spec.center.stoneTypeId === NO_STONE ? 'dia' : spec.center.stoneTypeId)}
         />
       )}
 
@@ -77,7 +77,7 @@ export function Ring({ spec }: { spec: DesignSpec }) {
               centerStoneWidth={d.width}
               count={spec.setting.melee?.count ?? setting.melee ?? 16}
               accentCt={spec.setting.melee?.caratEach ?? setting.accentCt ?? 0.01}
-              stoneTypeId={spec.center.stoneTypeId}
+              stoneTypeId={spec.setting.melee?.stoneId ?? spec.center.stoneTypeId}
               double={setting.id === 'hl2'}
             />
           )}
