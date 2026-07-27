@@ -219,6 +219,9 @@ interface ModelerStore {
   addHalo: (gemId: string, count: number, smallCarat: number) => number
   addChannelRails: (opts: ChannelRailOptions) => boolean
   flushSet: (gemId: string) => boolean
+  /** Cut a real bearing/seat under a stone (pavilion clearance + girdle ledge)
+   *  into the metal below it, WITHOUT sinking the stone — for prong/bezel sets. */
+  seatStone: (gemId: string) => boolean
   textureMesh: (id: string, style: TextureStyle, amp: number, scale: number) => boolean
   addMilgrain: (center: [number, number, number], radius: number, beadDia: number) => number
   bridgeWire: (aId: string, bId: string, wire: number) => boolean
@@ -814,6 +817,33 @@ export const useModeler = create<ModelerStore>((set, get) => {
       }),
     }))
     return true
+  },
+
+  seatStone: gemId => {
+    const gem = get().objects.find(o => o.id === gemId && o.material === 'gem')
+    if (!gem) return false
+    const [gx, gy, gz] = gem.position
+    // The metal whose top surface sits just under the stone gets the bearing.
+    let base: SculptObject | undefined
+    let surfaceY = -Infinity
+    for (const m of get().objects.filter(o => o.material === 'metal')) {
+      const y = surfaceTopAt(gx, gz, bakedVertices(m))
+      if (y !== null && y <= gy + 0.5 && y > surfaceY) { surfaceY = y; base = m }
+    }
+    if (!base || !isFinite(surfaceY)) return false
+    const dia = gemDiameterMm(gem)
+    record()
+    // Bearing = a downward cone for pavilion clearance (girdle ledge at the rim),
+    // sized to the girdle plus a hair of clearance so the stone drops in clean.
+    const cutter: SculptObject = { id: 'seatcut', kind: 'cone', name: 'seat', position: [gx, surfaceY + 0.05, gz], rotation: [Math.PI, 0, 0], scale: [1, 1, 1], size: dia * 1.1, material: 'metal', color: 0 }
+    try {
+      const acc: SculptObject = { ...base, kind: 'mesh', vertices: bakedVertices(base), position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 }
+      const v = booleanOp(acc, cutter, 'subtract')
+      if (!v.length) return false
+      const carved: SculptObject = { ...base, kind: 'mesh', vertices: v, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0 }
+      set(s => ({ objects: s.objects.map(o => o.id === carved.id ? carved : o) }))
+      return true
+    } catch { return false }
   },
 
   /** Displace a metal part's surface with a hammered / stipple / Florentine texture. */

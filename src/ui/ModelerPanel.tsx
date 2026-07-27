@@ -11,6 +11,7 @@ import { api, apiConfigured } from '../lib/api'
 import { analyzeMesh, type DfmReport } from '../lib/dfm'
 import { printReadiness } from '../lib/printReady'
 import { minWallForAlloy } from '../lib/manufacture'
+import { meleeOptions, caratForMm, mmForCarat, MELEE_MM } from '../lib/stoneSize'
 import { HEATMAP_MIN_WALL } from '../lib/heatmap'
 import { seatReport, type SeatReport } from '../lib/seatCheck'
 import { modelerToObj, blueFlameMtl } from '../lib/cadExport'
@@ -247,7 +248,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -734,6 +735,18 @@ export function ModelerPanel() {
           </select>
           <span style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}><input className="lib-name" style={{ width: 56 }} type="number" min={0.01} step={0.05} value={stonePick.carat} onChange={e => setPick({ carat: Math.max(0.01, +e.target.value) })} /><small style={{ color: 'var(--slate)' }}>ct</small></span>
         </div>
+        <div className="row" style={{ marginTop: 8 }}>
+          <label htmlFor="mp-melee" style={{ flex: '0 0 auto' }}>Calibrated size</label>
+          <select id="mp-melee" className="lib-name" style={{ width: '55%' }}
+            value={(() => { const w = mmForCarat(stonePick.shapeId, stonePick.stoneId, stonePick.carat).width; const hit = MELEE_MM.find(mm => Math.abs(mm - w) < 0.03); return hit ? String(hit) : '' })()}
+            onChange={e => { const mm = +e.target.value; if (mm) setPick({ carat: caratForMm(stonePick.shapeId, stonePick.stoneId, mm) }) }}>
+            <option value="">— custom —</option>
+            {meleeOptions(stonePick.stoneId, stonePick.shapeId).map(o => <option key={o.mm} value={o.mm}>{o.label}</option>)}
+          </select>
+          <small style={{ color: 'var(--slate)', marginLeft: 'auto' }}>
+            {(() => { const d = mmForCarat(stonePick.shapeId, stonePick.stoneId, stonePick.carat); return d.width === d.length ? `${d.width.toFixed(2)} mm` : `${d.length.toFixed(2)}×${d.width.toFixed(2)} mm` })()}
+          </small>
+        </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 12, cursor: 'pointer' }}>
           <input type="checkbox" checked={stonePick.custom} onChange={e => setPick({ custom: e.target.checked })} /> Custom colour
           <span style={{ marginLeft: 'auto', width: 20, height: 14, borderRadius: 3, border: '1px solid var(--rule)', background: stonePick.custom ? `#${hueToHex(stonePick.hue).toString(16).padStart(6, '0')}` : '#ccc' }} />
@@ -746,7 +759,13 @@ export function ModelerPanel() {
           <button className="opt tpl" aria-pressed={!!placing} onClick={togglePlace}>{placing ? 'Placing… (click piece)' : 'Click to place'}</button>
           <button className="opt" onClick={addOneStone}>Add one</button>
         </div>
-        <p className="disc">Pick a stone, then <b>Click to place</b> and click on the stage to drop copies. Or <b>Add one</b>. To move any stone: click it and drag the move gizmo (Select/Move tools below).</p>
+        <div className="opts" style={{ marginTop: 6 }}>
+          <button className="opt" disabled={!sel || sel.material !== 'gem'} title="Carve a real bearing (pavilion clearance + girdle ledge) under the selected stone"
+            onClick={() => { if (sel && seatStone(sel.id)) { flash('Cut a seat under the stone — bearing carved into the metal below.'); runQa() } else flash('Select a placed stone sitting over metal first.') }}>
+            Cut seat under selected stone ⌵
+          </button>
+        </div>
+        <p className="disc">Pick a stone, then <b>Click to place</b> and click on the stage to drop copies. Or <b>Add one</b>. Select a stone and <b>Cut seat</b> to carve its bearing into the setting. To move any stone: click it and drag the move gizmo.</p>
 
         <h4 style={{ marginTop: 18 }}>Free draw</h4>
         <div className="opts"><button className="opt tpl" aria-pressed={sketching} onClick={() => setSketching(!sketching)}>{sketching ? 'Sketching… (drawing on stage)' : 'Sketch a shape…'}</button></div>
