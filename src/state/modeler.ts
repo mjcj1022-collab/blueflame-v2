@@ -194,6 +194,8 @@ interface ModelerStore {
   resizeRing: (shankId: string, toSize: number) => number | null
   /** Add a stone mount (prong head / bezel) as an editable part, sized to a stone. */
   addMount: (style: string, stoneMm?: number) => string | null
+  /** Stamp the alloy purity hallmark (+ optional maker's mark) inside a band. */
+  stampHallmark: (shankId: string, makersMark?: string) => boolean
   /** Repair: add retip beads at a head's prong tips. */
   retipProngs: (headId: string) => number
   /** Repair: replace a shank with a fresh parametric band at the same size. */
@@ -529,6 +531,15 @@ export const useModeler = create<ModelerStore>((set, get) => {
     }
     set(s => ({ objects: [...s.objects, obj], selectedId: obj.id }))
     return obj.id
+  },
+
+  stampHallmark: (shankId, makersMark) => {
+    const shank = get().objects.find(o => o.id === shankId)
+    if (!shank) return false
+    const hall = alloyById(get().alloyId).hallmark
+    const mark = `${hall}${makersMark && makersMark.trim() ? '   ' + makersMark.trim() : ''}`
+    // Cut it into the inside of the band, seated at the base (270°).
+    return get().wrapTextOnBand(shankId, mark, 'Serif', 'cut', 270, true)
   },
 
   retipProngs: headId => {

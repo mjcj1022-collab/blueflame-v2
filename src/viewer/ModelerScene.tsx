@@ -33,7 +33,7 @@ export function ModelerScene() {
         dpr={[1, 2]}
         shadows
         camera={{ fov: 35, position: [34, 28, 46] }}
-        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
+        gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
         onPointerMissed={() => select(null)}
       >
         <color attach="background" args={['#0E1113']} />

@@ -33,6 +33,7 @@ import { askBenchAdvisor } from '../lib/benchAdvisor'
 import { findShank, sizingReport, ringSizeOptions, euForSize } from '../lib/ringSizing'
 import { measurements } from '../lib/measure'
 import { castingPlan } from '../lib/casting'
+import { clientSheetHtml } from '../lib/clientSheet'
 import { sculptMetalVolume } from '../lib/sculpt'
 import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
@@ -255,7 +256,7 @@ function TextTool() {
 }
 
 export function ModelerPanel() {
-  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, resizeRing, addMount, retipProngs, replaceShank, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, resizeRing, addMount, retipProngs, replaceShank, stampHallmark, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -606,6 +607,33 @@ export function ModelerPanel() {
   const downloadBlob = (data: BlobPart, name: string, mime: string) => {
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: mime })); a.download = name; a.click(); URL.revokeObjectURL(a.href)
   }
+  /** Grab the current modeler render as a PNG data URL (best-effort). */
+  const captureRender = (): string | undefined => {
+    try { return (document.querySelector('.stage canvas') as HTMLCanvasElement | null)?.toDataURL('image/png') } catch { return undefined }
+  }
+  const clientSheet = () => {
+    if (!objects.length) { flash('Nothing to present yet.'); return }
+    const m = measurements(objects, alloyId)
+    const specs: [string, string][] = [
+      ['Metal', alloy.name],
+      ...(m.ringSize != null ? [['Ring size', `US ${m.ringSize}`] as [string, string]] : []),
+      ['Overall', `${m.overall[0].toFixed(1)} × ${m.overall[1].toFixed(1)} × ${m.overall[2].toFixed(1)} mm`],
+      ['Finished weight', `${est.castG.toFixed(2)} g`],
+      ...(est.gemCount > 0 ? [['Stones', `${est.gemCount} · ${est.carats.toFixed(2)} ct`] as [string, string]] : []),
+    ]
+    const priceLines: [string, string][] = [
+      ['Metal', money(est.metalCost)],
+      ...(est.gemCount > 0 ? [['Stones', money(est.stoneCost)] as [string, string], ['Setting', money(est.settingLabor)] as [string, string]] : []),
+      ['Cast & finish', money(est.finishFee)],
+    ]
+    const html = clientSheetHtml({
+      brand: shopName, name: describePiece(objects, alloyId).name, imageDataUrl: captureRender(),
+      specs, priceLines, total: money(est.total), today: new Date().toISOString().slice(0, 10),
+    })
+    const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    downloadBlob(html, `${slug}-client-sheet.html`, 'text/html')
+    flash('Client sheet saved — render, specs and price in one page.')
+  }
   const exportStl = () => {
     if (!objects.length) { flash('Nothing to export.'); return }
     if (!printGateOk()) return
@@ -857,7 +885,10 @@ export function ModelerPanel() {
           <button className="opt" disabled={!sel || sel.kind !== 'head'} onClick={() => { if (sel) { const n = retipProngs(sel.id); flash(n ? `Retipped ${n} prong${n === 1 ? '' : 's'}.` : 'Select a prong head first.'); if (n) runQa() } }}>Retip prongs</button>
           <button className="opt" disabled={!sel || sel.kind !== 'shank'} onClick={() => { if (sel && replaceShank(sel.id)) { flash('Replaced with a fresh shank at the same size.'); runQa() } else flash('Select the shank to replace.'); }}>New shank</button>
         </div>
-        <p className="disc">Bench repairs: <b>Retip</b> adds fresh metal beads at a head’s prong tips; <b>New shank</b> swaps a worn or over-edited band for a clean one at the same finger size.</p>
+        <div className="opts" style={{ marginTop: 6 }}>
+          <button className="opt" disabled={!sel || sel.material !== 'metal'} title="Engrave the alloy purity mark + your maker's mark inside the band" onClick={() => { if (sel && stampHallmark(sel.id, shopName)) { flash(`Stamped ${alloy.hallmark} + maker's mark inside the band.`); runQa() } else flash('Select the band to hallmark.'); }}>Stamp hallmark ({alloy.hallmark})</button>
+        </div>
+        <p className="disc">Bench repairs: <b>Retip</b> adds fresh metal beads at a head’s prong tips; <b>New shank</b> swaps a worn or over-edited band for a clean one at the same finger size. <b>Stamp hallmark</b> cuts the metal purity mark and your maker’s mark inside the band.</p>
 
         <h4 style={{ marginTop: 18 }}>Free draw</h4>
         <div className="opts"><button className="opt tpl" aria-pressed={sketching} onClick={() => setSketching(!sketching)}>{sketching ? 'Sketching… (drawing on stage)' : 'Sketch a shape…'}</button></div>
@@ -1552,7 +1583,7 @@ export function ModelerPanel() {
             Import STL…
             <input type="file" accept=".stl,model/stl" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) importStlFile(f); e.target.value = '' }} />
           </label>
-          <button className="ghost" onClick={quotePdf}>Quote PDF</button><button className="ghost" onClick={techSheet}>Tech sheet</button>
+          <button className="ghost" onClick={quotePdf}>Quote PDF</button><button className="ghost" onClick={techSheet}>Tech sheet</button><button className="ghost" onClick={clientSheet} title="A customer-facing one-pager: render, specs and price">Client sheet</button>
         </div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={fuse} disabled={metalCount < 2}>Fuse metal</button></div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={clear}>Clear all</button></div>
