@@ -32,6 +32,8 @@ import { batchStlZip } from '../lib/cadExport'
 import { modelerToStep } from '../lib/stepExport'
 import { captureThreeViews } from '../lib/capture'
 import { multiViewHtml } from '../lib/multiView'
+import { invoiceCsvQBO } from '../lib/quickbooks'
+import { supplierPOText } from '../lib/supplierPO'
 import type { PaveMode } from '../lib/pave'
 import type { RailAlong } from '../lib/construction'
 import { stoneSchedule, stoneScheduleText } from '../lib/stoneSchedule'
@@ -1963,6 +1965,8 @@ export function ModelerPanel() {
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to invoice yet.'); return } const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); textToPdf(shopName, 'Invoice', bodyAfterTitle(invoiceText(objects, alloyId, { brand: shopName, invoiceNo: String(Date.now()).slice(-6), today: new Date().toISOString().slice(0, 10) })), `${slug}-invoice.pdf`); flash('Invoice exported.') }} title="Itemized invoice with balance due">Invoice</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to certify yet.'); return } const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); downloadBlob(certificateHtml(shopName, describePiece(objects, alloyId).name, objects, alloyId, new Date().toISOString().slice(0, 10)), `${slug}-certificate.html`, 'text/html'); flash('Certificate of authenticity saved.') }} title="Certificate of authenticity for the customer">Certificate</button>
           <button className="ghost" onClick={() => { const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); downloadBlob(intakeFormHtml(shopName), `${slug}-intake-form.html`, 'text/html'); flash('Intake form saved — printable custom-job questionnaire.') }} title="Printable custom-job intake questionnaire">Intake form</button>
+          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to invoice yet.'); return } download(invoiceCsvQBO(objects, alloyId, { customer: 'Custom order' }), 'blue-flame-qbo-invoice.csv', 'text/csv'); flash('QuickBooks invoice CSV saved — import in QBO → Invoices.') }} title="QuickBooks Online invoice-import CSV">QuickBooks CSV</button>
+          <button className="ghost" disabled={!objects.some(o => o.kind === 'gem')} onClick={() => { const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); textToPdf(shopName, 'Purchase Order', bodyAfterTitle(supplierPOText(objects, { buyer: shopName })), `${slug}-stone-po.pdf`); flash('Supplier PO saved — send to your stone dealer.') }} title="Purchase order for the stones, to email/print to a supplier">Supplier PO</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to export.'); return } download(modelerToDxf(objects), `blue-flame-sculpt-${Date.now()}.dxf`, 'application/dxf'); flash('Exported DXF — top-view template for laser / CAM.') }} title="2D top-view wireframe (DXF R12) for laser engraving / wax milling alignment">Export DXF</button>
         </div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={fuse} disabled={metalCount < 2}>Fuse metal</button></div>
