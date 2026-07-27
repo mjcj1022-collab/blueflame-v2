@@ -55,11 +55,19 @@ export function computePrice(spec: DesignSpec): PriceResult {
   const { count, caratEach } = stoneUnits(spec)
 
   const gm = isGradeable(spec.center.stoneTypeId) ? gradeMultiplier(spec.center.grading ?? DEFAULT_GRADING) : 1
-  const stoneCost = count > 0 && !isHidden(spec, 'stone') ? count * stone.rate * Math.pow(caratEach, stone.exponent) * gm : 0
+  // Clamp carat before the fractional-exponent power: Math.pow(negative, 1.55)
+  // is NaN, which would poison the subtotal and total. A non-positive carat is
+  // a nonsensical state, so it prices as zero rather than blowing up the quote.
+  const centerCt = Math.max(caratEach, 0)
+  const stoneCost = count > 0 && !isHidden(spec, 'stone') ? count * stone.rate * Math.pow(centerCt, stone.exponent) * gm : 0
   // The style sets the rate (a bezel costs more than prongs); the stone's size
   // scales it — seating a 3 ct is not the same job as seating a 0.3 ct.
-  const settingFee = usesSetting(spec.category) && count > 0 && !isHidden(spec, 'head')
-    ? count * setting.fee * settingSizeMultiplier(caratEach) : 0
+  // Setting labor is owed for EVERY set stone, not just ring/pendant/earring
+  // heads: a tennis bracelet's links and a pendant necklace's stone are set by
+  // hand too. Gating on count>0 covers all of them (stoneUnits already returns
+  // 0 for plain bands, chains and body pieces).
+  const settingFee = count > 0 && !isHidden(spec, 'head')
+    ? count * setting.fee * settingSizeMultiplier(centerCt) : 0
 
   // Accent stones (halo, pavé, channel, three-stone sides): cheaper per-ct
   // melee plus bead-setting labor. Count, size, quality and setting style are
@@ -69,10 +77,16 @@ export function computePrice(spec: DesignSpec): PriceResult {
   // band, on their own — stones set all the way around, no centre needed.
   const meleeActive = (count > 0 || setting.allAround) && setting.melee && !isHidden(spec, 'halo')
   const melee = meleeActive ? (mOver?.count ?? setting.melee ?? 0) : 0
-  const accentCt = mOver?.caratEach ?? setting.accentCt ?? 0.01
+  const accentCt = Math.max(mOver?.caratEach ?? setting.accentCt ?? 0.01, 0)
+  // Accents price on their OWN stone type, not the centre's — diamond melee
+  // round a sapphire centre must cost the diamond rate. Falls back to the centre
+  // stone (per MeleeSpec's contract) or, for a centre-less eternity band, to
+  // diamond, the near-universal melee stone — never the STONES[0] catch-all.
+  const accentStoneId = mOver?.stoneId ?? (spec.center.stoneTypeId !== NO_STONE ? spec.center.stoneTypeId : 'dia')
+  const accentStone = stoneById(accentStoneId)
   const qMult = meleeQuality(mOver?.quality ?? 'gh').mult
   const sMult = meleeStyle(mOver?.style ?? 'bright').mult
-  const accentCost = melee * (stone.rate * 0.5 * qMult) * Math.pow(accentCt, stone.exponent) + melee * MARKET.meleeLabor * sMult
+  const accentCost = melee * (accentStone.rate * 0.5 * qMult) * Math.pow(accentCt, accentStone.exponent) + melee * MARKET.meleeLabor * sMult
 
   const platingFee = spec.metal.rhodium && metal.alloy.platable ? MARKET.rhodiumFee : 0
   const finishExtra = finishById(spec.finish).fee

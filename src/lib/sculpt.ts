@@ -665,16 +665,153 @@ export function meshVolume(geo: THREE.BufferGeometry): number {
   return Math.abs(vol)
 }
 
-/** Total metal volume of the sculpt (gems and cutters excluded), mm³. */
-export function sculptMetalVolume(objects: SculptObject[]): number {
-  let vol = 0
+/**
+ * Is this triangle soup a closed 2-manifold (a real solid)? Vertices are welded
+ * by position, then every edge must be shared by exactly two faces. The signed-
+ * tetrahedron volume above is only meaningful for such a surface — an open mesh
+ * (an imported STL with holes, a hand-sculpted shell) gives a garbage volume,
+ * so callers use this to know whether to trust the number.
+ */
+export function isClosedManifold(geo: THREE.BufferGeometry): boolean {
+  const pos = geo.getAttribute('position')
+  if (!pos || pos.count < 3) return false
+  const idx = geo.getIndex()
+  const n = idx ? idx.count : pos.count
+  if (n < 3 || n % 3 !== 0) return false
+  const Q = 1e4   // weld to 1e-4 mm, matching the export/repair tolerance
+  const vid = new Map<string, number>()
+  const wid = (i: number): number => {
+    const k = `${Math.round(pos.getX(i) * Q)},${Math.round(pos.getY(i) * Q)},${Math.round(pos.getZ(i) * Q)}`
+    let m = vid.get(k); if (m === undefined) { m = vid.size; vid.set(k, m) }
+    return m
+  }
+  const get = idx ? (i: number) => wid(idx.getX(i)) : (i: number) => wid(i)
+  const edge = new Map<string, number>()
+  const bump = (u: number, v: number) => { const k = u < v ? `${u}_${v}` : `${v}_${u}`; edge.set(k, (edge.get(k) ?? 0) + 1) }
+  for (let i = 0; i < n; i += 3) {
+    const a = get(i), b = get(i + 1), c = get(i + 2)
+    if (a === b || b === c || c === a) continue   // skip degenerate slivers, they don't affect closure
+    bump(a, b); bump(b, c); bump(c, a)
+  }
+  if (edge.size === 0) return false
+  for (const cnt of edge.values()) if (cnt !== 2) return false
+  return true
+}
+
+const UNION_MAX_PARTS = 48   // above this, CSG union is too costly — fall back to the summed estimate
+
+/**
+ * CSG union of every metal part into one watertight geometry, so overlapping
+ * parts (a prong sunk into a head, a bail fused to a bezel) are counted once,
+ * not twice. Returns null when it can't be done cleanly (any open part, too many
+ * parts, or a boolean failure), letting the caller fall back to the naive sum.
+ * The caller owns the returned geometry and must dispose it.
+ */
+export function unionMetalGeometry(objects: SculptObject[]): THREE.BufferGeometry | null {
+  const metal = objects.filter(o => o.material === 'metal')
+  if (metal.length === 0) return null
+  if (metal.length > UNION_MAX_PARTS) return null
+  const geos = metal.map(bakedGeometry)
+  if (metal.length === 1) return geos[0]
+  if (!geos.every(isClosedManifold)) { geos.forEach(g => g.dispose()); return null }
+  try {
+    const evaluator = new Evaluator()
+    evaluator.useGroups = false
+    evaluator.attributes = ['position', 'normal']
+    let acc = new Brush(geos[0]); acc.updateMatrixWorld()
+    for (let i = 1; i < geos.length; i++) {
+      const b = new Brush(geos[i]); b.updateMatrixWorld()
+      const res = evaluator.evaluate(acc, b, ADDITION)
+      acc = new Brush(res.geometry); acc.updateMatrixWorld()
+    }
+    const out = acc.geometry
+    geos.forEach(g => g.dispose())
+    return out
+  } catch {
+    geos.forEach(g => g.dispose())
+    return null
+  }
+}
+
+export interface MetalVolumeReport {
+  mm3: number
+  method: 'exact' | 'union' | 'sum'   // exact = single closed part; union = overlaps merged; sum = fallback
+  closed: boolean                      // every metal part is a closed solid
+  overlap: boolean                     // parts actually overlap (only known on the union path)
+  parts: number
+  note?: string                        // human confidence note when the number isn't exact
+}
+
+const volCache = new Map<string, MetalVolumeReport>()
+const VOL_CACHE_MAX = 64
+function metalSignature(objects: SculptObject[]): string {
+  const out: string[] = []
   for (const o of objects) {
     if (o.material !== 'metal') continue
-    const g = bakedGeometry(o)
-    vol += meshVolume(g)
-    g.dispose()
+    out.push(`${o.id}|${o.kind}|${o.size}|${o.position.join(',')}|${o.rotation.join(',')}|${o.scale.join(',')}|${o.vertices?.length ?? 0}|${o.params ? JSON.stringify(o.params) : ''}`)
   }
-  return vol
+  return out.join(';')
+}
+
+/**
+ * Metal volume of the sculpt (gems excluded), mm³, with a confidence report.
+ * Overlapping closed parts are merged via CSG so their shared metal isn't
+ * double-counted; open/non-manifold meshes fall back to the summed estimate and
+ * are flagged. Memoized on geometry so the many callers stay cheap.
+ */
+export function metalVolumeReport(objects: SculptObject[]): MetalVolumeReport {
+  const sig = metalSignature(objects)
+  const cached = volCache.get(sig)
+  if (cached) return cached
+
+  const metal = objects.filter(o => o.material === 'metal')
+  let report: MetalVolumeReport
+  if (metal.length === 0) {
+    report = { mm3: 0, method: 'exact', closed: true, overlap: false, parts: 0 }
+  } else {
+    const geos = metal.map(bakedGeometry)
+    const allClosed = geos.every(isClosedManifold)
+    const sum = geos.reduce((s, g) => s + meshVolume(g), 0)
+    if (metal.length === 1) {
+      report = {
+        mm3: sum, method: 'exact', closed: allClosed, overlap: false, parts: 1,
+        note: allClosed ? undefined : 'Open/non-manifold mesh — volume is approximate.',
+      }
+    } else {
+      const union = unionMetalGeometry(objects)   // rebuilds its own geometries + re-checks closure
+      if (union) {
+        const uvol = meshVolume(union)
+        union.dispose()
+        const overlap = sum - uvol > Math.max(1e-6, sum * 1e-3)
+        report = {
+          mm3: uvol, method: 'union', closed: true, overlap, parts: metal.length,
+          note: overlap ? 'Overlapping metal parts merged — shared metal counted once.' : undefined,
+        }
+      } else {
+        report = {
+          mm3: sum, method: 'sum', closed: allClosed, overlap: false, parts: metal.length,
+          note: !allClosed
+            ? 'Open/non-manifold mesh — volume is approximate.'
+            : metal.length > UNION_MAX_PARTS
+              ? `${metal.length} metal parts — summed without merge; any overlaps may be double-counted.`
+              : 'Parts summed; overlapping metal may be double-counted.',
+        }
+      }
+    }
+    geos.forEach(g => g.dispose())
+  }
+
+  if (volCache.size >= VOL_CACHE_MAX) {
+    const oldest = volCache.keys().next().value
+    if (oldest !== undefined) volCache.delete(oldest)
+  }
+  volCache.set(sig, report)
+  return report
+}
+
+/** Total metal volume of the sculpt (gems excluded), mm³. Overlap-corrected. */
+export function sculptMetalVolume(objects: SculptObject[]): number {
+  return metalVolumeReport(objects).mm3
 }
 
 export function sculptGemCarats(objects: SculptObject[]): number {

@@ -71,7 +71,7 @@ import { metalFromPattern, PATTERN_SG } from '../lib/waxWeight'
 import { refineValue } from '../lib/refining'
 import { toolList, toolListText } from '../lib/toolList'
 import { qcChecklistText } from '../lib/qcChecklist'
-import { sculptMetalVolume } from '../lib/sculpt'
+import { metalVolumeReport } from '../lib/sculpt'
 import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
 import { sculptTechSheet, sculptQuote } from '../lib/sculptDoc'
@@ -1526,7 +1526,8 @@ export function ModelerPanel() {
         <summary>Analysis, costing &amp; production <span>— BOM · quote · casting · stones · QC · handoff</span></summary>
 
       {metalCount > 0 && (() => {
-        const vol = sculptMetalVolume(objects)
+        const volReport = metalVolumeReport(objects)
+        const vol = volReport.mm3
         const rows = alloyCostTable(vol)
         return (
           <div className="panel-block">
@@ -1539,6 +1540,11 @@ export function ModelerPanel() {
               </tbody>
             </table>
             <p className="disc">Same metal volume ({(vol / 1000).toFixed(3)} cm³) cast in each alloy, at the shop's current spot factor. Stones and labor not included.</p>
+            {volReport.note && (
+              <p className="disc" style={{ color: volReport.closed ? 'var(--muted)' : '#b8860b' }}>
+                {volReport.closed ? '✓ ' : '⚠ '}{volReport.note}
+              </p>
+            )}
           </div>
         )
       })()}
