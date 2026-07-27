@@ -49,6 +49,45 @@ export interface ChatTurn { role: 'user' | 'assistant'; content: string }
 
 const list = (rows: { id: string; name: string }[]) => rows.map(r => `${r.id} (${r.name})`).join(', ')
 
+/** A one-line summary of the piece currently on the bench, so the model edits
+ *  RELATIVE to it instead of reinventing from scratch. */
+export function currentDesignSummary(): string {
+  try {
+    const s = useDesign.getState().spec
+    const bits: string[] = [`category ${s.category}`]
+    const alloy = ALLOYS.find(a => a.id === s.metal?.alloyId)
+    if (alloy) bits.push(alloy.name)
+    if (s.center?.stoneTypeId && s.center.stoneTypeId !== NO_STONE) {
+      const st = STONES.find(x => x.id === s.center.stoneTypeId)
+      bits.push(`${s.center.carat ?? ''}ct ${SHAPES.find(x => x.id === s.center.shapeId)?.name ?? ''} ${st?.name ?? ''}`.trim())
+    }
+    if (s.category === 'necklace' && s.necklace) bits.push(`${s.necklace.chainStyle ?? 'cable'} chain ${s.necklace.length ?? 18}"`)
+    return `CURRENT PIECE ON THE BENCH: ${bits.join(', ')}.`
+  } catch { return '' }
+}
+
+/** Keep a design on the current piece unless the user explicitly asked for a
+ *  different type. Returns the patch with its category forced back to `current`
+ *  when a switch wasn't requested. Pure — the studio's piece-lock rule. */
+export function lockCategory(d: AiDesignPatch, current: ProductCategory | undefined, asked: ProductCategory | null): AiDesignPatch {
+  if (!current) return d
+  if (asked && asked === d.category) return d
+  if (!d.category || d.category === current) return d
+  return { ...d, category: current }
+}
+
+/** Which product category, if any, the user's message explicitly names. Used to
+ *  decide whether an edit is allowed to change the piece type. */
+export function mentionsCategory(text: string): ProductCategory | null {
+  const t = text.toLowerCase()
+  if (/\bbracelet|bangle|cuff\b/.test(t)) return 'bracelet'
+  if (/\bnecklace|pendant\b/.test(t)) return t.includes('pendant') ? 'pendant' : 'necklace'
+  if (/\bearring|stud|dangle\b/.test(t)) return 'earring'
+  if (/\bbody|barbell|septum|plug\b/.test(t)) return 'body'
+  if (/\bring\b/.test(t)) return 'ring'
+  return null
+}
+
 /** The system prompt — teaches the model the exact catalog ids it may use and
  *  the strict JSON envelope we parse. Built from the live catalog. */
 export function buildSystemPrompt(): string {
@@ -63,8 +102,10 @@ export function buildSystemPrompt(): string {
     '  { "label": "...", "note": "...", "design": { ... } },',
     '  { "label": "...", "note": "...", "design": { ... } } ] }',
     'The three routes must be genuinely DIFFERENT interpretations of the SAME request — e.g. classic vs. modern vs. bold, or different stone/cut/setting/proportions — each a COMPLETE, buildable design (fill every field the request implies). Not three near-identical variants.',
-    '(B) EDIT MODE — when the user asks for a small change, asks a question, or is chatting. Return a single patch (only the fields that change), or null:',
+    '(B) EDIT MODE — when the user asks for a small change to the CURRENT piece, asks a question, or is chatting. Return a single patch with ONLY the fields that change, or null:',
     '{ "reply": "<answer in one or two sentences>", "design": { ...changed fields... } | null }',
+    'CRITICAL for EDIT MODE: keep the current piece. Do NOT set "category" and do NOT change the piece type unless the user explicitly asks for a different type. Do NOT resend unrelated fields. "add rubies every other inch on the chain" on a necklace = set stationStoneId/stationCarat/stationEveryIn only; keep it a necklace.',
+    currentDesignSummary(),
     '',
     'You MAY include an "assumptions" array of 1–3 short strings naming any choice you inferred that the user did not state (e.g. "assumed 1 ct as no carat was given", "assumed size 6.5"). Put it at the top level alongside reply.',
     '',
@@ -338,12 +379,24 @@ export async function askAssistant(history: ChatTurn[], image?: string | null, o
     if (reparsed.design || reparsed.routes.length) parsed = reparsed
   }
 
+  // Piece-lock (studio only): the studio holds ONE piece and only the Reset
+  // button clears it. So unless the user explicitly names a different piece
+  // type, force every applied design back to the CURRENT category — an edit,
+  // a build, or a route can never silently turn a necklace into a bracelet.
+  // The maker modeler (forceRoutes) is exempt: there each build is deliberate.
+  const lastUserMsg = [...history].reverse().find((m) => m.role === 'user')?.content ?? ''
+  let currentCat: ProductCategory | undefined
+  try { currentCat = useDesign.getState().spec.category } catch { /* ignore */ }
+  const askedCat = mentionsCategory(lastUserMsg)
+  const keepCat = (d: AiDesignPatch): AiDesignPatch => (opts?.forceRoutes ? d : lockCategory(d, currentCat, askedCat))
+  if (parsed.design) { const d = keepCat(parsed.design); parsed = { ...parsed, design: d, matched: describe(d) } }
+  if (parsed.routes.length) parsed = { ...parsed, routes: parsed.routes.map(r => { const d = keepCat(r.design); return { ...r, design: d, matched: describe(d) } }) }
+
   // Three-directions guarantee: for a build request (or when the caller forces
   // it), the maker must see three routes BEFORE anything renders. If the model
   // returned only a single design, re-ask once for options; if it still won't,
   // synthesise three from the single design so a choice always appears.
-  const lastUser = [...history].reverse().find((m) => m.role === 'user')?.content ?? ''
-  const wantRoutes = opts?.forceRoutes || buildIntent(lastUser)
+  const wantRoutes = opts?.forceRoutes || buildIntent(lastUserMsg)
   if (wantRoutes && !parsed.routes.length && parsed.design) {
     console.log('[AI] build request returned a single design — forcing three routes')
     const optHistory: ChatTurn[] = [
@@ -358,6 +411,8 @@ export async function askAssistant(history: ChatTurn[], image?: string | null, o
     if (!parsed.routes.length && parsed.design) {
       parsed = { ...parsed, routes: synthesizeRoutes(parsed.design), design: null, reply: parsed.reply || 'Here are three ways to build it — pick one.' }
     }
+    // Any freshly-generated routes are piece-locked too (studio path).
+    if (parsed.routes.length) parsed = { ...parsed, routes: parsed.routes.map(r => { const d = keepCat(r.design); return { ...r, design: d, matched: describe(d) } }) }
   }
 
   console.log('[AI] parsed reply:', parsed.reply, '| design patch:', parsed.design, '| routes:', parsed.routes.length, '| assumptions:', parsed.assumptions, '| matched:', parsed.matched)
