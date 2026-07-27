@@ -29,6 +29,7 @@ import { alloyCostTable } from '../lib/alloyCost'
 import { laborBreakdown, formatMinutes } from '../lib/laborTime'
 import { FINDINGS } from '../lib/findings'
 import { sculptBom, sculptBomText } from '../lib/sculptBom'
+import { askBenchAdvisor } from '../lib/benchAdvisor'
 import { sculptMetalVolume } from '../lib/sculpt'
 import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
@@ -282,6 +283,9 @@ export function ModelerPanel() {
   const [finBusy, setFinBusy] = useState(false)
   const [stonePick, setStonePick] = useState<{ stoneId: string; shapeId: string; carat: number; hue: number; custom: boolean }>({ stoneId: 'dia', shapeId: 'rd', carat: 0.5, hue: 200, custom: false })
   const [findingPick, setFindingPick] = useState('jump')
+  const [benchQ, setBenchQ] = useState('')
+  const [benchA, setBenchA] = useState<{ text: string; ai: boolean } | null>(null)
+  const [benchBusy, setBenchBusy] = useState(false)
   const [domeH, setDomeH] = useState(1.5)
   const [symAxis, setSymAxis] = useState<'x' | 'y' | 'z'>('x')
   const [over, setOver] = useState<OverhangReport | null>(null)
@@ -546,6 +550,17 @@ export function ModelerPanel() {
     } catch { flash('AI command failed — try again.') }
     setFinBusy(false)
   }
+  const askBench = async () => {
+    const q = benchQ.trim()
+    if (!q || benchBusy) return
+    if (!objects.length) { flash('Add a part first — the advisor answers from the piece on the bench.'); return }
+    setBenchBusy(true)
+    try {
+      const res = await askBenchAdvisor(q, objects, alloyId)
+      setBenchA({ text: res.text, ai: res.ai })
+    } catch { setBenchA({ text: 'Couldn’t reach the advisor — try again.', ai: false }) }
+    setBenchBusy(false)
+  }
   const runMacro = (id: string) => {
     const m = MACROS.find(x => x.id === id)
     if (!m) return
@@ -735,6 +750,19 @@ export function ModelerPanel() {
           placeholder="Tell it what to do to the piece — e.g. hammer the band, add a halo, flush-set the stone, then get it ready to print" disabled={finBusy} />
         <button className="primary" style={{ width: '100%', marginTop: 6 }} onClick={() => void runFinish()} disabled={finBusy || !finText.trim()}>{finBusy ? 'Working…' : 'Run on this piece ✦'}</button>
         <p className="disc">Drives the finishing &amp; setting tools by voice — texture, dome, halo, flush-set, milgrain, pierce, symmetrise, auto-orient, mirror, array — in the order you say them.</p>
+
+        <h4 style={{ marginTop: 18 }}>Bench advisor ✦</h4>
+        <textarea className="ai-asm-in" rows={2} value={benchQ} onChange={e => setBenchQ(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void askBench() } }}
+          placeholder="Ask about this piece — e.g. what bur for this stone? will it cast? are the prongs enough? how heavy is it?" disabled={benchBusy} />
+        <button className="primary" style={{ width: '100%', marginTop: 6 }} onClick={() => void askBench()} disabled={benchBusy || !benchQ.trim()}>{benchBusy ? 'Thinking…' : 'Ask the bench advisor ✦'}</button>
+        {benchA && (
+          <div className="dfm" style={{ marginTop: 8 }}>
+            <p className="dfm-line pass" style={{ whiteSpace: 'pre-wrap' }}>{benchA.text}</p>
+            <p className="disc">{benchA.ai ? 'Answered by AI, grounded in this piece’s measured facts.' : 'Answered from this piece’s measured geometry (AI off or unreachable).'}</p>
+          </div>
+        )}
+        <p className="disc">Answers bench questions — setting burs, castability, prong security, weight, wall thickness — from the model’s real geometry and the same checks the print gate runs.</p>
 
         <div className="row" style={{ marginTop: 8 }}><label>Quick finishes</label></div>
         <div className="opts c2">
