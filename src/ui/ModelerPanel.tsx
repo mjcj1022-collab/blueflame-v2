@@ -37,6 +37,11 @@ import { clientSheetHtml } from '../lib/clientSheet'
 import { settingSecurity } from '../lib/settingSecurity'
 import { modelerToDxf } from '../lib/dxfExport'
 import { stockPlan } from '../lib/stock'
+import { chainEstimate, CHAIN_STYLE_OPTIONS } from '../lib/chainCalc'
+import { printEstimate } from '../lib/printEstimate'
+import { profitability } from '../lib/profitability'
+import { stoneOrder, stoneOrderText } from '../lib/stoneOrder'
+import type { NecklaceStyle } from '../lib/necklaceChain'
 import { sculptMetalVolume } from '../lib/sculpt'
 import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
@@ -226,6 +231,12 @@ function TextTool() {
     flash(ok ? `Wrapped around ${selName}.` : 'Couldn’t wrap — select a ring/band part.')
     if (ok) setText('')
   }
+  const inscribe = (s: string) => {
+    if (!selectedId) { flash('Select the band to inscribe first.'); return }
+    const ok = wrapTextOnBand(selectedId, s, font, 'cut', 270, true)  // inside, at the base
+    flash(ok ? `Inscribed “${s}” inside ${selName}.` : 'Couldn’t inscribe — select a ring/band part.')
+  }
+  const todayIso = () => new Date().toISOString().slice(0, 10)
   return (
     <>
       <div className="lib-save">
@@ -249,6 +260,13 @@ function TextTool() {
           <div className="opts c2" style={{ marginTop: 6 }}>
             <button className="opt tpl" onClick={() => wrap('cut')}>Wrap band · engrave</button>
             <button className="opt tpl" onClick={() => wrap('emboss')}>Wrap band · emboss</button>
+          </div>
+          <div className="row" style={{ marginTop: 8 }}><label>Quick inscriptions</label></div>
+          <div className="opts c2">
+            <button className="opt" title="Engrave today's date inside the band" onClick={() => inscribe(todayIso())}>Date</button>
+            <button className="opt" title="Engrave the typed text inside the band" onClick={() => inscribe(text.trim() || 'Forever')}>Inside: {text.trim() ? '“' + text.trim().slice(0, 10) + '”' : 'Forever'}</button>
+            <button className="opt" onClick={() => inscribe('∞')}>∞ Infinity</button>
+            <button className="opt" onClick={() => inscribe('♥')}>♥ Heart</button>
           </div>
         </>
       )}
@@ -294,6 +312,7 @@ export function ModelerPanel() {
   const [mountPick, setMountPick] = useState('p6')
   const [treeCount, setTreeCount] = useState(1)
   const [snapName, setSnapName] = useState('')
+  const [chain, setChain] = useState<{ style: NecklaceStyle; length: number; gauge: number }>({ style: 'cable', length: 18, gauge: 1.2 })
   const [benchQ, setBenchQ] = useState('')
   const [benchA, setBenchA] = useState<{ text: string; ai: boolean } | null>(null)
   const [benchBusy, setBenchBusy] = useState(false)
@@ -1542,6 +1561,73 @@ export function ModelerPanel() {
           </div>
         )
       })()}
+
+      {metalCount > 0 && (() => {
+        const p = profitability(objects, alloyId)
+        return (
+          <div className="panel-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <h4 style={{ margin: 0 }}>Profitability</h4>
+              <b style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--karat)' }}>{p.marginPct.toFixed(0)}% margin</b>
+            </div>
+            <table className="stone-sched"><tbody>
+              <tr><td>Cost</td><td>metal {money(p.metal)}{p.stones ? ` · stones ${money(p.stones)}` : ''} · labor {money(p.laborCost)}</td><td>{money(p.cost)}</td></tr>
+              <tr><td>Retail</td><td></td><td>{money(p.retail)}</td></tr>
+              <tr><td><b>Profit</b></td><td></td><td><b>{money(p.profit)}</b></td></tr>
+            </tbody></table>
+            <p className="disc">What the piece costs the shop (metal + stones + bench labor) versus what it sells for. Tune margin and the labor rate on the Design tab.</p>
+          </div>
+        )
+      })()}
+
+      {metalCount > 0 && (() => {
+        const pe = printEstimate(objects)
+        return (
+          <div className="panel-block">
+            <h4 style={{ margin: 0 }}>Resin / wax print</h4>
+            <table className="stone-sched"><tbody>
+              <tr><td>Resin</td><td>{pe.resinMl.toFixed(2)} mL + {pe.supportMl.toFixed(2)} supports</td><td>{pe.totalMl.toFixed(2)} mL</td></tr>
+              <tr><td>Print</td><td>{pe.layers} layers · {pe.heightMm.toFixed(1)} mm tall</td><td>~{Math.round(pe.minutes)} min</td></tr>
+              <tr><td>Material</td><td></td><td>{money(pe.materialCost)}</td></tr>
+            </tbody></table>
+            <p className="disc">Estimated resin, machine time and material cost at 0.05 mm layers — depends on your printer and orientation.</p>
+          </div>
+        )
+      })()}
+
+      {(() => {
+        const so = stoneOrder(objects)
+        if (!so.totalStones) return null
+        return (
+          <div className="panel-block">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <h4 style={{ margin: 0 }}>Stones to order</h4>
+              <button className="mini" onClick={() => navigator.clipboard?.writeText(stoneOrderText(objects, shopName)).then(() => flash('Order list copied.'), () => flash('Could not copy.'))}>Copy</button>
+            </div>
+            <table className="stone-sched"><tbody>
+              {so.rows.map((r, i) => (
+                <tr key={i}><td>{r.qty}×</td><td>{r.mm.toFixed(2)} mm {r.shape} {r.stone}</td><td>{r.totalCarat.toFixed(2)} ct</td><td>{money(r.cost)}</td></tr>
+              ))}
+            </tbody></table>
+            <p className="disc">Grouped by type, shape and millimetre size — the way a supplier quotes. {so.totalStones} stone{so.totalStones === 1 ? '' : 's'}, est. {money(so.totalCost)}.</p>
+          </div>
+        )
+      })()}
+
+      <div className="panel-block">
+        <h4 style={{ margin: 0 }}>Chain calculator</h4>
+        <div className="row" style={{ marginTop: 8 }}>
+          <select className="lib-name" style={{ width: '40%' }} value={chain.style} onChange={e => setChain(c => ({ ...c, style: e.target.value as NecklaceStyle }))}>
+            {CHAIN_STYLE_OPTIONS.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+          <span style={{ display: 'flex', alignItems: 'baseline', gap: 3, marginLeft: 'auto' }}><input className="lib-name" style={{ width: 46 }} type="number" min={6} max={36} step={0.5} value={chain.length} onChange={e => setChain(c => ({ ...c, length: Math.max(1, +e.target.value) }))} /><small style={{ color: 'var(--slate)' }}>in</small></span>
+          <span style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}><input className="lib-name" style={{ width: 46 }} type="number" min={0.4} max={5} step={0.1} value={chain.gauge} onChange={e => setChain(c => ({ ...c, gauge: Math.max(0.2, +e.target.value) }))} /><small style={{ color: 'var(--slate)' }}>mm</small></span>
+        </div>
+        {(() => {
+          const ce = chainEstimate(chain.style, chain.length, chain.gauge, alloyId)
+          return <p className="disc" style={{ marginTop: 8 }}><b>~{ce.grams.toFixed(2)} g</b> in {ce.alloyName} ({ce.gramsPerInch.toFixed(3)} g/in) · suggested clasp: {ce.clasp}. Estimate from wire gauge, length and how much metal the {CHAIN_STYLE_OPTIONS.find(s => s[0] === chain.style)?.[1]} pattern packs.</p>
+        })()}
+      </div>
 
       {metalCount > 0 && (() => {
         const plan = castingPlan(objects, alloyId, treeCount)
