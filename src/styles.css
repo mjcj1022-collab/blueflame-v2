@@ -678,7 +678,7 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .qc-field select{width:100%;background:var(--paper);color:var(--graphite);border:1px solid var(--rule-dark);border-radius:8px;padding:7px 8px;font-family:var(--mono);font-size:11px;cursor:pointer}
 .qc-field select:hover{border-color:var(--karat)}
 .qc-field select:focus{outline:none;border-color:var(--karat);box-shadow:0 0 0 2px var(--karat-lt)}
-.ai-config{margin:10px 0 6px;border:1px solid var(--rule-dark);border-radius:12px;padding:10px 12px;background:var(--paper)}
+.ai-config{flex:0 0 auto;margin:10px 0 6px;border:1px solid var(--rule-dark);border-radius:12px;padding:10px 12px;background:var(--paper)}
 .ai-config>summary{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--karat);cursor:pointer;list-style:none}
 .ai-config>summary::-webkit-details-marker{display:none}
 .ai-config>summary::before{content:'▸ ';color:var(--slate)}
