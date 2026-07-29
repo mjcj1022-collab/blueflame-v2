@@ -13,7 +13,7 @@ import { paveSpots as paveSpotsFn } from '../lib/pave'
 import { buildSculptFromDesign, patchFromSpec, designSignature } from '../lib/aiAssemble'
 import { repairMesh } from '../lib/meshRepair'
 import { findingVertices, findingById } from '../lib/findings'
-import { basketVertices } from '../lib/settingParts'
+import { basketVertices, prongsWithSeatsVertices } from '../lib/settingParts'
 import { RING_SIZE_MIN, RING_SIZE_MAX } from '../lib/ringSizing'
 import type { AiDesignPatch } from '../lib/aiAssistant'
 import type { DesignSpec } from '../spec/types'
@@ -206,6 +206,8 @@ interface ModelerStore {
   retipProngs: (headId: string) => number
   /** Add a basket (two galleries + wires) under the selected head or stone. */
   addBasket: (id: string) => boolean
+  /** Add a pronged head with a cut bearing seat, sized to the selected head/stone. */
+  seatHead: (id: string, prongs?: number) => boolean
   /** Repair: replace a shank with a fresh parametric band at the same size. */
   replaceShank: (shankId: string) => boolean
   /** Version history — named snapshots of the whole bench (in-memory this session). */
@@ -641,6 +643,22 @@ export const useModeler = create<ModelerStore>((set, get) => {
       position: [x, topY, z], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0, material: 'metal', color: src.material === 'metal' ? src.color : GOLD,
     }
     set(s => ({ objects: [...s.objects, basket], selectedId: basket.id }))
+    return true
+  },
+
+  seatHead: (id, prongs = 4) => {
+    const src = get().objects.find(o => o.id === id)
+    if (!src) return false
+    const stoneMm = src.kind === 'gem' ? gemDiameterMm(src) : (src.params?.stoneW ?? 6.5)
+    const n = Math.max(3, Math.round(prongs))
+    const [x, y, z] = src.position
+    record()
+    const head: SculptObject = {
+      id: newId(), kind: 'mesh', name: `${n}-prong seat`, vertices: prongsWithSeatsVertices(stoneMm, n),
+      position: [x, y - stoneMm * 0.55, z], rotation: [0, 0, 0], scale: [1, 1, 1], size: 0, material: 'metal',
+      color: src.material === 'metal' ? src.color : GOLD,
+    }
+    set(s => ({ objects: [...s.objects, head], selectedId: head.id }))
     return true
   },
 

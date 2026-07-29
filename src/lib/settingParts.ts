@@ -51,3 +51,33 @@ export function galleryRailVertices(r: number): number[] {
   push(out, g)
   return out
 }
+
+/**
+ * A pronged head with a cut bearing seat — the depth step past bare claws. Each
+ * prong is a tapered claw standing at the stone's radius, with a bearing notch
+ * modelled where the girdle actually rests, and a seat ring joining the notches
+ * so the setter can see the line the stone sits on. Centred on the seat, mm.
+ */
+export function prongsWithSeatsVertices(stoneMm: number, count = 4, height = stoneMm * 1.2): number[] {
+  const out: number[] = []
+  const stoneR = Math.max(stoneMm, 0.5) / 2
+  const prongR = Math.max(0.25, stoneMm * 0.09)
+  const seatY = height * 0.55                // girdle height up the prong
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2
+    const x = Math.cos(a) * stoneR, z = Math.sin(a) * stoneR
+    // tapered claw (thinner at the tip), standing from the base to the tip
+    const prong = new THREE.CylinderGeometry(prongR * 0.8, prongR, height, 8)
+    prong.translate(x, height / 2, z)
+    push(out, prong)
+    // the bearing notch: a small bead of metal cut back where the girdle seats
+    const notch = new THREE.TorusGeometry(prongR * 0.95, prongR * 0.35, 6, 10)
+    notch.rotateY(a); notch.translate(x, seatY, z)
+    push(out, notch)
+  }
+  // seat ring — the continuous line the girdle rests on inside the claws
+  const seat = new THREE.TorusGeometry(stoneR, Math.max(0.18, prongR * 0.4), 8, 40)
+  seat.rotateX(Math.PI / 2); seat.translate(0, seatY, 0)
+  push(out, seat)
+  return out
+}
