@@ -77,6 +77,8 @@ import { pieceSummary, pieceSummaryText } from '../lib/pieceSummary'
 import { repairMesh } from '../lib/meshRepair'
 import { sculptTechSheet, sculptQuote } from '../lib/sculptDoc'
 import { textToPdf, bodyAfterTitle } from '../lib/pdf'
+import { zipSync } from 'fflate'
+import { assembleAllExports } from '../lib/exportBundle'
 import { ALLOYS, SHAPES, STONES, alloyById, shapeById, stoneMm } from '../catalog'
 import { MARKET } from '../lib/market'
 import { useDesign } from '../state/design'
@@ -779,6 +781,22 @@ export function ModelerPanel() {
     }
     const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
     textToPdf(shopName, 'Custom Piece — Quote', bodyAfterTitle(sculptQuote(handoff, { brand: shopName })), `${slug}-sculpt-quote.pdf`)
+  }
+
+  /** One button that bundles every export for this piece into a single zip:
+   *  CAD/mesh formats, shop documents, client sheets and data files. */
+  const downloadAll = () => {
+    if (!objects.length) { flash('Nothing to export yet.'); return }
+    if (!printGateOk()) return
+    const today = new Date().toISOString().slice(0, 10)
+    const files = assembleAllExports(objects, alloyId, { shopName, saveName, today })
+    const count = Object.keys(files).length
+    if (!count) { flash('Couldn’t assemble any exports for this piece.'); return }
+    const slug = (shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'blue-flame'
+    const name = describePiece(objects, alloyId).name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    const z = zipSync(files)
+    downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), `${slug}-${name}-all.zip`, 'application/zip')
+    flash(`Downloaded everything — ${count} files (CAD, documents, client sheets, data) in one zip.`)
   }
   const save = () => {
     if (!objects.length) { flash('Nothing to save.'); return }
@@ -1958,6 +1976,7 @@ export function ModelerPanel() {
       })()}
 
       <div className="panel-block quote">
+        <div className="qact" style={{ marginBottom: 8 }}><button className="primary" style={{ width: '100%' }} onClick={downloadAll} title="Bundle every export for this piece — all CAD/mesh formats, shop documents, client sheets and data files — into one zip">⬇ Download all (one zip)</button></div>
         <div className="qact"><button className="primary" onClick={exportStl} title="Binary STL — the slicer/caster standard">Export STL</button><button className="ghost" onClick={export3mf} title="3MF — modern container, parts stay separate">Export 3MF</button><button className="ghost" onClick={exportObj} title="Named parts + metal/gem groups, for ZBrush / Blender / Matrix / RhinoGold">Export OBJ</button><button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to export.'); return } if (!printGateOk()) return; download(modelerToStep(objects), `blue-flame-sculpt-${Date.now()}.step`, 'application/step'); flash('Exported STEP — faceted solid for Rhino / Fusion / Matrix.') }} title="STEP AP214 faceted solid B-rep — imports as a solid in Rhino / Fusion / SolidWorks / Matrix">Export STEP</button></div>
         <div className="qact" style={{ marginTop: 8 }}>
           <label className="ghost" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }} title="Bring in an existing STL model or scan to modify on the bench">

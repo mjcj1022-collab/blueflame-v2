@@ -4,7 +4,7 @@ import { jsPDF } from 'jspdf'
  * Render a monospace document (tech sheet, appraisal, quote) to a branded PDF.
  * Letter size, dark header bar, courier body, multi-page.
  */
-export function textToPdf(brand: string, subtitle: string, body: string, filename: string): void {
+function buildPdf(brand: string, subtitle: string, body: string): jsPDF {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const M = 48
   const PAGE_W = 612
@@ -38,7 +38,17 @@ export function textToPdf(brand: string, subtitle: string, body: string, filenam
     doc.text(ln, M, y)
     y += lh
   }
-  doc.save(filename)
+  return doc
+}
+
+/** Render a monospace document to a branded PDF and trigger a download. */
+export function textToPdf(brand: string, subtitle: string, body: string, filename: string): void {
+  buildPdf(brand, subtitle, body).save(filename)
+}
+
+/** Same branded PDF, returned as bytes — for bundling into a "download all" zip. */
+export function textToPdfBytes(brand: string, subtitle: string, body: string): Uint8Array {
+  return new Uint8Array(buildPdf(brand, subtitle, body).output('arraybuffer'))
 }
 
 /** Drop the document's own title line (the PDF header already carries the brand). */
