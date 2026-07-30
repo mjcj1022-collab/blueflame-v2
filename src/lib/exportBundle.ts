@@ -84,3 +84,23 @@ export function assembleAllExports(objects: SculptObject[], alloyId: string, opt
 
   return files
 }
+
+export interface CollectionDesign { name: string; objects: SculptObject[] }
+
+/**
+ * Assemble the full export set for EVERY saved design, each in its own numbered
+ * folder, so a shop can hand off (or archive) a whole collection in a single zip.
+ * Reuses the per-piece bundler; the numeric folder prefix keeps designs with the
+ * same name from colliding.
+ */
+export function assembleCollectionExports(designs: CollectionDesign[], alloyId: string, opts: BundleOpts): Record<string, Uint8Array> {
+  const files: Record<string, Uint8Array> = {}
+  designs.forEach((d, i) => {
+    if (!d.objects?.length) return
+    const slug = (d.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `design-${i + 1}`
+    const folder = `${String(i + 1).padStart(2, '0')}-${slug}`
+    const one = assembleAllExports(d.objects, alloyId, { ...opts, saveName: d.name })
+    for (const [path, bytes] of Object.entries(one)) files[`${folder}/${path}`] = bytes
+  })
+  return files
+}

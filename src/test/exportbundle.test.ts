@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { assembleAllExports } from '../lib/exportBundle'
+import { assembleAllExports, assembleCollectionExports } from '../lib/exportBundle'
 import type { SculptObject } from '../state/modeler'
 
 const shank = (): SculptObject => ({ id: 's', kind: 'shank', name: 'Shank', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], size: 6, material: 'metal', color: 0xd8b36a, params: { ringSize: 7, width: 2.2, thickness: 1.8 } })
@@ -48,5 +48,32 @@ describe('assembleAllExports', () => {
   it('slugs the shop name into the paths', () => {
     const f = assembleAllExports([shank()], '14ky', { shopName: 'Test Shop' })
     expect(keys(f).some(k => k.includes('test-shop'))).toBe(true)
+  })
+})
+
+describe('assembleCollectionExports', () => {
+  it('puts each design in its own numbered folder', () => {
+    const f = assembleCollectionExports([
+      { name: 'Solitaire', objects: [shank(), gem()] },
+      { name: 'Plain band', objects: [shank()] },
+    ], '14ky', { shopName: 'Test Shop' })
+    expect(keys(f).some(k => k.startsWith('01-solitaire/'))).toBe(true)
+    expect(keys(f).some(k => k.startsWith('02-plain-band/'))).toBe(true)
+  })
+  it('numbered prefixes keep same-named designs from colliding', () => {
+    const f = assembleCollectionExports([
+      { name: 'Ring', objects: [shank()] },
+      { name: 'Ring', objects: [shank()] },
+    ], '14ky', { shopName: 'Test Shop' })
+    expect(keys(f).some(k => k.startsWith('01-ring/'))).toBe(true)
+    expect(keys(f).some(k => k.startsWith('02-ring/'))).toBe(true)
+  })
+  it('skips empty designs and bundles the rest', () => {
+    const f = assembleCollectionExports([
+      { name: 'Empty', objects: [] },
+      { name: 'Real', objects: [shank()] },
+    ], '14ky', { shopName: 'Test Shop' })
+    expect(keys(f).some(k => k.startsWith('01-empty/'))).toBe(false)
+    expect(keys(f).some(k => k.startsWith('02-real/'))).toBe(true)
   })
 })

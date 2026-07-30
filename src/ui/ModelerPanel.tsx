@@ -78,7 +78,7 @@ import { repairMesh } from '../lib/meshRepair'
 import { sculptTechSheet, sculptQuote } from '../lib/sculptDoc'
 import { textToPdf, bodyAfterTitle } from '../lib/pdf'
 import { zipSync } from 'fflate'
-import { assembleAllExports } from '../lib/exportBundle'
+import { assembleAllExports, assembleCollectionExports } from '../lib/exportBundle'
 import { ALLOYS, SHAPES, STONES, alloyById, shapeById, stoneMm } from '../catalog'
 import { MARKET } from '../lib/market'
 import { useDesign } from '../state/design'
@@ -1453,6 +1453,7 @@ export function ModelerPanel() {
               <span style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
                 <button className="mini" onClick={() => { download(lineSheetText(saved, alloyId, shopName), 'blue-flame-line-sheet.txt', 'text/plain'); flash('Line sheet saved.') }} title="Price list across all saved designs">Line sheet</button>
                 <button className="mini" onClick={() => { const z = batchStlZip(saved.map(s => ({ name: s.name, objects: s.objects }))); downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), 'blue-flame-collection-stl.zip', 'application/zip'); flash(`Zipped ${saved.length} STL${saved.length === 1 ? '' : 's'}.`) }} title="Every saved design as an STL, zipped for a caster">STL zip</button>
+                <button className="mini" onClick={() => { const files = assembleCollectionExports(saved.map(s => ({ name: s.name, objects: s.objects })), alloyId, { shopName, today: new Date().toISOString().slice(0, 10) }); const n = Object.keys(files).length; if (!n) { flash('Nothing to bundle.'); return } const z = zipSync(files); downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), 'blue-flame-collection-all.zip', 'application/zip'); flash(`Zipped ${n} files across ${saved.length} design${saved.length === 1 ? '' : 's'}.`) }} title="Every saved design's full export set — CAD, documents, client sheets, data — each in its own folder, one zip">Download all</button>
               </span>
             </div>
             <div className="row" style={{ marginTop: 6 }}><label>Compare two designs</label></div>
