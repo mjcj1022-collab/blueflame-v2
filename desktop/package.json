@@ -1,0 +1,46 @@
+{
+  "name": "blue-flame-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Blue Flame Studio — offline desktop build",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.blueflame.studio",
+    "productName": "Blue Flame Studio",
+    "copyright": "© Blue Flame",
+    "files": [
+      "main.cjs",
+      "server.cjs",
+      "dist/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.graphics-design"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Graphics"
+    }
+  }
+}
