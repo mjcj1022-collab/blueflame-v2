@@ -3,6 +3,8 @@
  * running Blue Flame server (see server/README.md). When unset, the app runs
  * fully standalone on localStorage — nothing here is called.
  */
+import type { Subscription } from './plans'
+
 const BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_URL
 
 export const apiConfigured = (): boolean => !!BASE
@@ -158,7 +160,10 @@ export const api = {
   assistantStatus: () => req('/api/assistant/status') as Promise<{ enabled: boolean }>,
   assistant: (body: { system: string; messages: { role: 'user' | 'assistant'; content: string }[]; image?: string | null }) =>
     req('/api/assistant', { method: 'POST', body: JSON.stringify(body) }) as Promise<{ text?: string; disabled?: boolean }>,
-  checkout: (amount_cents: number, order_id: string, design_id?: string) => req('/api/checkout', { method: 'POST', body: JSON.stringify({ amount_cents, order_id, design_id }) }) as Promise<{ clientSecret: string; order_id: string | null }>
+  checkout: (amount_cents: number, order_id: string, design_id?: string) => req('/api/checkout', { method: 'POST', body: JSON.stringify({ amount_cents, order_id, design_id }) }) as Promise<{ clientSecret: string; order_id: string | null }>,
+  // Subscription / purchase billing.
+  getSubscription: () => req('/api/subscription') as Promise<Subscription>,
+  startCheckout: (planId: string) => req('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ planId }) }) as Promise<{ url: string }>,
 }
 
 /** A curated gallery entry as the server returns it (spec is a JSON string). */

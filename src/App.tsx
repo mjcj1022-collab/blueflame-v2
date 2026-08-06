@@ -24,6 +24,8 @@ import { BackendStatus } from './ui/BackendStatus'
 import { useDesign } from './state/design'
 import { useModeler } from './state/modeler'
 import { useAuth } from './state/auth'
+import { PAYWALL_ENABLED, accessFromSubscription } from './lib/plans'
+import { Pricing } from './ui/Pricing'
 import { useWorkspace } from './state/workspace'
 import { useSettings } from './state/settings'
 import { autosave } from './lib/autosave'
@@ -100,6 +102,7 @@ export default function App() {
   const [tourOpen, setTourOpen] = useState(() => { try { return !localStorage.getItem(TOUR_KEY) } catch { return false } })
   const mode = useWorkspace(s => s.mode)
   const setMode = useWorkspace(s => s.setMode)
+  const subscription = useAuth(s => s.subscription)
   const load = useDesign(s => s.load)
   const hiddenPanels = useSettings(s => s.hiddenPanels)
   const paperTexture = useSettings(s => s.paperTexture)
@@ -125,6 +128,7 @@ export default function App() {
     // Pull today's live metal spot (if a backend + metals key are set) and apply
     // it over the catalog spots, then nudge a re-render so quotes reflect it.
     void fetchAndApplySpot().then(m => { if (Object.keys(m.prices).length) useDesign.setState(st => ({ spec: { ...st.spec } })) })
+    void useAuth.getState().refreshSubscription()   // billing state (no-op without a backend)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -144,6 +148,13 @@ export default function App() {
     const unsubS = useModeler.subscribe((st, prev) => { if (st.objects !== prev.objects) autosave.writeSculpt(st.objects) })
     return () => { unsubD(); unsubS() }
   }, [])
+
+  // Paywall gate — dormant unless the build sets VITE_PAYWALL=on. When on, a shop
+  // with no active subscription (or one-time offline purchase) sees the pricing
+  // screen instead of the studio.
+  if (PAYWALL_ENABLED && !accessFromSubscription(subscription, Date.now()).allowed) {
+    return <Pricing />
+  }
 
   return (
     <>

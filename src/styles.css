@@ -685,6 +685,28 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .ai-config[open]>summary::before{content:'▾ '}
 .ai-config .quick-config{margin-top:10px}
 
+/* Pricing / paywall */
+.pricing{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:40px 20px;background:var(--ink);color:var(--paper)}
+.pricing-head{text-align:center}
+.pricing-head h1{font-family:var(--serif);font-size:30px;font-weight:600;color:#F3EAD4;margin:0}
+.pricing-head p{color:#B3A588;margin:8px 0 0;font-size:13px}
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,340px));gap:18px;width:100%;max-width:760px;justify-content:center}
+.price-card{position:relative;border:1px solid var(--rule-dark);border-radius:16px;padding:24px 22px;background:var(--panel);display:flex;flex-direction:column;gap:12px}
+.price-card.featured{border-color:var(--karat);box-shadow:0 0 0 1px var(--karat)}
+.price-tag{position:absolute;top:-11px;left:22px;background:var(--karat);color:var(--ink);font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:20px}
+.price-card h2{font-family:var(--serif);font-size:19px;font-weight:600;color:#F3EAD4;margin:0}
+.price-amt{display:flex;align-items:baseline;gap:6px}
+.price-amt b{font-size:34px;color:#fff;font-family:var(--serif)}
+.price-amt span{color:var(--slate);font-size:13px}
+.price-blurb{color:#B3A588;font-size:12.5px;line-height:1.5;margin:0;min-height:38px}
+.price-feats{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.price-feats li{position:relative;padding-left:20px;font-size:12.5px;color:var(--paper);line-height:1.4}
+.price-feats li::before{content:'✓';position:absolute;left:0;color:var(--karat);font-weight:700}
+.price-card button{margin-top:6px;padding:11px;border-radius:9px;font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.04em;cursor:pointer}
+.pricing-err{color:#e0a44a;font-size:12.5px;max-width:520px;text-align:center}
+.pricing-foot{color:var(--slate);font-size:11px;text-align:center}
+.linky{background:none;border:none;color:var(--karat);cursor:pointer;text-decoration:underline;font-size:11px;padding:0}
+
 /* Bench & production planners */
 .bench-planners{display:flex;flex-direction:column;gap:10px}
 .bp-card{border:1px solid var(--rule-dark);border-radius:9px;padding:8px 10px;background:rgba(0,0,0,.12)}

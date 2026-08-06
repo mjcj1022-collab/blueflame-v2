@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { api, apiConfigured, setToken } from '../lib/api'
+import type { Subscription } from '../lib/plans'
 
 // Standalone soft gate (used when no backend is configured). NOT real security.
 const USERS: Record<string, string> = { mike: 'mike123', liliya: 'liliya123' }
@@ -69,6 +70,11 @@ interface AuthStore {
   user: string | null
   role: string | null
   backend: boolean
+  /** Billing state for the signed-in shop; null until fetched (or no backend). */
+  subscription: Subscription | null
+  setSubscription: (s: Subscription | null) => void
+  /** Fetch the shop's subscription from the backend (no-op without a backend). */
+  refreshSubscription: () => Promise<void>
   login: (username: string, password: string) => boolean
   loginRemote: (email: string, password: string) => Promise<LoginResult>
   /** Confirm a restored token is still good; sign out only if it was rejected. */
@@ -83,6 +89,13 @@ export const useAuth = create<AuthStore>((set, get) => ({
   user: initUser,
   role: initRole,
   backend: apiConfigured(),
+  subscription: null,
+
+  setSubscription: s => set({ subscription: s }),
+  refreshSubscription: async () => {
+    if (!apiConfigured() || !get().user) return
+    try { set({ subscription: await api.getSubscription() }) } catch { /* leave as-is on failure */ }
+  },
 
   // Standalone gate.
   login: (username, password) => {
