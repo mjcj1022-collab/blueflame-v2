@@ -1,8 +1,8 @@
 import express, { type Request, type Response } from 'express'
 import cors from 'cors'
 import { db, uid, audit } from './db.js'
-import { requireAuth, signToken, hashPassword, verifyPassword, type Claims } from './auth.js'
-import { createPaymentIntent, constructWebhookEvent } from './stripe.js'
+import { requireAuth, requireRole, signToken, hashPassword, verifyPassword, type Claims } from './auth.js'
+import { createPaymentIntent, constructWebhookEvent, createCheckoutSession } from './stripe.js'
 import { getSpot } from './spot.js'
 import { runAssistant, aiEnabled } from './ai.js'
 
@@ -40,12 +40,54 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
     }
   }
 
+  // Subscription / offline-purchase lifecycle — keep the tenant's billing state
+  // in step with Stripe so the paywall gate can trust it.
+  const updateTenantSub = (tenantId: string, patch: Record<string, unknown>) => {
+    const cols = Object.keys(patch)
+    if (!cols.length || !tenantId) return
+    const set = cols.map(c => `${c} = ?`).join(', ')
+    db.prepare(`UPDATE tenants SET ${set} WHERE id = ?`).run(...cols.map(c => patch[c] as never), tenantId)
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const s = event.data.object as { mode?: string; client_reference_id?: string; metadata?: Record<string, string>; customer?: string; subscription?: string }
+    const tenantId = s.metadata?.tenant_id ?? s.client_reference_id ?? ''
+    const planId = s.metadata?.plan_id ?? null
+    if (tenantId) {
+      if (s.mode === 'payment') {
+        updateTenantSub(tenantId, { offline_purchase: 1, subscription_plan: planId ?? 'offline-lifetime', stripe_customer_id: s.customer ?? null })
+      } else {
+        updateTenantSub(tenantId, { subscription_status: 'active', subscription_plan: planId ?? 'studio-monthly', stripe_customer_id: s.customer ?? null, stripe_subscription_id: s.subscription ?? null })
+      }
+      audit(tenantId, null, 'billing.checkout', planId ?? undefined, { mode: s.mode })
+    }
+  } else if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
+    const sub = event.data.object as { status?: string; current_period_end?: number; metadata?: Record<string, string> }
+    const tenantId = sub.metadata?.tenant_id ?? ''
+    if (tenantId) {
+      const status = event.type === 'customer.subscription.deleted' ? 'canceled' : (sub.status ?? 'active')
+      updateTenantSub(tenantId, { subscription_status: status, current_period_end: sub.current_period_end ? sub.current_period_end * 1000 : null })
+    }
+  } else if (event.type === 'invoice.payment_failed') {
+    const inv = event.data.object as { subscription?: string }
+    if (inv.subscription) {
+      const t = db.prepare('SELECT id FROM tenants WHERE stripe_subscription_id = ?').get(inv.subscription) as { id?: string } | undefined
+      if (t?.id) updateTenantSub(t.id, { subscription_status: 'past_due' })
+    }
+  }
+
   res.json({ received: true })
 })
 
 app.use(express.json({ limit: '2mb' }))
 
 const me = (req: Request) => (req as Request & { user: Claims }).user
+
+// Email must be unique ACROSS tenants: login matches on email alone (first row
+// wins), so two shops sharing an email would lock one out or, worse, cross into
+// the other's data. Enforce global uniqueness at every account-creation path.
+const emailExists = (email: string): boolean =>
+  !!db.prepare('SELECT 1 FROM users WHERE email = ?').get(String(email).toLowerCase())
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'blue-flame', db: 'sqlite', time: new Date().toISOString() }))
 
@@ -76,6 +118,7 @@ app.post('/api/assistant', requireAuth, async (req, res) => {
 app.post('/api/auth/register', (req, res) => {
   const { shop, email, password } = req.body ?? {}
   if (!shop || !email || !password) { res.status(400).json({ error: 'shop, email and password are required' }); return }
+  if (emailExists(email)) { res.status(400).json({ error: 'that email is already registered' }); return }
   const tenantId = uid()
   const slug = `${String(shop).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${tenantId.slice(0, 4)}`
   try {
@@ -101,6 +144,56 @@ app.post('/api/auth/login', (req, res) => {
 app.get('/api/me', requireAuth, (req, res) => {
   const t = db.prepare('SELECT id, name, slug, markup FROM tenants WHERE id = ?').get(me(req).tenant_id)
   res.json({ user: me(req), tenant: t })
+})
+
+/* ---------------- team (users & roles) ----------------
+ * A shop owner (admin) invites bench and setter accounts into the same tenant.
+ * All routes are admin-only and tenant-scoped. Guardrails: you can't demote or
+ * remove the last admin, and you can't remove yourself. */
+const ROLES = ['admin', 'bench', 'setter', 'associate']
+const adminCount = (tenantId: string): number =>
+  (db.prepare("SELECT COUNT(*) n FROM users WHERE tenant_id = ? AND role = 'admin'").get(tenantId) as { n: number }).n
+const userRole = (id: string, tenantId: string): string | undefined =>
+  (db.prepare('SELECT role FROM users WHERE id = ? AND tenant_id = ?').get(id, tenantId) as { role?: string } | undefined)?.role
+
+app.get('/api/team', requireAuth, requireRole('admin'), (req, res) => {
+  res.json(db.prepare('SELECT id, email, role, created_at FROM users WHERE tenant_id = ? ORDER BY created_at').all(me(req).tenant_id))
+})
+
+app.post('/api/team', requireAuth, requireRole('admin'), (req, res) => {
+  const { email, password, role } = req.body ?? {}
+  if (!email || !password) { res.status(400).json({ error: 'email and password are required' }); return }
+  if (String(password).length < 6) { res.status(400).json({ error: 'password must be at least 6 characters' }); return }
+  if (emailExists(email)) { res.status(400).json({ error: 'that email is already in use' }); return }
+  const r = ROLES.includes(role) ? role : 'associate'
+  const id = uid()
+  try {
+    db.prepare('INSERT INTO users (id, tenant_id, email, password_hash, role) VALUES (?,?,?,?,?)')
+      .run(id, me(req).tenant_id, String(email).toLowerCase(), hashPassword(String(password)), r)
+    audit(me(req).tenant_id, me(req).id, 'team.add', id, { role: r })
+    res.json({ id, role: r })
+  } catch { res.status(400).json({ error: 'a user with that email already exists in this shop' }) }
+})
+
+app.patch('/api/team/:id', requireAuth, requireRole('admin'), (req, res) => {
+  const { role } = req.body ?? {}
+  if (!ROLES.includes(role)) { res.status(400).json({ error: 'invalid role' }); return }
+  if (role !== 'admin' && userRole(req.params.id, me(req).tenant_id) === 'admin' && adminCount(me(req).tenant_id) <= 1) {
+    res.status(400).json({ error: 'cannot demote the last admin' }); return
+  }
+  const info = db.prepare('UPDATE users SET role = ? WHERE id = ? AND tenant_id = ?').run(role, req.params.id, me(req).tenant_id)
+  audit(me(req).tenant_id, me(req).id, 'team.role', req.params.id, { role })
+  res.json({ updated: info.changes })
+})
+
+app.delete('/api/team/:id', requireAuth, requireRole('admin'), (req, res) => {
+  if (req.params.id === me(req).id) { res.status(400).json({ error: 'you cannot remove yourself' }); return }
+  if (userRole(req.params.id, me(req).tenant_id) === 'admin' && adminCount(me(req).tenant_id) <= 1) {
+    res.status(400).json({ error: 'cannot remove the last admin' }); return
+  }
+  const info = db.prepare('DELETE FROM users WHERE id = ? AND tenant_id = ?').run(req.params.id, me(req).tenant_id)
+  audit(me(req).tenant_id, me(req).id, 'team.remove', req.params.id)
+  res.json({ deleted: info.changes })
 })
 
 /* ---------------- designs ---------------- */
@@ -135,6 +228,35 @@ app.put('/api/designs/:id', requireAuth, (req, res) => {
   const info = db.prepare("UPDATE designs SET name = COALESCE(?, name), spec = COALESCE(?, spec), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?")
     .run(name ?? null, spec ? JSON.stringify(spec) : null, req.params.id, me(req).tenant_id)
   res.json({ updated: info.changes })
+})
+
+/* ---------------- cloud maker library (sculpts) ----------------
+ * A shop's saved sculpts, tenant-scoped, so the library follows the maker across
+ * devices. Tags are stored comma-joined. Everyone in the shop shares the library. */
+
+app.get('/api/sculpts', requireAuth, (req, res) => {
+  res.json(db.prepare('SELECT id, name, tags, updated_at FROM sculpts WHERE tenant_id = ? ORDER BY updated_at DESC').all(me(req).tenant_id))
+})
+
+app.get('/api/sculpts/:id', requireAuth, (req, res) => {
+  const r = db.prepare('SELECT id, name, tags, data, updated_at FROM sculpts WHERE id = ? AND tenant_id = ?').get(req.params.id, me(req).tenant_id) as { data: string } | undefined
+  if (!r) { res.status(404).json({ error: 'not found' }); return }
+  res.json({ ...r, data: JSON.parse(r.data) })
+})
+
+app.post('/api/sculpts', requireAuth, (req, res) => {
+  const { name, tags, data } = req.body ?? {}
+  if (!name || !data) { res.status(400).json({ error: 'name and data required' }); return }
+  const id = uid()
+  db.prepare('INSERT INTO sculpts (id, tenant_id, owner_id, name, tags, data) VALUES (?,?,?,?,?,?)')
+    .run(id, me(req).tenant_id, me(req).id, String(name), Array.isArray(tags) ? tags.join(',') : (tags ?? null), JSON.stringify(data))
+  audit(me(req).tenant_id, me(req).id, 'sculpt.save', id)
+  res.json({ id })
+})
+
+app.delete('/api/sculpts/:id', requireAuth, (req, res) => {
+  const info = db.prepare('DELETE FROM sculpts WHERE id = ? AND tenant_id = ?').run(req.params.id, me(req).tenant_id)
+  res.json({ deleted: info.changes })
 })
 
 /* ---------------- customers (CRM) ---------------- */
@@ -251,6 +373,50 @@ app.patch('/api/orders/:id/stage', requireAuth, (req, res) => {
     .run(stage, approved ? 1 : 0, req.params.id, me(req).tenant_id)
   audit(me(req).tenant_id, me(req).id, 'order.stage', req.params.id, { stage })
   res.json({ updated: info.changes })
+})
+
+/* ---------------- subscription / access billing ---------------- */
+
+// Which Stripe price + checkout mode each plan uses. Price ids come from env so
+// the shop sets them in Render without a code change.
+const PLAN_PRICE: Record<string, { mode: 'subscription' | 'payment'; env: string }> = {
+  'studio-monthly': { mode: 'subscription', env: 'STRIPE_PRICE_MONTHLY' },
+  'offline-lifetime': { mode: 'payment', env: 'STRIPE_PRICE_OFFLINE' },
+}
+
+// The signed-in shop's current billing state, shaped for the frontend gate.
+app.get('/api/subscription', requireAuth, (req, res) => {
+  const t = db.prepare(
+    'SELECT subscription_status, subscription_plan, current_period_end, offline_purchase FROM tenants WHERE id = ?'
+  ).get(me(req).tenant_id) as { subscription_status?: string; subscription_plan?: string; current_period_end?: number; offline_purchase?: number } | undefined
+  res.json({
+    status: t?.subscription_status ?? 'none',
+    planId: t?.subscription_plan ?? undefined,
+    currentPeriodEnd: t?.current_period_end ?? undefined,
+    offline: !!t?.offline_purchase,
+  })
+})
+
+// Start a Stripe Checkout for the chosen plan; returns the hosted-checkout URL.
+app.post('/api/billing/checkout', requireAuth, async (req, res) => {
+  try {
+    const planId = String((req.body ?? {}).planId ?? '')
+    const plan = PLAN_PRICE[planId]
+    if (!plan) { res.status(400).json({ error: 'unknown plan' }); return }
+    const priceId = process.env[plan.env] ?? ''
+    const origin = process.env.CLIENT_ORIGIN && process.env.CLIENT_ORIGIN !== '*' ? process.env.CLIENT_ORIGIN : ''
+    const session = await createCheckoutSession({
+      mode: plan.mode,
+      priceId,
+      tenantId: me(req).tenant_id,
+      planId,
+      successUrl: `${origin}/?billing=success`,
+      cancelUrl: `${origin}/?billing=cancel`,
+    })
+    res.json({ url: session.url })
+  } catch (e) {
+    res.status(501).json({ error: (e as Error).message })
+  }
 })
 
 /* ---------------- checkout (Stripe, optional) ---------------- */

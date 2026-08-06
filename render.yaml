@@ -6,35 +6,52 @@ services:
     name: blue-flame-api
     runtime: node
     rootDir: server
-    plan: free                       # free tier works out of the box (see the disk note below)
+    plan: starter                    # paid tier — needed for the persistent disk below
     buildCommand: npm install
     startCommand: npm run seed && npm run start
     healthCheckPath: /api/health
+    # Durable storage: a mounted disk so the SQLite database (accounts, team,
+    # cloud sculpts, orders) survives every deploy and restart. Without this the
+    # data resets on redeploy — see the free-tier note at the bottom.
+    disk:
+      name: blue-flame-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: JWT_SECRET
         generateValue: true          # Render generates a strong secret for you
       - key: CLIENT_ORIGIN
         value: https://mjcj1022-collab.github.io   # the GitHub Pages origin (for CORS)
       - key: DB_FILE
-        value: blueflame.db          # free tier: local file, re-seeded on each deploy
-                                     # (demo users always work; orders don't persist — see below)
+        value: /var/data/blueflame.db  # on the mounted disk → persists across deploys
+      # Live metal spot feed (OPTIONAL). Set METALS_API_KEY to your provider key
+      # and quotes track the real gold/platinum market; unset → catalog spots.
+      # Provider: 'metalpriceapi' (default, one request) or 'goldapi'.
+      - key: METALS_API_KEY
+        sync: false
+      - key: METALS_PROVIDER
+        sync: false
       # Stripe is OPTIONAL. Leave unset to run without payments. To enable checkout,
       # set both in the Render dashboard → Environment (test keys first):
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+      # Subscription / purchase price ids (from Stripe → Products). Needed to sell
+      # access: STRIPE_PRICE_MONTHLY = the $40/mo recurring price, STRIPE_PRICE_OFFLINE
+      # = the $450 one-time price. The paywall goes live once these + the keys are set.
+      - key: STRIPE_PRICE_MONTHLY
+        sync: false
+      - key: STRIPE_PRICE_OFFLINE
+        sync: false
 
-# --- Persistent data (optional, needs a paid plan) --------------------------
-# The free plan's disk is ephemeral, so the SQLite file resets on every deploy
-# or restart. To keep orders across restarts, upgrade the plan and mount a disk,
-# then point DB_FILE at it:
-#
-#     plan: starter
-#     envVars:
-#       - key: DB_FILE
-#         value: /var/data/blueflame.db
-#     disk:
-#       name: blue-flame-data
-#       mountPath: /var/data
-#       sizeGB: 1
+# --- Running on the free tier instead --------------------------------------
+# The free plan can't mount a disk, so its filesystem is ephemeral — the SQLite
+# file resets on every deploy/restart (accounts, team, cloud sculpts, orders all
+# reseed). To run free anyway, set:
+#     plan: free
+# and remove the `disk:` block and point DB_FILE back at a local file:
+#     - key: DB_FILE
+#       value: blueflame.db
+# Data will NOT persist across deploys in that mode — fine for a demo, not for a
+# shop relying on it day to day.

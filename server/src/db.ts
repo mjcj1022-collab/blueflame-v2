@@ -92,11 +92,37 @@ db.exec(`
     created_at text NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_gallery_tenant ON gallery (tenant_id);
+
+  -- Cloud maker library: sculpts (with tags) synced across a shop's devices.
+  CREATE TABLE IF NOT EXISTS sculpts (
+    id text PRIMARY KEY,
+    tenant_id text NOT NULL,
+    owner_id text,
+    name text NOT NULL,
+    tags text,
+    data text NOT NULL,
+    updated_at text NOT NULL DEFAULT (datetime('now')),
+    created_at text NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_sculpts_tenant ON sculpts (tenant_id);
 `)
 
 // Link orders to a customer. Additive on an existing database (the column may
 // already be present), so the ALTER is guarded.
 try { db.exec('ALTER TABLE orders ADD COLUMN customer_id text') } catch { /* column already exists */ }
+
+// Billing: a shop's subscription / one-time-purchase state lives on the tenant.
+// Additive + guarded so it applies cleanly to an existing database.
+for (const col of [
+  "subscription_status text NOT NULL DEFAULT 'none'",  // none|active|trialing|past_due|canceled
+  'subscription_plan text',
+  'current_period_end integer',                        // epoch ms the paid period runs through
+  'stripe_customer_id text',
+  'stripe_subscription_id text',
+  'offline_purchase integer NOT NULL DEFAULT 0',       // 1 = bought the offline build outright
+]) {
+  try { db.exec(`ALTER TABLE tenants ADD COLUMN ${col}`) } catch { /* column already exists */ }
+}
 
 export const uid = (): string => globalThis.crypto.randomUUID()
 

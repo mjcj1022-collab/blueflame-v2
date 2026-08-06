@@ -45,6 +45,8 @@ async function callAnthropic(k: string, req: AiRequest): Promise<string> {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': k, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    // 2048 tokens leaves room for three full design routes; low temperature keeps
+    // id selection accurate and repeatable rather than creative-but-wrong.
     body: JSON.stringify({ model: model(), max_tokens: 2048, temperature: 0.2, system: req.system, messages })
   })
   if (!r.ok) throw new Error(`anthropic ${r.status}: ${await r.text()}`)
