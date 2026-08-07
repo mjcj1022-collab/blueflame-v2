@@ -101,7 +101,10 @@ export function Pricing() {
         ))}
       </div>
       {err && <p className="pricing-err">{err}</p>}
-      <p className="pricing-foot">Secure payment by Stripe. No card details ever touch our servers.</p>
+      <p className="pricing-foot">
+        Secure payment by Stripe. No card details ever touch our servers.<br />
+        By continuing you agree to our <a href="terms.html" target="_blank" rel="noopener noreferrer">Terms</a> and <a href="privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+      </p>
     </div>
   )
 }

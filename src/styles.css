@@ -714,7 +714,8 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .pricing-auth button[type=submit]{margin-top:4px;padding:11px;border-radius:9px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer}
 .pricing-signed{color:#B3A588;font-size:13px}
 .pricing-err{color:#e0a44a;font-size:12.5px;max-width:520px;text-align:center}
-.pricing-foot{color:var(--slate);font-size:11px;text-align:center}
+.pricing-foot{color:var(--slate);font-size:11px;text-align:center;line-height:1.7}
+.pricing-foot a{color:var(--karat)}
 .linky{background:none;border:none;color:var(--karat);cursor:pointer;text-decoration:underline;font-size:11px;padding:0}
 
 /* Bench & production planners */
