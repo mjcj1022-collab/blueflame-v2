@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { api, apiConfigured, setToken } from '../lib/api'
 import type { Subscription } from '../lib/plans'
+import { getRef, clearRef } from '../lib/referral'
 
 // Standalone soft gate (used when no backend is configured). NOT real security.
 const USERS: Record<string, string> = { mike: 'mike123', liliya: 'liliya123' }
@@ -132,7 +133,8 @@ export const useAuth = create<AuthStore>((set, get) => ({
   // brand-new customer can register, then subscribe, in one flow.
   registerRemote: async (shop, email, password) => {
     try {
-      const r = await api.register(shop.trim(), email.trim().toLowerCase(), password) as { token: string; role?: string }
+      const r = await api.register(shop.trim(), email.trim().toLowerCase(), password, getRef()) as { token: string; role?: string }
+      clearRef()
       setToken(r.token)
       const role = r.role ?? 'admin'
       try { localStorage.setItem(TKEY, r.token); localStorage.setItem(KEY, email.trim().toLowerCase()) } catch { /* */ }

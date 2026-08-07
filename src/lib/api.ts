@@ -132,7 +132,7 @@ async function req(path: string, opts: RequestInit = {}): Promise<unknown> {
 
 export const api = {
   login: (email: string, password: string) => req('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  register: (shop: string, email: string, password: string) => req('/api/auth/register', { method: 'POST', body: JSON.stringify({ shop, email, password }) }),
+  register: (shop: string, email: string, password: string, ref?: string | null) => req('/api/auth/register', { method: 'POST', body: JSON.stringify({ shop, email, password, ref: ref ?? undefined }) }),
   me: () => req('/api/me'),
   listTeam: () => req('/api/team') as Promise<TeamMember[]>,
   addTeam: (email: string, password: string, role: string) => req('/api/team', { method: 'POST', body: JSON.stringify({ email, password, role }) }) as Promise<{ id: string; role: string }>,
@@ -164,6 +164,26 @@ export const api = {
   // Subscription / purchase billing.
   getSubscription: () => req('/api/subscription') as Promise<Subscription>,
   startCheckout: (planId: string) => req('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ planId }) }) as Promise<{ url: string }>,
+  // Affiliate program (admin).
+  listAffiliates: () => req('/api/affiliates') as Promise<Affiliate[]>,
+  createAffiliate: (a: { name?: string; email?: string; code?: string; ratePct?: number }) => req('/api/affiliates', { method: 'POST', body: JSON.stringify(a) }) as Promise<{ id: string; code: string; rate: number }>,
+  updateAffiliate: (id: string, patch: { ratePct?: number; active?: boolean; name?: string; email?: string }) => req(`/api/affiliates/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }) as Promise<{ updated: number }>,
+  deactivateAffiliate: (id: string) => req(`/api/affiliates/${id}`, { method: 'DELETE' }) as Promise<{ deactivated: number }>,
+}
+
+/** An affiliate link with its per-link rate and running earnings. */
+export interface Affiliate {
+  id: string
+  code: string
+  name: string | null
+  email: string | null
+  rate: number          // fraction, e.g. 0.2 = 20%
+  active: number
+  created_at: string
+  referrals: number     // shops that signed up on this link
+  conversions: number   // commission-earning payments
+  earned_cents: number
+  pending_cents: number
 }
 
 /** A curated gallery entry as the server returns it (spec is a JSON string). */

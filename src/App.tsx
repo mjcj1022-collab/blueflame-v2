@@ -13,6 +13,7 @@ import { ProductionPanel } from './ui/ProductionPanel'
 import { VariantsPanel } from './ui/VariantsPanel'
 import { CustomersPanel } from './ui/CustomersPanel'
 import { TeamPanel } from './ui/TeamPanel'
+import { AffiliatesPanel } from './ui/AffiliatesPanel'
 import { LibraryPanel } from './ui/LibraryPanel'
 import { ProjectsPanel } from './ui/ProjectsPanel'
 import { ModelerPanel } from './ui/ModelerPanel'
@@ -173,6 +174,7 @@ export default function App() {
                 {show('production') && <ProductionPanel />}
                 {show('customers') && <CustomersPanel />}
                 <TeamPanel />
+                <AffiliatesPanel />
                 {show('library') && <LibraryPanel />}
                 {show('projects') && <ProjectsPanel />}
               </div>
