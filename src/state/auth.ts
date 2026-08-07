@@ -77,6 +77,8 @@ interface AuthStore {
   refreshSubscription: () => Promise<void>
   login: (username: string, password: string) => boolean
   loginRemote: (email: string, password: string) => Promise<LoginResult>
+  /** Create a new shop account (backend) and sign in. */
+  registerRemote: (shop: string, email: string, password: string) => Promise<LoginResult>
   /** Confirm a restored token is still good; sign out only if it was rejected. */
   verifySession: () => Promise<void>
   logout: () => void
@@ -119,6 +121,24 @@ export const useAuth = create<AuthStore>((set, get) => ({
       try { localStorage.setItem(TKEY, r.token); localStorage.setItem(KEY, email.trim().toLowerCase()) } catch { /* */ }
       rememberRole(role)
       set({ user: email.trim().toLowerCase(), role })
+      void get().refreshSubscription()
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, reason: loginFailureReason(err) }
+    }
+  },
+
+  // Create a new shop account (admin user) and sign in. Used on the paywall so a
+  // brand-new customer can register, then subscribe, in one flow.
+  registerRemote: async (shop, email, password) => {
+    try {
+      const r = await api.register(shop.trim(), email.trim().toLowerCase(), password) as { token: string; role?: string }
+      setToken(r.token)
+      const role = r.role ?? 'admin'
+      try { localStorage.setItem(TKEY, r.token); localStorage.setItem(KEY, email.trim().toLowerCase()) } catch { /* */ }
+      rememberRole(role)
+      set({ user: email.trim().toLowerCase(), role })
+      void get().refreshSubscription()
       return { ok: true }
     } catch (err) {
       return { ok: false, reason: loginFailureReason(err) }
