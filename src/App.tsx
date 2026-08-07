@@ -151,6 +151,32 @@ export default function App() {
     return () => { unsubD(); unsubS() }
   }, [])
 
+  // Returning from Stripe checkout (?billing=success): the subscription lands via
+  // webhook, which can lag a second or two. Poll a few times so a paying customer
+  // slides straight into the studio instead of briefly seeing the paywall again,
+  // then scrub the query param so a later refresh doesn't re-trigger it.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (!params.has('billing')) return
+    const outcome = params.get('billing')
+    const clean = () => {
+      params.delete('billing')
+      const qs = params.toString()
+      window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash)
+    }
+    if (outcome !== 'success') { clean(); return }
+    let active = true, tries = 0
+    const tick = async () => {
+      await useAuth.getState().refreshSubscription()
+      if (!active) return
+      const sub = useAuth.getState().subscription
+      if (accessFromSubscription(sub, Date.now()).allowed || ++tries >= 6) { clean(); return }
+      setTimeout(() => { void tick() }, 2000)
+    }
+    void tick()
+    return () => { active = false }
+  }, [])
+
   // Paywall gate — pay-to-play by default, but only when a backend is present to
   // check subscriptions against. A shop with no active subscription (or one-time
   // offline purchase) sees the pricing screen instead of the studio. The offline

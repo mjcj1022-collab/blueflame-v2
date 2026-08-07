@@ -163,7 +163,9 @@ export const api = {
   checkout: (amount_cents: number, order_id: string, design_id?: string) => req('/api/checkout', { method: 'POST', body: JSON.stringify({ amount_cents, order_id, design_id }) }) as Promise<{ clientSecret: string; order_id: string | null }>,
   // Subscription / purchase billing.
   getSubscription: () => req('/api/subscription') as Promise<Subscription>,
-  startCheckout: (planId: string) => req('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ planId }) }) as Promise<{ url: string }>,
+  // Pass our own app URL so Stripe returns the customer to the actual app (which
+  // may live on a subpath), not just the bare origin.
+  startCheckout: (planId: string) => req('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ planId, returnTo: window.location.origin + window.location.pathname }) }) as Promise<{ url: string }>,
   // Affiliate program (admin).
   listAffiliates: () => req('/api/affiliates') as Promise<Affiliate[]>,
   createAffiliate: (a: { name?: string; email?: string; code?: string; ratePct?: number }) => req('/api/affiliates', { method: 'POST', body: JSON.stringify(a) }) as Promise<{ id: string; code: string; rate: number }>,
