@@ -104,9 +104,14 @@ export function accessFromSubscription(sub: Subscription | null | undefined, now
 }
 
 /**
- * Is the paywall switched on for this build? Off by default so the studio stays
- * open until the shop has Stripe wired and flips VITE_PAYWALL=on at build time.
+ * Is the paywall switched on for this build? Pay-to-play is the default: the
+ * hosted studio gates access unless the build explicitly sets VITE_PAYWALL=off.
+ * Note the gate itself (in App/main) only engages when a backend is configured,
+ * so the offline desktop build — which ships with no API — is never gated.
  */
 export const PAYWALL_ENABLED: boolean = (() => {
-  try { return (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_PAYWALL === 'on' } catch { return false }
+  try {
+    const v = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_PAYWALL
+    return String(v ?? 'on').toLowerCase() !== 'off'
+  } catch { return true }
 })()

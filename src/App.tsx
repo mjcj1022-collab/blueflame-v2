@@ -26,6 +26,7 @@ import { useDesign } from './state/design'
 import { useModeler } from './state/modeler'
 import { useAuth } from './state/auth'
 import { PAYWALL_ENABLED, accessFromSubscription } from './lib/plans'
+import { apiConfigured } from './lib/api'
 import { Pricing } from './ui/Pricing'
 import { useWorkspace } from './state/workspace'
 import { useSettings } from './state/settings'
@@ -150,10 +151,11 @@ export default function App() {
     return () => { unsubD(); unsubS() }
   }, [])
 
-  // Paywall gate — dormant unless the build sets VITE_PAYWALL=on. When on, a shop
-  // with no active subscription (or one-time offline purchase) sees the pricing
-  // screen instead of the studio.
-  if (PAYWALL_ENABLED && !accessFromSubscription(subscription, Date.now()).allowed) {
+  // Paywall gate — pay-to-play by default, but only when a backend is present to
+  // check subscriptions against. A shop with no active subscription (or one-time
+  // offline purchase) sees the pricing screen instead of the studio. The offline
+  // desktop build has no API, so this never fires there.
+  if (PAYWALL_ENABLED && apiConfigured() && !accessFromSubscription(subscription, Date.now()).allowed) {
     return <Pricing />
   }
 
