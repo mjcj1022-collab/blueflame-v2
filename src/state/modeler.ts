@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { bakedVertices, subdivideSoup, smoothSoup, twistSoup, taperSoup, bendSoup, booleanOp, strokeTubeVertices, positionTextVertices, loftVertices, buildFree3DTube, type SketchMode, type Seg3DStyle } from '../lib/sculpt'
+import { bakedVertices, subdivideSoup, smoothSoup, twistSoup, taperSoup, bendSoup, booleanOp, strokeTubeVertices, positionTextVertices, loftVertices, buildFree3DTube, buildLoopFillVertices, unionTriangleSoups, type SketchMode, type Seg3DStyle } from '../lib/sculpt'
 import { textVertices, curvedTextVertices } from '../lib/text3d'
 import { bakedGeometry } from '../lib/sculpt'
 import { allPresets, addUserPreset, removeUserPreset, cloneSketch, type SketchPreset } from '../lib/sketchPresets'
@@ -239,6 +239,10 @@ interface ModelerStore {
   sketch3DPoints: [number, number, number][]
   sketch3DWire: number
   sketch3DClosed: boolean
+  /** Fill the interior of a closed loop with a solid panel instead of leaving
+   *  it a hollow wire outline — on by default so snapping the ends together
+   *  "just builds the shape"; switch off for a plain closed band/ring. */
+  sketch3DFill: boolean
   /** Per-edge style (straight/curved + its own width & height), index i is
    *  the edge from point i to point i+1 (or the closing edge at the last
    *  index once the shape is closed). Kept in sync with sketch3DPoints. */
@@ -251,6 +255,8 @@ interface ModelerStore {
   clear3DPoints: () => void
   set3DWire: (mm: number) => void
   toggle3DClosed: () => void
+  set3DClosed: (v: boolean) => void
+  toggle3DFill: () => void
   setSeg3DCurved: (i: number, curved: boolean) => void
   setSeg3DThickness: (i: number, mm: number) => void
   setSeg3DDepth: (i: number, mm: number) => void
@@ -359,6 +365,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
   sketch3DPoints: [],
   sketch3DWire: 1.2,
   sketch3DClosed: false,
+  sketch3DFill: true,
   sketch3DSegs: [],
   past: [],
   future: [],
@@ -804,7 +811,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
   setSketching: (sketching, editId = null) => set({ sketching, sketchEditId: sketching ? editId : null }),
 
   // --- Free-form 3D building: no template, just placed points wired together ---
-  setSketching3D: on => set({ sketching3D: on, sketch3DPoints: [], sketch3DClosed: false, sketch3DSegs: [] }),
+  setSketching3D: on => set({ sketching3D: on, sketch3DPoints: [], sketch3DClosed: false, sketch3DFill: true, sketch3DSegs: [] }),
   add3DPoint: p => set(s => ({
     sketch3DPoints: [...s.sketch3DPoints, p],
     sketch3DSegs: [...s.sketch3DSegs, { curved: false, thickness: s.sketch3DWire, depth: s.sketch3DWire }],
@@ -818,6 +825,8 @@ export const useModeler = create<ModelerStore>((set, get) => {
   clear3DPoints: () => set({ sketch3DPoints: [], sketch3DSegs: [] }),
   set3DWire: mm => set({ sketch3DWire: Math.max(0.2, mm) }),
   toggle3DClosed: () => set(s => ({ sketch3DClosed: !s.sketch3DClosed })),
+  set3DClosed: v => set({ sketch3DClosed: v }),
+  toggle3DFill: () => set(s => ({ sketch3DFill: !s.sketch3DFill })),
   setSeg3DCurved: (i, curved) => set(s => ({
     sketch3DSegs: s.sketch3DSegs.map((seg, j) => j === i ? { ...seg, curved } : seg),
   })),
@@ -828,11 +837,18 @@ export const useModeler = create<ModelerStore>((set, get) => {
     sketch3DSegs: s.sketch3DSegs.map((seg, j) => j === i ? { ...seg, depth: Math.max(0.2, mm) } : seg),
   })),
   finish3DSketch: () => {
-    const { sketch3DPoints: pts, sketch3DSegs: segs, sketch3DClosed: closed, sketch3DWire: wire } = get()
+    const { sketch3DPoints: pts, sketch3DSegs: segs, sketch3DClosed: closed, sketch3DFill: fill, sketch3DWire: wire } = get()
     let id: string | null = null
     if (pts.length >= 2) {
       const styles = pts.map((_, i) => segs[i] ?? { curved: false, thickness: wire, depth: wire })
-      const vertices = buildFree3DTube(pts, styles, closed)
+      let vertices = buildFree3DTube(pts, styles, closed)
+      // The loop closing — by snapping the ends together or ticking Close the
+      // loop — implies a real panel, not a hollow outline: fill the interior
+      // and fuse it to the wire border into one solid.
+      if (closed && fill && pts.length > 2) {
+        const fillVerts = buildLoopFillVertices(pts, wire)
+        if (fillVerts.length) vertices = vertices.length ? unionTriangleSoups(vertices, fillVerts) : fillVerts
+      }
       if (vertices.length) {
         id = get().addMesh({
           kind: 'mesh', vertices, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
@@ -840,10 +856,10 @@ export const useModeler = create<ModelerStore>((set, get) => {
         })
       }
     }
-    set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false, sketch3DSegs: [] })
+    set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false, sketch3DFill: true, sketch3DSegs: [] })
     return id
   },
-  cancel3DSketch: () => set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false, sketch3DSegs: [] }),
+  cancel3DSketch: () => set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false, sketch3DFill: true, sketch3DSegs: [] }),
 
   /** Create a live, re-editable sketch object from a free-drawn profile. */
   addSketch: sketch => {

@@ -545,6 +545,100 @@ export function buildFree3DTube(
   return soup
 }
 
+/** Best-fit plane normal for a point loop via Newell's method — the normal
+ *  comes out consistent with the loop's own winding order (right-hand rule),
+ *  and it's tolerant of a few points sitting slightly off the main plane,
+ *  which free-placed points often do. */
+function loopNormal(pts: THREE.Vector3[]): THREE.Vector3 {
+  const n = new THREE.Vector3()
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length]
+    n.x += (a.y - b.y) * (a.z + b.z)
+    n.y += (a.z - b.z) * (a.x + b.x)
+    n.z += (a.x - b.x) * (a.y + b.y)
+  }
+  return n.lengthSq() > 1e-8 ? n.normalize() : new THREE.Vector3(0, 1, 0)
+}
+
+/** Fill the interior of a closed point loop with a thin solid slab — what
+ *  snapping the last point back onto the first (or ticking Close the loop)
+ *  implies you actually want: a real panel, not just a hollow wire outline.
+ *  Triangulated on the loop's own best-fit plane (so a reasonably-shaped
+ *  concave outline works, not just a convex one), then given real thickness
+ *  so it's a watertight solid that unions cleanly with the wire border. */
+export function buildLoopFillVertices(points: [number, number, number][], thickness: number): number[] {
+  const n = points.length
+  if (n < 3) return []
+  const pts = points.map(p => new THREE.Vector3(...p))
+  const normal = loopNormal(pts)
+  const ref = Math.abs(normal.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)
+  const u = ref.clone().cross(normal).normalize()
+  const v = normal.clone().cross(u).normalize()
+  const centroid = pts.reduce((acc, p) => acc.add(p), new THREE.Vector3()).multiplyScalar(1 / n)
+
+  const pts2D = pts.map(p => {
+    const d = p.clone().sub(centroid)
+    return new THREE.Vector2(d.dot(u), d.dot(v))
+  })
+  let tris: number[][]
+  try {
+    tris = THREE.ShapeUtils.triangulateShape(pts2D, [])
+  } catch {
+    return []
+  }
+  if (!tris.length) return []
+
+  const half = Math.max(0.05, thickness) / 2
+  const top = pts.map(p => p.clone().addScaledVector(normal, half))
+  const bot = pts.map(p => p.clone().addScaledVector(normal, -half))
+
+  const soup: number[] = []
+  const P = (p3: THREE.Vector3) => soup.push(p3.x, p3.y, p3.z)
+  const tri = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3) => { P(a); P(b); P(c) }
+
+  for (const [a, b, c] of tris) tri(top[a], top[b], top[c])   // top cap, faces +normal
+  for (const [a, b, c] of tris) tri(bot[a], bot[c], bot[b])   // bottom cap, faces -normal
+  for (let i = 0; i < n; i++) {                                // side wall, faces outward
+    const j = (i + 1) % n
+    tri(top[i], bot[i], top[j])
+    tri(bot[i], bot[j], top[j])
+  }
+  return soup
+}
+
+/** CSG-union two closed triangle soups into one solid (e.g. a wire border and
+ *  its filled interior panel), so the result is one clean watertight piece
+ *  instead of two overlapping meshes. Falls back to a plain concatenation —
+ *  both parts still render, just not merged — if either soup isn't a valid
+ *  closed brush or the boolean fails. */
+export function unionTriangleSoups(a: number[], b: number[]): number[] {
+  if (!a.length) return b
+  if (!b.length) return a
+  const geoA = new THREE.BufferGeometry()
+  geoA.setAttribute('position', new THREE.Float32BufferAttribute(Float32Array.from(a), 3))
+  const geoB = new THREE.BufferGeometry()
+  geoB.setAttribute('position', new THREE.Float32BufferAttribute(Float32Array.from(b), 3))
+  try {
+    geoA.computeVertexNormals()
+    geoB.computeVertexNormals()
+    const evaluator = new Evaluator()
+    evaluator.useGroups = false
+    evaluator.attributes = ['position', 'normal']
+    const brushA = new Brush(geoA); brushA.updateMatrixWorld()
+    const brushB = new Brush(geoB); brushB.updateMatrixWorld()
+    const res = evaluator.evaluate(brushA, brushB, ADDITION)
+    const pos = res.geometry.getAttribute('position')
+    const out = Array.from(pos.array as Float32Array)
+    res.geometry.dispose()
+    return out
+  } catch {
+    return [...a, ...b]
+  } finally {
+    geoA.dispose()
+    geoB.dispose()
+  }
+}
+
 /** Lay a run of 3D text flat on the top face of a part (world space), scaled to
  *  fit and straddling the surface for a subtract (engrave) or sitting proud for a
  *  union (emboss). `textVerts` are centred XY letters extruded along Z. */

@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { Html, Line } from '@react-three/drei'
 import { useThree, type ThreeEvent } from '@react-three/fiber'
 import { useModeler } from '../state/modeler'
-import { free3DSegCurve, type Seg3DStyle } from '../lib/sculpt'
+import { free3DSegCurve, buildLoopFillVertices, type Seg3DStyle } from '../lib/sculpt'
 
 const DEFAULT_SEG: Seg3DStyle = { curved: false, thickness: 1.2, depth: 1.2 }
 
@@ -21,21 +21,27 @@ const SNAP_MM = 1.2
  * and it follows the cursor on a plane facing the camera, so orbiting the
  * view and dragging again reaches literally any point inside (or outside)
  * the box, not just axis-aligned gizmo moves. Dragging near another vertex
- * snaps onto it (handy for closing a loop or lining two points up exactly).
- * Right-click a vertex to delete it. Points connect in click order into a
- * wire preview, each segment labeled with its length in mm as you build.
- * Click a segment to select it: toggle it between a hard straight line and a
- * smoothed curve, and dial in its own thickness (width) and depth (height) —
- * an elliptical cross-section, so one stretch can read as a flat band and the
- * next as a round wire. Done sweeps a solid through the styled path.
+ * snaps onto it (handy for lining two points up exactly) — and snapping the
+ * last point back onto the first automatically closes the loop and fills its
+ * interior with a solid panel, so the shape is built the moment the outline
+ * meets itself. Right-click a vertex to delete it. Points connect in click
+ * order into a wire preview, each segment labeled with its length in mm as
+ * you build. Click a segment to select it: toggle it between a hard straight
+ * line and a smoothed curve, and dial in its own thickness (width) and depth
+ * (height) — an elliptical cross-section, so one stretch can read as a flat
+ * band and the next as a round wire. Done sweeps the styled path (and any
+ * fill) into a solid.
  */
 export function Free3DSketch() {
   const points = useModeler(s => s.sketch3DPoints)
   const closed = useModeler(s => s.sketch3DClosed)
+  const fill = useModeler(s => s.sketch3DFill)
+  const wire = useModeler(s => s.sketch3DWire)
   const segs = useModeler(s => s.sketch3DSegs)
   const add = useModeler(s => s.add3DPoint)
   const move = useModeler(s => s.move3DPoint)
   const removePt = useModeler(s => s.remove3DPoint)
+  const setClosed = useModeler(s => s.set3DClosed)
   const setSegCurved = useModeler(s => s.setSeg3DCurved)
   const setSegThickness = useModeler(s => s.setSeg3DThickness)
   const setSegDepth = useModeler(s => s.setSeg3DDepth)
@@ -119,13 +125,20 @@ export function Free3DSketch() {
     let x = Math.round(hit.x * 10) / 10, y = Math.round(hit.y * 10) / 10, z = Math.round(hit.z * 10) / 10
     // Snap onto the nearest other vertex once the drag gets close to it.
     let bestD = SNAP_MM
+    let snapTo = -1
     for (let j = 0; j < points.length; j++) {
       if (j === i) continue
       const [ox, oy, oz] = points[j]
       const d = Math.hypot(x - ox, y - oy, z - oz)
-      if (d < bestD) { bestD = d; x = ox; y = oy; z = oz }
+      if (d < bestD) { bestD = d; x = ox; y = oy; z = oz; snapTo = j }
     }
     move(i, [x, y, z])
+    // Snapping one end of the path onto the other closes the loop — and,
+    // with fill on, builds the shape's interior automatically.
+    const last = points.length - 1
+    if (!closed && points.length > 2 && ((i === 0 && snapTo === last) || (i === last && snapTo === 0))) {
+      setClosed(true)
+    }
   }
   const endDrag = (e: ThreeEvent<PointerEvent>) => {
     if (!draggingRef.current) return
@@ -193,6 +206,19 @@ export function Free3DSketch() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [points, segCount, segs, closed])
 
+  // A live preview of the auto-fill: once the loop is closed (and fill is
+  // on), the interior panel that Done will actually build.
+  const fillGeom = useMemo(() => {
+    if (!closed || !fill || points.length < 3) return null
+    const verts = buildLoopFillVertices(points, wire)
+    if (!verts.length) return null
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(Float32Array.from(verts), 3))
+    g.computeVertexNormals()
+    return g
+  }, [points, closed, fill, wire])
+  useEffect(() => () => fillGeom?.dispose(), [fillGeom])
+
   return (
     <>
       {/* The box itself — pure framing, not clickable */}
@@ -215,6 +241,14 @@ export function Free3DSketch() {
         <meshBasicMaterial color="#140F1B" transparent opacity={0.28} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
       {wallGridLines.map((l, i) => <Line key={'w' + i} points={l} color="#2A2438" lineWidth={1} />)}
+
+      {/* Once the loop closes, a preview of the panel Done will actually
+          build across the interior — not clickable, just a heads-up. */}
+      {fillGeom && (
+        <mesh geometry={fillGeom} renderOrder={4} raycast={() => null}>
+          <meshStandardMaterial color="#C6A265" transparent opacity={0.4} side={THREE.DoubleSide} depthWrite={false} />
+        </mesh>
+      )}
 
       {/* Live wire preview through the placed points — one Line per edge so
           each can be clicked and styled on its own. */}
