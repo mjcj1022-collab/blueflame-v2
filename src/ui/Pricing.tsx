@@ -13,6 +13,7 @@ export function Pricing() {
   const user = useAuth(s => s.user)
   const loginRemote = useAuth(s => s.loginRemote)
   const registerRemote = useAuth(s => s.registerRemote)
+  const logout = useAuth(s => s.logout)
 
   const [mode, setMode] = useState<'register' | 'login'>('register')
   const [shop, setShop] = useState('')
@@ -84,7 +85,12 @@ export function Pricing() {
         </form>
       )}
 
-      {user && <p className="pricing-signed">Signed in as <b>{user}</b> — pick a plan to unlock the studio.</p>}
+      {user && (
+        <p className="pricing-signed">
+          Signed in as <b>{user}</b> — pick a plan to unlock the studio.
+          <button type="button" className="pricing-signout" onClick={logout}>Sign out</button>
+        </p>
+      )}
 
       <div className="pricing-grid">
         {PLANS.map(p => (

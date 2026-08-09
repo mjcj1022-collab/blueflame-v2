@@ -724,7 +724,9 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .pa-field input{background:var(--paper);color:var(--graphite);border:1px solid var(--rule-dark);border-radius:8px;padding:9px 10px;font-size:13px}
 .pa-field input:focus{outline:none;border-color:var(--karat);box-shadow:0 0 0 2px var(--karat-lt)}
 .pricing-auth button[type=submit]{margin-top:4px;padding:11px;border-radius:9px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer}
-.pricing-signed{color:var(--graphite);font-size:13px}
+.pricing-signed{color:var(--graphite);font-size:13px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+.pricing-signout{background:none;border:1px solid var(--rule-dark);color:var(--slate);font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;border-radius:7px;cursor:pointer}
+.pricing-signout:hover{border-color:var(--karat);color:var(--graphite)}
 .pricing-err{color:#e0a44a;font-size:12.5px;max-width:520px;text-align:center}
 .pricing-foot{color:var(--slate);font-size:11px;text-align:center;line-height:1.7}
 .pricing-foot a{color:var(--karat)}
