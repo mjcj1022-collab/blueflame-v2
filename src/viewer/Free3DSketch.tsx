@@ -3,6 +3,9 @@ import * as THREE from 'three'
 import { Html, Line } from '@react-three/drei'
 import { useThree, type ThreeEvent } from '@react-three/fiber'
 import { useModeler } from '../state/modeler'
+import { free3DSegCurve, type Seg3DStyle } from '../lib/sculpt'
+
+const DEFAULT_SEG: Seg3DStyle = { curved: false, thickness: 1.2, depth: 1.2 }
 
 /** Reference box: extent and grid-line spacing, in mm. */
 const PLANE_SIZE = 60
@@ -20,15 +23,22 @@ const SNAP_MM = 1.2
  * the box, not just axis-aligned gizmo moves. Dragging near another vertex
  * snaps onto it (handy for closing a loop or lining two points up exactly).
  * Right-click a vertex to delete it. Points connect in click order into a
- * wire preview, each segment labeled with its length in mm as you build;
- * Done sweeps a solid tube through them, building a real object from nothing.
+ * wire preview, each segment labeled with its length in mm as you build.
+ * Click a segment to select it: toggle it between a hard straight line and a
+ * smoothed curve, and dial in its own thickness (width) and depth (height) —
+ * an elliptical cross-section, so one stretch can read as a flat band and the
+ * next as a round wire. Done sweeps a solid through the styled path.
  */
 export function Free3DSketch() {
   const points = useModeler(s => s.sketch3DPoints)
   const closed = useModeler(s => s.sketch3DClosed)
+  const segs = useModeler(s => s.sketch3DSegs)
   const add = useModeler(s => s.add3DPoint)
   const move = useModeler(s => s.move3DPoint)
   const removePt = useModeler(s => s.remove3DPoint)
+  const setSegCurved = useModeler(s => s.setSeg3DCurved)
+  const setSegThickness = useModeler(s => s.setSeg3DThickness)
+  const setSegDepth = useModeler(s => s.setSeg3DDepth)
 
   const controls = useThree(s => s.controls) as { enabled: boolean } | null
 
@@ -38,6 +48,7 @@ export function Free3DSketch() {
   const planeRef = useRef(new THREE.Plane())
   const hitRef = useRef(new THREE.Vector3())
   const normalRef = useRef(new THREE.Vector3())
+  const [selSeg, setSelSeg] = useState<number | null>(null)
 
   // Full box outline so the working volume reads as an enclosing box, not just
   // a floor and a wall.
@@ -129,6 +140,15 @@ export function Free3DSketch() {
     removePt(i)
     if (pick === i) setPick(null)
     else if (pick != null && pick > i) setPick(p => (p == null ? p : p - 1))
+    setSelSeg(null)
+  }
+
+  // Click a segment to select it — opens the curve/thickness/depth panel for
+  // that one edge. Clicking the same segment again closes it.
+  const segClick = (i: number) => (e: ThreeEvent<MouseEvent>) => {
+    if (draggingRef.current) return
+    e.stopPropagation()
+    setSelSeg(s => (s === i ? null : i))
   }
 
   // Delete/Backspace removes the currently selected vertex.
@@ -143,24 +163,35 @@ export function Free3DSketch() {
     return () => window.removeEventListener('keydown', onKey)
   }, [pick, removePt])
 
-  const linePoints = useMemo(() => {
-    const pts = points.map(p => new THREE.Vector3(p[0], p[1], p[2]))
-    if (closed && pts.length > 2) pts.push(pts[0].clone())
-    return pts
-  }, [points, closed])
+  // Number of edges: consecutive points, plus a closing edge back to the
+  // start once the loop is closed.
+  const segCount = closed && points.length > 2 ? points.length : points.length - 1
+  const styleAt = (i: number): Seg3DStyle => segs[i] ?? DEFAULT_SEG
 
-  // A length label at the midpoint of every segment as it's created — updates
-  // live while dragging so you can watch a dimension change as you adjust it.
-  const segments = useMemo(() => {
-    const segs: { mid: THREE.Vector3; mm: number }[] = []
-    const seg = (a: [number, number, number], b: [number, number, number]) => {
-      const av = new THREE.Vector3(...a), bv = new THREE.Vector3(...b)
-      segs.push({ mid: av.clone().lerp(bv, 0.5), mm: av.distanceTo(bv) })
+  // Each edge's own path — a hard line, or (once curved) the same smoothed
+  // curve the final solid is built from, so the preview matches the result.
+  const segPolylines = useMemo(() => {
+    const out: THREE.Vector3[][] = []
+    for (let i = 0; i < segCount; i++) {
+      const st = styleAt(i)
+      out.push(free3DSegCurve(points, i, st.curved, closed).getPoints(st.curved ? 20 : 1))
     }
-    for (let i = 0; i < points.length - 1; i++) seg(points[i], points[i + 1])
-    if (closed && points.length > 2) seg(points[points.length - 1], points[0])
-    return segs
-  }, [points, closed])
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [points, segCount, segs, closed])
+
+  // A length label at the midpoint of every edge as it's created — the real
+  // curve length once an edge is curved, not the straight-line distance.
+  const segments = useMemo(() => {
+    const out: { mid: THREE.Vector3; mm: number }[] = []
+    for (let i = 0; i < segCount; i++) {
+      const st = styleAt(i)
+      const curve = free3DSegCurve(points, i, st.curved, closed)
+      out.push({ mid: curve.getPoint(0.5), mm: curve.getLength() })
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [points, segCount, segs, closed])
 
   return (
     <>
@@ -185,19 +216,62 @@ export function Free3DSketch() {
       </mesh>
       {wallGridLines.map((l, i) => <Line key={'w' + i} points={l} color="#2A2438" lineWidth={1} />)}
 
-      {/* Live wire preview through the placed points */}
-      {linePoints.length > 1 && <Line points={linePoints} color="#E7C989" lineWidth={2.5} />}
+      {/* Live wire preview through the placed points — one Line per edge so
+          each can be clicked and styled on its own. */}
+      {segPolylines.map((pl, i) => (
+        <Line
+          key={'seg' + i}
+          points={pl}
+          color={selSeg === i ? '#7FC8FF' : '#E7C989'}
+          lineWidth={selSeg === i ? 4.5 : 2.5}
+          onClick={segClick(i)}
+        />
+      ))}
 
       {/* A length readout on every segment, live while dragging */}
       {segments.map((s, i) => (
         <Html key={i} position={s.mid} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
           <div style={{
             whiteSpace: 'nowrap', font: '700 11px ui-monospace, monospace', fontVariantNumeric: 'tabular-nums',
-            padding: '2px 7px', borderRadius: 4, color: '#0C1114', background: '#E7C989',
+            padding: '2px 7px', borderRadius: 4, color: '#0C1114', background: selSeg === i ? '#7FC8FF' : '#E7C989',
             boxShadow: '0 1px 6px rgba(0,0,0,0.4)',
           }}>{s.mm.toFixed(2)} mm</div>
         </Html>
       ))}
+
+      {/* Selected-edge panel: toggle straight/curved, dial in this edge's own
+          thickness and depth (an elliptical cross-section, not just round wire). */}
+      {selSeg != null && selSeg < segCount && (
+        <Html position={segments[selSeg].mid} center zIndexRange={[40, 0]} style={{ pointerEvents: 'auto' }}>
+          <div className="seg3d-panel" onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+            <div className="seg3d-head">
+              <b>Line {selSeg + 1}</b>
+              <button className="seg3d-x" onClick={() => setSelSeg(null)} aria-label="Close">×</button>
+            </div>
+            <button
+              className="seg3d-curve"
+              aria-pressed={styleAt(selSeg).curved}
+              onClick={() => setSegCurved(selSeg, !styleAt(selSeg).curved)}
+            >
+              {styleAt(selSeg).curved ? 'Curved — click to straighten' : 'Straight — click to curve'}
+            </button>
+            <label className="sk-slider">Thickness {styleAt(selSeg).thickness.toFixed(1)} mm
+              <input
+                type="range" min={0.3} max={6} step={0.1}
+                value={styleAt(selSeg).thickness}
+                onChange={e => setSegThickness(selSeg, +e.target.value)}
+              />
+            </label>
+            <label className="sk-slider">Depth {styleAt(selSeg).depth.toFixed(1)} mm
+              <input
+                type="range" min={0.3} max={6} step={0.1}
+                value={styleAt(selSeg).depth}
+                onChange={e => setSegDepth(selSeg, +e.target.value)}
+              />
+            </label>
+          </div>
+        </Html>
+      )}
 
       {/* Placed vertices — press and drag to move anywhere in 3D, right-click
           to delete. Small and see-through so they mark a spot without hiding

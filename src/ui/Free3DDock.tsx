@@ -35,7 +35,7 @@ export function Free3DDock() {
     <div className="sketch-dock">
       <div className="sketch-dock-head">
         <b>Build in 3D</b>
-        <span>click the floor or back wall to place · press and drag a point to move it · right-click to delete</span>
+        <span>click the floor or back wall to place · drag a point to move it · click a line to curve it or resize it · right-click a point to delete</span>
         <button className="sketch-x" onClick={cancel} title="Cancel" aria-label="Cancel">×</button>
       </div>
       <div className="sketch-dock-ctl">
@@ -43,15 +43,17 @@ export function Free3DDock() {
           A wireframe box frames the working space — no template. Click the floor for a point at ground level, or
           the upright wall behind it to pick a height directly. Nothing is stuck where it lands: press and drag any
           point and it follows your cursor, so turning the view and dragging again reaches any spot in the box, not
-          just up/down/sideways — and dragging one point close to another snaps it into place. Every segment shows
-          its length in mm as you build. Points connect in the order you place them; Done sweeps a solid wire
-          through the path.
+          just up/down/sideways — and dragging one point close to another snaps it into place. Every line shows its
+          length in mm as you build. Click a line to select it: switch it between a hard straight edge and a
+          smoothed curve, and set its own thickness and depth, so one stretch can be a flat band and the next a
+          round wire. Points connect in the order you place them; Done sweeps a solid through the path.
         </p>
         <div className="disc" style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>Vertices</span><span>{points.length}</span>
         </div>
-        <label className="sk-slider">Wire diameter {wire.toFixed(1)} mm
+        <label className="sk-slider">Default thickness {wire.toFixed(1)} mm
           <input type="range" min={0.3} max={4} step={0.1} value={wire} onChange={e => setWire(+e.target.value)} />
+          <small style={{ textTransform: 'none', letterSpacing: 0 }}>starting size for new lines — click any placed line to fine-tune it on its own</small>
         </label>
         <label className="sk-check"><input type="checkbox" checked={closed} onChange={toggleClosed} />Close the loop<small>connect the last point back to the first</small></label>
         <div className="opts c2">

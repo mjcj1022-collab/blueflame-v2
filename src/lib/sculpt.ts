@@ -455,6 +455,96 @@ export function strokeTubeVertices(points: [number, number, number][], radius: n
   return soup
 }
 
+/** Style for one edge of a free-built 3D wire: a hard straight corner or a
+ *  smoothed curve, plus its own width (thickness) and height (depth) — the
+ *  cross-section is an ellipse, not just a round wire, so one stretch can read
+ *  as a flat band and the next as a round wire. */
+export interface Seg3DStyle { curved: boolean; thickness: number; depth: number }
+
+/** The path for one edge (point i → point i+1, wrapping around for closed
+ *  shapes): a hard line, or — when `curved` — a cubic Bezier built from
+ *  Catmull-Rom tangent handles so it blends smoothly into its neighbouring
+ *  points instead of just bulging in isolation. For an open shape the two
+ *  end edges mirror their missing neighbour off the endpoint itself (the
+ *  standard Catmull-Rom end condition) rather than wrapping around to the
+ *  far side of the shape. Shared by the live sketch preview and the final
+ *  solid so what's on screen matches what gets built. */
+export function free3DSegCurve(
+  points: [number, number, number][], i: number, curved: boolean, closed = false
+): THREE.Curve<THREE.Vector3> {
+  const n = points.length
+  const at = (k: number) => {
+    const idx = closed ? ((k % n) + n) % n : Math.max(0, Math.min(n - 1, k))
+    return new THREE.Vector3(...points[idx])
+  }
+  const p0 = at(i), p1 = at(i + 1)
+  if (!curved) return new THREE.LineCurve3(p0, p1)
+  const pm1 = at(i - 1), p2 = at(i + 2)
+  const t0 = p1.clone().sub(pm1).multiplyScalar(1 / 6)
+  const t1 = p2.clone().sub(p0).multiplyScalar(1 / 6)
+  return new THREE.CubicBezierCurve3(p0, p0.clone().add(t0), p1.clone().sub(t1), p1)
+}
+
+/** Sweep a solid tube through free-placed 3D points. Each edge is independently
+ *  styled — a hard corner or a smoothed curve — with its own width (thickness)
+ *  and height (depth); the elliptical cross-section eases into its neighbour
+ *  at each joint instead of stepping abruptly. */
+export function buildFree3DTube(
+  points: [number, number, number][], segs: Seg3DStyle[], closed: boolean
+): number[] {
+  const n = points.length
+  if (n < 2) return []
+  const segCount = closed && n > 2 ? n : n - 1
+  if (segCount < 1) return []
+  const styleAt = (i: number): Seg3DStyle => segs[i] ?? { curved: false, thickness: 1.2, depth: 1.2 }
+
+  const path = new THREE.CurvePath<THREE.Vector3>()
+  for (let i = 0; i < segCount; i++) path.add(free3DSegCurve(points, i, styleAt(i).curved, closed))
+
+  let minR = Infinity
+  for (let i = 0; i < segCount; i++) { const s = styleAt(i); minR = Math.min(minR, s.thickness, s.depth) }
+  minR = Math.max(0.1, (Number.isFinite(minR) ? minR : 1.2) / 2)
+  const totalLen = path.getLength()
+  const N = Math.max(8, Math.ceil(totalLen / Math.max(0.3, minR * 0.7)))
+  const RSEG = 10
+  const frames = path.computeFrenetFrames(N, false)
+  const centers: THREE.Vector3[] = []
+  const rings: THREE.Vector3[][] = []
+  for (let i = 0; i <= N; i++) {
+    const u = i / N
+    centers.push(path.getPointAt(u))
+    const segPos = Math.min(segCount - 1e-6, u * segCount)
+    const segIdx = Math.min(segCount - 1, Math.floor(segPos))
+    const localT = segPos - segIdx
+    const curr = styleAt(segIdx)
+    const nextIdx = segIdx + 1 < segCount ? segIdx + 1 : (closed ? 0 : segIdx)
+    const next = styleAt(nextIdx)
+    const blend = localT > 0.8 ? (localT - 0.8) / 0.2 : 0
+    const rx = THREE.MathUtils.lerp(curr.thickness, next.thickness, blend) / 2
+    const ry = THREE.MathUtils.lerp(curr.depth, next.depth, blend) / 2
+    const nrm = frames.normals[i], bin = frames.binormals[i]
+    const ring: THREE.Vector3[] = []
+    for (let j = 0; j < RSEG; j++) {
+      const a = (j / RSEG) * Math.PI * 2
+      ring.push(centers[i].clone().addScaledVector(nrm, rx * Math.cos(a)).addScaledVector(bin, ry * Math.sin(a)))
+    }
+    rings.push(ring)
+  }
+  const soup: number[] = []
+  const P = (v: THREE.Vector3) => soup.push(v.x, v.y, v.z)
+  const tri = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3) => { P(a); P(b); P(c) }
+  for (let i = 0; i < N; i++) {
+    const a = rings[i], b = rings[i + 1]
+    for (let j = 0; j < RSEG; j++) { const j1 = (j + 1) % RSEG; tri(a[j], b[j], b[j1]); tri(a[j], b[j1], a[j1]) }
+  }
+  for (let j = 0; j < RSEG; j++) {
+    const j1 = (j + 1) % RSEG
+    tri(centers[0], rings[0][j1], rings[0][j])
+    tri(centers[N], rings[N][j], rings[N][j1])
+  }
+  return soup
+}
+
 /** Lay a run of 3D text flat on the top face of a part (world space), scaled to
  *  fit and straddling the surface for a subtract (engrave) or sitting proud for a
  *  union (emboss). `textVerts` are centred XY letters extruded along Z. */

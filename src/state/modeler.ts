@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { bakedVertices, subdivideSoup, smoothSoup, twistSoup, taperSoup, bendSoup, booleanOp, strokeTubeVertices, positionTextVertices, loftVertices, type SketchMode } from '../lib/sculpt'
+import { bakedVertices, subdivideSoup, smoothSoup, twistSoup, taperSoup, bendSoup, booleanOp, strokeTubeVertices, positionTextVertices, loftVertices, buildFree3DTube, type SketchMode, type Seg3DStyle } from '../lib/sculpt'
 import { textVertices, curvedTextVertices } from '../lib/text3d'
 import { bakedGeometry } from '../lib/sculpt'
 import { allPresets, addUserPreset, removeUserPreset, cloneSketch, type SketchPreset } from '../lib/sketchPresets'
@@ -239,6 +239,10 @@ interface ModelerStore {
   sketch3DPoints: [number, number, number][]
   sketch3DWire: number
   sketch3DClosed: boolean
+  /** Per-edge style (straight/curved + its own width & height), index i is
+   *  the edge from point i to point i+1 (or the closing edge at the last
+   *  index once the shape is closed). Kept in sync with sketch3DPoints. */
+  sketch3DSegs: Seg3DStyle[]
   setSketching3D: (on: boolean) => void
   add3DPoint: (p: [number, number, number]) => void
   move3DPoint: (i: number, p: [number, number, number]) => void
@@ -247,6 +251,9 @@ interface ModelerStore {
   clear3DPoints: () => void
   set3DWire: (mm: number) => void
   toggle3DClosed: () => void
+  setSeg3DCurved: (i: number, curved: boolean) => void
+  setSeg3DThickness: (i: number, mm: number) => void
+  setSeg3DDepth: (i: number, mm: number) => void
   /** Build the solid from the placed points and add it to the bench; returns
    *  the new object's id (or null if there weren't enough points). */
   finish3DSketch: () => string | null
@@ -352,6 +359,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
   sketch3DPoints: [],
   sketch3DWire: 1.2,
   sketch3DClosed: false,
+  sketch3DSegs: [],
   past: [],
   future: [],
   importedSig: null,
@@ -796,20 +804,35 @@ export const useModeler = create<ModelerStore>((set, get) => {
   setSketching: (sketching, editId = null) => set({ sketching, sketchEditId: sketching ? editId : null }),
 
   // --- Free-form 3D building: no template, just placed points wired together ---
-  setSketching3D: on => set({ sketching3D: on, sketch3DPoints: [], sketch3DClosed: false }),
-  add3DPoint: p => set(s => ({ sketch3DPoints: [...s.sketch3DPoints, p] })),
+  setSketching3D: on => set({ sketching3D: on, sketch3DPoints: [], sketch3DClosed: false, sketch3DSegs: [] }),
+  add3DPoint: p => set(s => ({
+    sketch3DPoints: [...s.sketch3DPoints, p],
+    sketch3DSegs: [...s.sketch3DSegs, { curved: false, thickness: s.sketch3DWire, depth: s.sketch3DWire }],
+  })),
   move3DPoint: (i, p) => set(s => ({ sketch3DPoints: s.sketch3DPoints.map((q, j) => j === i ? p : q) })),
-  remove3DPoint: i => set(s => ({ sketch3DPoints: s.sketch3DPoints.filter((_, j) => j !== i) })),
-  undo3DPoint: () => set(s => ({ sketch3DPoints: s.sketch3DPoints.slice(0, -1) })),
-  clear3DPoints: () => set({ sketch3DPoints: [] }),
+  remove3DPoint: i => set(s => ({
+    sketch3DPoints: s.sketch3DPoints.filter((_, j) => j !== i),
+    sketch3DSegs: s.sketch3DSegs.filter((_, j) => j !== i),
+  })),
+  undo3DPoint: () => set(s => ({ sketch3DPoints: s.sketch3DPoints.slice(0, -1), sketch3DSegs: s.sketch3DSegs.slice(0, -1) })),
+  clear3DPoints: () => set({ sketch3DPoints: [], sketch3DSegs: [] }),
   set3DWire: mm => set({ sketch3DWire: Math.max(0.2, mm) }),
   toggle3DClosed: () => set(s => ({ sketch3DClosed: !s.sketch3DClosed })),
+  setSeg3DCurved: (i, curved) => set(s => ({
+    sketch3DSegs: s.sketch3DSegs.map((seg, j) => j === i ? { ...seg, curved } : seg),
+  })),
+  setSeg3DThickness: (i, mm) => set(s => ({
+    sketch3DSegs: s.sketch3DSegs.map((seg, j) => j === i ? { ...seg, thickness: Math.max(0.2, mm) } : seg),
+  })),
+  setSeg3DDepth: (i, mm) => set(s => ({
+    sketch3DSegs: s.sketch3DSegs.map((seg, j) => j === i ? { ...seg, depth: Math.max(0.2, mm) } : seg),
+  })),
   finish3DSketch: () => {
-    const { sketch3DPoints: pts, sketch3DWire: wire, sketch3DClosed: closed } = get()
+    const { sketch3DPoints: pts, sketch3DSegs: segs, sketch3DClosed: closed, sketch3DWire: wire } = get()
     let id: string | null = null
     if (pts.length >= 2) {
-      const path = closed ? [...pts, pts[0]] : pts
-      const vertices = strokeTubeVertices(path, Math.max(0.1, wire) / 2)
+      const styles = pts.map((_, i) => segs[i] ?? { curved: false, thickness: wire, depth: wire })
+      const vertices = buildFree3DTube(pts, styles, closed)
       if (vertices.length) {
         id = get().addMesh({
           kind: 'mesh', vertices, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
@@ -817,10 +840,10 @@ export const useModeler = create<ModelerStore>((set, get) => {
         })
       }
     }
-    set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false })
+    set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false, sketch3DSegs: [] })
     return id
   },
-  cancel3DSketch: () => set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false }),
+  cancel3DSketch: () => set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false, sketch3DSegs: [] }),
 
   /** Create a live, re-editable sketch object from a free-drawn profile. */
   addSketch: sketch => {
