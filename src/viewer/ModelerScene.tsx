@@ -9,11 +9,14 @@ import { CaptureRig } from './CaptureRig'
 import { ObjectListOverlay } from '../ui/ObjectListOverlay'
 import { ModelerToolbar } from '../ui/ModelerToolbar'
 import { SketchDock } from '../ui/SketchPad'
+import { Free3DSketch } from './Free3DSketch'
+import { Free3DDock } from '../ui/Free3DDock'
 
 export function ModelerScene() {
   const objects = useModeler(s => s.objects)
   const select = useModeler(s => s.select)
   const sketching = useModeler(s => s.sketching)
+  const sketching3D = useModeler(s => s.sketching3D)
   const placing = useModeler(s => s.placing)
   const addStone = useModeler(s => s.addStone)
   const explode = useModeler(s => s.explode)
@@ -58,6 +61,8 @@ export function ModelerScene() {
           </group>
         ))}
 
+        {sketching3D && <Free3DSketch />}
+
         {/* Click-to-place: while a stone is armed, an invisible ground plane
             catches clicks on empty space and drops the stone there. Clicking an
             existing part still selects it (that mesh stops propagation first). */}
@@ -88,6 +93,7 @@ export function ModelerScene() {
       <ObjectListOverlay />
       <ModelerToolbar />
       {sketching && <SketchDock />}
+      {sketching3D && <Free3DDock />}
 
       {objects.length === 0 && (
         <div className="modeler-empty">

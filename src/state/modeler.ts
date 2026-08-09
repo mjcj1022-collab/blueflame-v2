@@ -233,6 +233,24 @@ interface ModelerStore {
   sketching: boolean
   sketchEditId: string | null
   setSketching: (on: boolean, editId?: string | null) => void
+  /** True 3D free-form building: place vertices anywhere in space (no 2D
+   *  template/profile) and connect them in click order into a solid wire. */
+  sketching3D: boolean
+  sketch3DPoints: [number, number, number][]
+  sketch3DWire: number
+  sketch3DClosed: boolean
+  setSketching3D: (on: boolean) => void
+  add3DPoint: (p: [number, number, number]) => void
+  move3DPoint: (i: number, p: [number, number, number]) => void
+  remove3DPoint: (i: number) => void
+  undo3DPoint: () => void
+  clear3DPoints: () => void
+  set3DWire: (mm: number) => void
+  toggle3DClosed: () => void
+  /** Build the solid from the placed points and add it to the bench; returns
+   *  the new object's id (or null if there weren't enough points). */
+  finish3DSketch: () => string | null
+  cancel3DSketch: () => void
   addSketch: (sketch: SketchDef) => string
   setObjectSketch: (id: string, sketch: SketchDef) => void
   loftSketches: (idA: string, idB: string, length?: number) => string | null
@@ -330,6 +348,10 @@ export const useModeler = create<ModelerStore>((set, get) => {
   brush: 0.6,
   sketching: false,
   sketchEditId: null,
+  sketching3D: false,
+  sketch3DPoints: [],
+  sketch3DWire: 1.2,
+  sketch3DClosed: false,
   past: [],
   future: [],
   importedSig: null,
@@ -772,6 +794,33 @@ export const useModeler = create<ModelerStore>((set, get) => {
   },
 
   setSketching: (sketching, editId = null) => set({ sketching, sketchEditId: sketching ? editId : null }),
+
+  // --- Free-form 3D building: no template, just placed points wired together ---
+  setSketching3D: on => set({ sketching3D: on, sketch3DPoints: [], sketch3DClosed: false }),
+  add3DPoint: p => set(s => ({ sketch3DPoints: [...s.sketch3DPoints, p] })),
+  move3DPoint: (i, p) => set(s => ({ sketch3DPoints: s.sketch3DPoints.map((q, j) => j === i ? p : q) })),
+  remove3DPoint: i => set(s => ({ sketch3DPoints: s.sketch3DPoints.filter((_, j) => j !== i) })),
+  undo3DPoint: () => set(s => ({ sketch3DPoints: s.sketch3DPoints.slice(0, -1) })),
+  clear3DPoints: () => set({ sketch3DPoints: [] }),
+  set3DWire: mm => set({ sketch3DWire: Math.max(0.2, mm) }),
+  toggle3DClosed: () => set(s => ({ sketch3DClosed: !s.sketch3DClosed })),
+  finish3DSketch: () => {
+    const { sketch3DPoints: pts, sketch3DWire: wire, sketch3DClosed: closed } = get()
+    let id: string | null = null
+    if (pts.length >= 2) {
+      const path = closed ? [...pts, pts[0]] : pts
+      const vertices = strokeTubeVertices(path, Math.max(0.1, wire) / 2)
+      if (vertices.length) {
+        id = get().addMesh({
+          kind: 'mesh', vertices, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
+          size: 0, material: 'metal', color: GOLD, name: '3D build',
+        })
+      }
+    }
+    set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false })
+    return id
+  },
+  cancel3DSketch: () => set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false }),
 
   /** Create a live, re-editable sketch object from a free-drawn profile. */
   addSketch: sketch => {

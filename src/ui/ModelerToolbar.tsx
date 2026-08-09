@@ -10,6 +10,8 @@ import { useModeler } from '../state/modeler'
 export function ModelerToolbar() {
   const sketching = useModeler(s => s.sketching)
   const setSketching = useModeler(s => s.setSketching)
+  const sketching3D = useModeler(s => s.sketching3D)
+  const setSketching3D = useModeler(s => s.setSketching3D)
   const add = useModeler(s => s.add)
   const editMode = useModeler(s => s.editMode)
   const setEditMode = useModeler(s => s.setEditMode)
@@ -26,7 +28,8 @@ export function ModelerToolbar() {
     <div className="stage-toolbar">
       <div className="tbar-grp">
         <span className="tbar-lbl">Draw</span>
-        <button className="sbtn" aria-pressed={sketching} onClick={() => setSketching(!sketching)}>Sketch</button>
+        <button className="sbtn" aria-pressed={sketching} onClick={() => setSketching(!sketching)} title="2D profile, revolved or extruded into a solid">Sketch</button>
+        <button className="sbtn" aria-pressed={sketching3D} onClick={() => setSketching3D(!sketching3D)} title="No template — place vertices anywhere in 3D and wire them together">Build 3D</button>
         <button className="sbtn" onClick={() => add('box')}>+ Box</button>
         <button className="sbtn" onClick={() => add('sphere')}>+ Sphere</button>
         <button className="sbtn" onClick={() => add('gem')}>+ Gem</button>

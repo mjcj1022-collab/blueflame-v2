@@ -88,18 +88,27 @@ function CategorySwitch() {
   )
 }
 
-/** Universal entry point (any piece type) into the free-form sketch grid:
- *  jumps to the Sculpt workspace and opens a blank full-screen vertex/line
- *  canvas, ready to build a custom part from nothing. */
+/** Universal entry point (any piece type) into the free-form sketch tools:
+ *  jumps to the Sculpt workspace and opens either a 2D vertex/line grid
+ *  (revolved or extruded into a solid) or a true 3D builder with no template
+ *  at all — ready to build a custom part from nothing either way. */
 function FreeSketchLauncher() {
   return (
     <Group title="Free sketch">
-      <button
-        className="opt tpl" style={{ width: '100%' }}
-        onClick={() => { useWorkspace.getState().setMode('model'); useModeler.getState().setSketching(true) }}
-      >
-        Open full-screen grid<small>Place vertices/lines yourself and build a shape from nothing</small>
-      </button>
+      <div className="opts c2">
+        <button
+          className="opt tpl"
+          onClick={() => { useWorkspace.getState().setMode('model'); useModeler.getState().setSketching(true) }}
+        >
+          2D grid<small>Draw a profile, then revolve or extrude it</small>
+        </button>
+        <button
+          className="opt tpl"
+          onClick={() => { useWorkspace.getState().setMode('model'); useModeler.getState().setSketching3D(true) }}
+        >
+          3D builder<small>No template — place vertices in 3D and wire them together</small>
+        </button>
+      </div>
     </Group>
   )
 }
