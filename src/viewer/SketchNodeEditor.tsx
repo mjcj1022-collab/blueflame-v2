@@ -211,8 +211,8 @@ export function SketchNodeEditor({ o }: { o: SculptObject }) {
       {sk.points.map((p, i) => (!measuring && i === pick) ? null : (
         <group key={i}>
           <mesh position={handleWorld(p)} onClick={measuring ? measurePick(i) : grab(i)} onContextMenu={delNode(i)} renderOrder={10}>
-            <sphereGeometry args={[measuring && mPicks.includes(i) ? 0.85 : 0.7, 14, 12]} />
-            <meshBasicMaterial color={measuring && mPicks.includes(i) ? '#5FD0E0' : '#9BB4C6'} toneMapped={false} depthTest={false} depthWrite={false} />
+            <sphereGeometry args={[measuring && mPicks.includes(i) ? 0.6 : 0.5, 14, 12]} />
+            <meshBasicMaterial color={measuring && mPicks.includes(i) ? '#5FD0E0' : '#9BB4C6'} toneMapped={false} depthTest={false} depthWrite={false} transparent opacity={0.55} />
           </mesh>
           {nodeLabel(i, p, false)}
         </group>
@@ -222,8 +222,8 @@ export function SketchNodeEditor({ o }: { o: SculptObject }) {
         <>
           <TransformControls key={pickKey} mode="translate" size={0.6} showZ={false} translationSnap={snap ? GRID_MM : null} onObjectChange={drag} onMouseUp={drag}>
             <mesh ref={handleRef} position={handleWorld(sk.points[pick])} onContextMenu={delNode(pick)} renderOrder={11}>
-              <sphereGeometry args={[0.8, 14, 12]} />
-              <meshBasicMaterial color="#C6A265" toneMapped={false} depthTest={false} depthWrite={false} />
+              <sphereGeometry args={[0.55, 14, 12]} />
+              <meshBasicMaterial color="#C6A265" toneMapped={false} depthTest={false} depthWrite={false} transparent opacity={0.6} />
             </mesh>
           </TransformControls>
           {nodeLabel(pick, sk.points[pick], true)}

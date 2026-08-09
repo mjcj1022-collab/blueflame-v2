@@ -116,11 +116,13 @@ export function Free3DSketch() {
       {/* Live wire preview through the placed points */}
       {linePoints.length > 1 && <Line points={linePoints} color="#E7C989" lineWidth={2.5} />}
 
-      {/* Placed vertices — click to select, right-click to delete */}
+      {/* Placed vertices — click to select, right-click to delete. Small and
+          see-through so they mark a spot without hiding the object forming
+          underneath. */}
       {points.map((p, i) => (i === pick) ? null : (
         <mesh key={i} position={p} onClick={grab(i)} onContextMenu={del(i)} renderOrder={10}>
-          <sphereGeometry args={[0.8, 14, 12]} />
-          <meshBasicMaterial color={i === 0 ? '#7FC8FF' : '#C6A265'} toneMapped={false} depthTest={false} />
+          <sphereGeometry args={[0.5, 14, 12]} />
+          <meshBasicMaterial color={i === 0 ? '#7FC8FF' : '#C6A265'} toneMapped={false} depthTest={false} transparent opacity={0.55} />
         </mesh>
       ))}
 
@@ -128,8 +130,8 @@ export function Free3DSketch() {
       {pick != null && points[pick] && (
         <TransformControls key={pickKey} mode="translate" size={0.7} onObjectChange={drag} onMouseUp={drag}>
           <mesh ref={handleRef} position={points[pick]} onContextMenu={del(pick)} renderOrder={11}>
-            <sphereGeometry args={[0.9, 14, 12]} />
-            <meshBasicMaterial color="#E7C989" toneMapped={false} depthTest={false} />
+            <sphereGeometry args={[0.55, 14, 12]} />
+            <meshBasicMaterial color="#E7C989" toneMapped={false} depthTest={false} transparent opacity={0.6} />
           </mesh>
         </TransformControls>
       )}

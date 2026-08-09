@@ -183,8 +183,8 @@ export function VertexSculptor({ vertices, color, falloff, symmetry, tool, selec
           is the live feedback. */}
       {marker && !dragging && (
         <mesh position={marker} raycast={() => null}>
-          <sphereGeometry args={[0.6, 18, 14]} />
-          <meshBasicMaterial color={tool === 'select' ? '#7FC8FF' : '#C6A265'} toneMapped={false} />
+          <sphereGeometry args={[0.4, 18, 14]} />
+          <meshBasicMaterial color={tool === 'select' ? '#7FC8FF' : '#C6A265'} toneMapped={false} transparent opacity={0.65} />
         </mesh>
       )}
     </>
