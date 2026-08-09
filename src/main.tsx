@@ -2,13 +2,10 @@ import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { Login } from './ui/Login'
-import { Pricing } from './ui/Pricing'
 import { ClientReview } from './ui/ClientReview'
 import { useAuth } from './state/auth'
 import { reviewFromUrl } from './lib/share'
 import { captureRef } from './lib/referral'
-import { PAYWALL_ENABLED } from './lib/plans'
-import { apiConfigured } from './lib/api'
 import './styles.css'
 
 captureRef()                     // stash an affiliate ?ref= code before anything else
@@ -23,11 +20,13 @@ function Root() {
   useEffect(() => { void verifySession() }, [verifySession])
 
   if (review) return <ClientReview spec={review.spec} shop={review.shop} />
-  if (user) return <App />                              // App runs its own paywall gate
-  // Not signed in. With the paywall on (and a backend), the pricing screen — which
-  // has register + sign in + subscribe built in — is the entry point. Otherwise the
-  // classic login for the internal/free mode.
-  return (PAYWALL_ENABLED && apiConfigured()) ? <Pricing /> : <Login />
+  if (user) return <App />   // App runs its own paywall gate (shows Pricing if unsubscribed)
+  // Not signed in: the New member / Existing member gate is always the first screen.
+  // A new member registers here, then lands on App's paywall gate — which shows the
+  // pricing tiers and Stripe checkout automatically since a fresh account has no
+  // active subscription yet. An existing member with a live subscription sails
+  // straight into the studio; one without gets the same tiers screen.
+  return <Login />
 }
 
 createRoot(document.getElementById('root')!).render(
