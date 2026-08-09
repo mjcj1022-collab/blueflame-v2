@@ -2,10 +2,17 @@
  * Optional backend client. Set VITE_API_URL at build time to point the app at a
  * running Blue Flame server (see server/README.md). When unset, the app runs
  * fully standalone on localStorage — nothing here is called.
+ *
+ * The offline desktop build (`npm run build:offline`, see offline/README.txt)
+ * is built with VITE_OFFLINE=1, which forces standalone mode here regardless
+ * of any VITE_API_URL left over in the shell — a buyer's downloaded copy must
+ * never accidentally try to phone home to the hosted backend or show the
+ * paywall (they already paid once, at checkout).
  */
 import type { Subscription } from './plans'
 
-const BASE = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_URL
+const OFFLINE_BUILD = (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_OFFLINE === '1'
+const BASE = OFFLINE_BUILD ? undefined : (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_URL
 
 export const apiConfigured = (): boolean => !!BASE
 export const apiBase = (): string | undefined => BASE

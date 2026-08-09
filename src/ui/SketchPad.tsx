@@ -150,6 +150,19 @@ export function SketchDock() {
   const done = () => setSketching(false)
   const cancel = () => { if (isNew.current && objId.current) remove(objId.current); setSketching(false) }
 
+  // Escape backs out of the sketch (discarding it if it was never finished),
+  // same as clicking Cancel.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement
+      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return
+      if (e.key === 'Escape') { e.preventDefault(); cancel() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const path = pts.length ? 'M ' + pts.map(p => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' L ') : ''
   const closeExtrude = mode === 'extrude' && !drawing.current && pts.length >= 3
 

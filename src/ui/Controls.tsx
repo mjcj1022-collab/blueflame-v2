@@ -98,15 +98,17 @@ function FreeSketchLauncher() {
       <div className="opts c2">
         <button
           className="opt tpl"
+          title="key G"
           onClick={() => { useWorkspace.getState().setMode('model'); useModeler.getState().setSketching(true) }}
         >
-          2D grid<small>Draw a profile, then revolve or extrude it</small>
+          2D grid<small>Draw a profile, then revolve or extrude it · key G</small>
         </button>
         <button
           className="opt tpl"
+          title="key B"
           onClick={() => { useWorkspace.getState().setMode('model'); useModeler.getState().setSketching3D(true) }}
         >
-          3D builder<small>No template — place vertices in 3D and wire them together</small>
+          3D builder<small>No template — place vertices in 3D and wire them together · key B</small>
         </button>
       </div>
     </Group>
@@ -550,14 +552,25 @@ export function Controls() {
   const mm = stoneMm(shape, spec.center.carat)
   const rails = guardrails(spec)
 
-  // Undo / redo shortcuts for the Design workspace (Controls only mounts here).
+  // Undo/redo + free-sketch launcher shortcuts for the Design workspace
+  // (Controls only mounts here). G opens the 2D grid, B opens the 3D builder —
+  // both hand off to the Sculpt bench's own state, same as the buttons below.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return
       const t = e.target as HTMLElement
       if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return
-      if (e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo() }
-      else if (e.key.toLowerCase() === 'y') { e.preventDefault(); redo() }
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo() }
+        else if (e.key.toLowerCase() === 'y') { e.preventDefault(); redo() }
+        return
+      }
+      if (e.altKey) return
+      switch (e.key.toLowerCase()) {
+        case 'g': useWorkspace.getState().setMode('model'); useModeler.getState().setSketching(true); break
+        case 'b': useWorkspace.getState().setMode('model'); useModeler.getState().setSketching3D(true); break
+        default: return
+      }
+      e.preventDefault()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

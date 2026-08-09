@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:offline": "tsc -b && vite build --mode offline --outDir offline/app --emptyOutDir",
     "preview": "vite preview",
     "test": "vitest run"
   },

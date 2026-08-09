@@ -1,0 +1,30 @@
+name: Build Offline Package
+
+# Manual trigger (Actions tab → Build Offline Package → Run workflow). Builds
+# the standalone offline studio and zips it into a single downloadable
+# artifact — the file you email to anyone who buys the offline plan. Runs in
+# CI so it doesn't depend on npm working on any particular local machine.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build:offline
+      - name: Zip the offline package
+        run: |
+          cd offline
+          zip -r ../BlueFlame-Offline.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlueFlame-Offline
+          path: BlueFlame-Offline.zip
+          retention-days: 90

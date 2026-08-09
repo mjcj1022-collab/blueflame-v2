@@ -317,6 +317,9 @@ function TextTool() {
 
 export function ModelerPanel() {
   const { objects, selectedId, mode, editMode, falloff, symmetry, surfaceOp, brush, alloyId, snap, sketching, past, future, undo, redo, add, addMesh, update, remove, duplicate, arrayCircular, arrayLinear, paveFill, fitHead, fitBezel, drillHole, addBail, addHalo, addChannelRails, flushSet, textureMesh, addMilgrain, bridgeWire, piercePattern, addSignet, assembleDesign, runModelerCommands, placing, setPlacing, addStone, domeTop, addSizingBeads, symmetrizeMesh, autoOrientForPrint, addGallery, subtractFromAll, mirror, centerObject, dropToFloor, scaleAll, toggleSnap, heatmap, toggleHeatmap, toggleSymmetry, subdivideMesh, smoothMesh, twistMesh, taperMesh, bendMesh, fuseMetal, setSketching, setEditMode, setFalloff, setSurfaceOp, setBrush, select, setMode, setAlloy, clear, load, fixForPrint, seatStone, importMesh, addFinding, explode, setExplode, resizeRing, addMount, addBasket, seatHead, retipProngs, replaceShank, stampHallmark, makeMatchedPair, buildCastingTree, snapshots, saveSnapshot, restoreSnapshot, deleteSnapshot, sketchPresets, applySketchPreset, deleteSketchPreset } = useModeler()
+  const setVertexTool = useModeler(s => s.setVertexTool)
+  const sketching3D = useModeler(s => s.sketching3D)
+  const setSketching3D = useModeler(s => s.setSketching3D)
   const sel = objects.find(o => o.id === selectedId) ?? null
   const dims = sel ? boundingSize(sel) : [0, 0, 0]
   const others = objects.filter(o => o.id !== selectedId)
@@ -375,18 +378,42 @@ export function ModelerPanel() {
   const [msg, setMsg] = useState('')
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 2500) }
 
-  // Undo / redo keyboard shortcuts (ignored while typing in a field).
+  // Undo/redo + tool hotkeys for the Sculpt bench (ignored while typing in a field):
+  // 1 Move · 2 Select · 3 Edit · 4 Add · 5 Remove · 6 Lasso · 7 Surface · 8 Sketch (2D) · 9 Build 3D
+  // G/R/S switch the gizmo to Translate/Rotate/Scale · B/O/J drop a Box/Orb(sphere)/Jewel(gem)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return
       const t = e.target as HTMLElement
       if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return
-      if (e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo() }
-      else if (e.key.toLowerCase() === 'y') { e.preventDefault(); redo() }
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo() }
+        else if (e.key.toLowerCase() === 'y') { e.preventDefault(); redo() }
+        return
+      }
+      if (e.altKey) return
+      switch (e.key.toLowerCase()) {
+        case '1': setEditMode('object'); setMode('translate'); break
+        case '2': setEditMode('vertex'); setVertexTool('select'); break
+        case '3': setEditMode('vertex'); setVertexTool('edit'); break
+        case '4': setEditMode('vertex'); setVertexTool('add'); break
+        case '5': setEditMode('vertex'); setVertexTool('remove'); break
+        case '6': setEditMode('vertex'); setVertexTool('lasso'); break
+        case '7': setEditMode('surface'); break
+        case '8': setSketching(!sketching); break
+        case '9': setSketching3D(!sketching3D); break
+        case 'g': setEditMode('object'); setMode('translate'); break
+        case 'r': setEditMode('object'); setMode('rotate'); break
+        case 's': setEditMode('object'); setMode('scale'); break
+        case 'b': add('box'); break
+        case 'o': add('sphere'); break
+        case 'j': add('gem'); break
+        default: return
+      }
+      e.preventDefault()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo])
+  }, [undo, redo, setEditMode, setMode, setVertexTool, sketching, setSketching, sketching3D, setSketching3D, add])
 
   const metalObjects = objects.filter(o => o.material === 'metal' && o.id !== selectedId)
 

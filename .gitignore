@@ -1,5 +1,7 @@
 node_modules
 dist
+offline/app
+offline/*.zip
 .env
 .env.local
 .DS_Store

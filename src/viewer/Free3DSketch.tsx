@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Line, TransformControls } from '@react-three/drei'
 import type { ThreeEvent } from '@react-three/fiber'
@@ -9,11 +9,15 @@ const PLANE_SIZE = 60
 const GRID_STEP = 5
 
 /**
- * True free-form 3D building — no starting template. Click the floor grid to
- * drop a vertex anywhere; click a placed vertex to select it and drag its
- * gizmo to reposition it in full 3D (any axis, not just the floor); right-click
- * a vertex to delete it. Points connect in click order into a wire preview;
- * Done sweeps a solid tube through them, building a real object from nothing.
+ * True free-form 3D building — no starting template. Two reference grids meet
+ * at a shared back-bottom edge, like an open box corner: the floor (flat,
+ * height 0) and a vertical wall standing up behind it. Click either one to
+ * drop a vertex — the floor for anything at ground level, the wall for
+ * picking a height directly instead of placing-then-dragging. Click a placed
+ * vertex to select it and drag its gizmo to reposition it in full 3D (any
+ * axis, not just the grid it started on); right-click a vertex to delete it.
+ * Points connect in click order into a wire preview; Done sweeps a solid tube
+ * through them, building a real object from nothing.
  */
 export function Free3DSketch() {
   const points = useModeler(s => s.sketch3DPoints)
@@ -37,9 +41,28 @@ export function Free3DSketch() {
     return lines
   }, [])
 
+  // The wall stands upright behind the floor, sharing its back edge (z = -PLANE_SIZE/2)
+  // so the two grids read as one open corner instead of two disconnected planes.
+  const WALL_Z = -PLANE_SIZE / 2
+  const wallGridLines = useMemo(() => {
+    const n = Math.round(PLANE_SIZE / GRID_STEP)
+    const lines: [THREE.Vector3, THREE.Vector3][] = []
+    for (let i = 0; i <= n; i++) {
+      const x = -PLANE_SIZE / 2 + i * GRID_STEP
+      lines.push([new THREE.Vector3(x, 0, WALL_Z), new THREE.Vector3(x, PLANE_SIZE, WALL_Z)])
+      const y = i * GRID_STEP
+      lines.push([new THREE.Vector3(-PLANE_SIZE / 2, y, WALL_Z), new THREE.Vector3(PLANE_SIZE / 2, y, WALL_Z)])
+    }
+    return lines
+  }, [])
+
   const groundClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
     add([Math.round(e.point.x * 10) / 10, 0, Math.round(e.point.z * 10) / 10])
+  }
+  const wallClick = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation()
+    add([Math.round(e.point.x * 10) / 10, Math.round(e.point.y * 10) / 10, WALL_Z])
   }
   const grab = (i: number) => (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); setPick(i); setPickKey(k => k + 1) }
   const del = (i: number) => (e: ThreeEvent<MouseEvent>) => {
@@ -54,6 +77,18 @@ export function Free3DSketch() {
     move(pick, [p.x, p.y, p.z])
   }
 
+  // Delete/Backspace removes the currently selected vertex.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (pick == null) return
+      const t = e.target as HTMLElement
+      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removePt(pick); setPick(null) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pick, removePt])
+
   const linePoints = useMemo(() => {
     const pts = points.map(p => new THREE.Vector3(p[0], p[1], p[2]))
     if (closed && pts.length > 2) pts.push(pts[0].clone())
@@ -62,12 +97,21 @@ export function Free3DSketch() {
 
   return (
     <>
-      {/* Construction floor — click anywhere to drop the next vertex */}
+      {/* Construction floor — click anywhere to drop the next vertex at height 0 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} onClick={groundClick}>
         <planeGeometry args={[PLANE_SIZE, PLANE_SIZE]} />
         <meshBasicMaterial color="#0E1113" transparent opacity={0.28} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
-      {gridLines.map((l, i) => <Line key={i} points={l} color="#242c2f" lineWidth={1} />)}
+      {gridLines.map((l, i) => <Line key={'g' + i} points={l} color="#242c2f" lineWidth={1} />)}
+
+      {/* Vertical wall, standing on the floor's back edge — click to drop a
+          vertex at any height directly, instead of placing on the floor and
+          dragging it up. */}
+      <mesh position={[0, PLANE_SIZE / 2, WALL_Z]} onClick={wallClick}>
+        <planeGeometry args={[PLANE_SIZE, PLANE_SIZE]} />
+        <meshBasicMaterial color="#140F1B" transparent opacity={0.28} side={THREE.DoubleSide} depthWrite={false} />
+      </mesh>
+      {wallGridLines.map((l, i) => <Line key={'w' + i} points={l} color="#2A2438" lineWidth={1} />)}
 
       {/* Live wire preview through the placed points */}
       {linePoints.length > 1 && <Line points={linePoints} color="#E7C989" lineWidth={2.5} />}

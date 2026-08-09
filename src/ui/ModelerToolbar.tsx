@@ -28,24 +28,24 @@ export function ModelerToolbar() {
     <div className="stage-toolbar">
       <div className="tbar-grp">
         <span className="tbar-lbl">Draw</span>
-        <button className="sbtn" aria-pressed={sketching} onClick={() => setSketching(!sketching)} title="2D profile, revolved or extruded into a solid">Sketch</button>
-        <button className="sbtn" aria-pressed={sketching3D} onClick={() => setSketching3D(!sketching3D)} title="No template — place vertices anywhere in 3D and wire them together">Build 3D</button>
-        <button className="sbtn" onClick={() => add('box')}>+ Box</button>
-        <button className="sbtn" onClick={() => add('sphere')}>+ Sphere</button>
-        <button className="sbtn" onClick={() => add('gem')}>+ Gem</button>
+        <button className="sbtn" aria-pressed={sketching} onClick={() => setSketching(!sketching)} title="2D profile, revolved or extruded into a solid  ·  key 8">Sketch</button>
+        <button className="sbtn" aria-pressed={sketching3D} onClick={() => setSketching3D(!sketching3D)} title="No template — place vertices anywhere in 3D and wire them together  ·  key 9">Build 3D</button>
+        <button className="sbtn" onClick={() => add('box')} title="key B">+ Box</button>
+        <button className="sbtn" onClick={() => add('sphere')} title="key O">+ Sphere</button>
+        <button className="sbtn" onClick={() => add('gem')} title="key J">+ Gem</button>
       </div>
       <div className="tbar-grp">
         <span className="tbar-lbl">Tools</span>
-        <button className="sbtn" aria-pressed={editMode === 'object'} onClick={move} title="Move whole objects">Move</button>
-        <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'select'} onClick={() => setVertexTool('select')} title="Select vertices only">Select</button>
-        <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'edit'} onClick={() => setVertexTool('edit')} title="Left-click a vertex and drag to reshape">Edit</button>
-        <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'add'} onClick={() => setVertexTool('add')} title="Click the surface to add a vertex">Add</button>
-        <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'remove'} onClick={() => setVertexTool('remove')} title="Double-click a vertex to remove it">Remove</button>
-        <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'lasso'} onClick={() => setVertexTool('lasso')} title="Drag a lasso to select a group of vertices, then move them with the gizmo">Lasso</button>
+        <button className="sbtn" aria-pressed={editMode === 'object'} onClick={move} title="Move whole objects  ·  key 1 or G  (R rotate, S scale)">Move</button>
+        <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'select'} onClick={() => setVertexTool('select')} title="Select vertices only  ·  key 2">Select</button>
+        <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'edit'} onClick={() => setVertexTool('edit')} title="Left-click a vertex and drag to reshape  ·  key 3">Edit</button>
+        <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'add'} onClick={() => setVertexTool('add')} title="Click the surface to add a vertex  ·  key 4">Add</button>
+        <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'remove'} onClick={() => setVertexTool('remove')} title="Double-click a vertex to remove it  ·  key 5">Remove</button>
+        <button className="sbtn" aria-pressed={editMode === 'vertex' && vertexTool === 'lasso'} onClick={() => setVertexTool('lasso')} title="Drag a lasso to select a group of vertices, then move them with the gizmo  ·  key 6">Lasso</button>
         {selectedVerts.length > 0 && selectedId && (
-          <button className="sbtn" onClick={() => deleteVertsGroup(selectedId, selectedVerts)} title="Delete the selected vertices">Delete ({selectedVerts.length})</button>
+          <button className="sbtn" onClick={() => deleteVertsGroup(selectedId, selectedVerts)} title="Delete the selected vertices  ·  key Delete">Delete ({selectedVerts.length})</button>
         )}
-        <button className="sbtn" aria-pressed={editMode === 'surface'} onClick={() => setEditMode('surface')} title="Draw on the surface">Surface</button>
+        <button className="sbtn" aria-pressed={editMode === 'surface'} onClick={() => setEditMode('surface')} title="Draw on the surface  ·  key 7">Surface</button>
       </div>
     </div>
   )

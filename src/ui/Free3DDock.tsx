@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useModeler } from '../state/modeler'
 
 /**
@@ -17,18 +18,32 @@ export function Free3DDock() {
   const finish = useModeler(s => s.finish3DSketch)
   const cancel = useModeler(s => s.cancel3DSketch)
 
+  // Escape cancels the build; Enter finishes it once there are enough points
+  // to sweep a solid (mirrors the Cancel/Done buttons below).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement
+      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return
+      if (e.key === 'Escape') { e.preventDefault(); cancel() }
+      else if (e.key === 'Enter' && points.length >= 2) { e.preventDefault(); finish() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [cancel, finish, points.length])
+
   return (
     <div className="sketch-dock">
       <div className="sketch-dock-head">
         <b>Build in 3D</b>
-        <span>click the floor to place · click a point to select · right-click to delete</span>
+        <span>click the floor or back wall to place · click a point to select · right-click to delete</span>
         <button className="sketch-x" onClick={cancel} title="Cancel" aria-label="Cancel">×</button>
       </div>
       <div className="sketch-dock-ctl">
         <p className="sk-explain">
-          Click anywhere on the floor grid to drop a vertex — no template, no starting shape. Select a placed
-          vertex and drag its gizmo to move it on any axis. Points connect in the order you place them; Done
-          sweeps a solid wire through the path.
+          Two grids, no template: the floor for points at ground level, the upright wall behind it for picking a
+          height directly — click either one to drop a vertex. Select a placed vertex and drag its gizmo to move
+          it on any axis afterward. Points connect in the order you place them; Done sweeps a solid wire through
+          the path.
         </p>
         <div className="disc" style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>Vertices</span><span>{points.length}</span>
