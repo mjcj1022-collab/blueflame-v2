@@ -44,3 +44,21 @@ export function designFeatures(spec: DesignSpec): Feature[] {
 
 export const isHidden = (spec: DesignSpec, key: string): boolean =>
   (spec.hidden ?? []).includes(key)
+
+/**
+ * Can this feature be permanently deleted (not just hidden)? Structural parts
+ * every piece must have (band, bail, posts) can only be hidden; optional
+ * additions (engraving, a pendant's chain, station stones, a halo/eternity
+ * accent row, the center stone + its setting) can be removed outright.
+ */
+export function isDeletable(spec: DesignSpec, key: string): boolean {
+  switch (key) {
+    case 'engraving': return true
+    case 'chain': return spec.category === 'pendant'
+    case 'station': return spec.category === 'necklace' && !!spec.necklace.station
+    case 'halo': return true
+    case 'stone':
+    case 'head': return stoneOnPiece(spec)
+    default: return false
+  }
+}

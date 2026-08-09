@@ -126,6 +126,8 @@ html.compact .panel-block{padding:12px 16px}
 .attr-row.off span{opacity:.4;text-decoration:line-through}
 .attr-row button{flex:0 0 auto;font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;background:none;border:1px solid var(--rule-dark);color:#B3A588;padding:3px 7px;cursor:pointer}
 .attr-row button:hover{color:#fff;border-color:var(--karat)}
+.attr-row button.attr-del{color:#C97B6B;border-color:#5a2c26}
+.attr-row button.attr-del:hover{color:#fff;background:#7a2e24;border-color:#7a2e24}
 .attr-row.sel{background:rgba(31,138,107,.14);box-shadow:inset 3px 0 0 var(--karat)}
 .sculpt-warns{margin-top:10px;border-top:1px solid var(--rule-dark);padding-top:8px}
 .warn-line{margin:5px 0 0;font-family:var(--mono);font-size:10px;line-height:1.5;color:var(--warn)}
@@ -395,12 +397,20 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 
 /* free-draw sketch — docked live on the modeler stage */
 .sketch-dock{position:absolute;right:20px;top:20px;width:266px;background:rgba(28,21,13,.9);border:1px solid var(--rule-dark);backdrop-filter:blur(3px);padding:12px;z-index:3;box-shadow:0 20px 60px rgba(0,0,0,.5)}
-.sketch-dock-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;padding-right:24px}
+.sketch-dock-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;padding-right:48px;position:relative}
 .sketch-dock-head b{font-size:12px;color:#DDE2E3;letter-spacing:.02em}
 .sketch-dock-head span{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;color:#7A8386;text-transform:uppercase}
 .sketch-x{position:absolute;top:8px;right:8px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;background:rgba(28,21,13,.6);border:1px solid var(--rule-dark);color:#B3A588;font-size:16px;line-height:1;cursor:pointer;padding:0}
 .sketch-x:hover{color:#fff;border-color:var(--karat)}
+.sketch-full{position:absolute;top:8px;right:34px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;background:rgba(28,21,13,.6);border:1px solid var(--rule-dark);color:#B3A588;font-size:13px;line-height:1;cursor:pointer;padding:0}
+.sketch-full:hover,.sketch-full[aria-pressed="true"]{color:#fff;border-color:var(--karat)}
 .sketch-svg{width:100%;height:200px;background:#0E1113;border:1px solid var(--rule-dark);touch-action:none;cursor:crosshair;display:block}
+/* Full-screen grid: covers the viewport so vertices/lines can be placed with
+   far more room and precision than the small docked pad. */
+.sketch-dock.full{position:fixed;inset:44px 20px 20px;width:auto;max-height:none;z-index:50;display:flex;flex-direction:column;padding:16px}
+.sketch-dock.full .sketch-dock-body{flex:1;min-height:0;display:flex;gap:16px}
+.sketch-svg.full{flex:1;width:auto;height:100%}
+.sketch-dock.full .sketch-dock-ctl{width:230px;flex:0 0 auto;overflow-y:auto;margin-top:0}
 .sk-grid{stroke:#20272a;stroke-width:1}
 .sk-axis{stroke:var(--karat);stroke-width:1.5;stroke-dasharray:3 4}
 .sk-axis.dim{stroke:#39424680;stroke-dasharray:2 4}

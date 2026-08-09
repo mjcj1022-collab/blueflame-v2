@@ -47,7 +47,8 @@ export function SketchDock() {
   const [depth, setDepth] = useState(3)
   const [segments, setSegments] = useState(48)
   const [arc, setArc] = useState(360)
-  const [edit, setEdit] = useState(false)     // false = freehand draw, true = node editing
+  const [edit, setEdit] = useState(true)      // false = freehand draw, true = place/drag vertices
+  const [full, setFull] = useState(true)      // true = full-screen grid by default; false = small docked pad
   const [snap, setSnap] = useState(false)
   const [pts, setPtsState] = useState<Pt[]>([])
   const ptsRef = useRef<Pt[]>([])
@@ -157,45 +158,48 @@ export function SketchDock() {
   })()
 
   return (
-    <div className="sketch-dock">
+    <div className={`sketch-dock${full ? ' full' : ''}`}>
       <div className="sketch-dock-head">
         <b>{isNew.current ? 'Free draw' : 'Edit sketch'}</b>
-        <span>{edit ? 'click add · drag · right-click del' : mode === 'revolve' ? 'draw right of axis' : 'draw a closed loop'}</span>
+        <span>{edit ? 'click empty grid to place a vertex · drag to move · right-click to delete' : mode === 'revolve' ? 'draw right of axis' : 'draw a closed loop'}</span>
+        <button className="sketch-full" aria-pressed={full} onClick={() => setFull(f => !f)} title={full ? 'Exit full screen' : 'Full-screen grid'} aria-label={full ? 'Exit full screen' : 'Full-screen grid'}>{full ? '⤡' : '⤢'}</button>
         <button className="sketch-x" onClick={done} title="Save and close" aria-label="Save and close">×</button>
       </div>
-      <svg
-        ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="sketch-svg"
-        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} onContextMenu={ctx}
-      >
-        {[...Array(Math.floor(W / GRID) + 1)].map((_, i) => <line key={'v' + i} x1={i * GRID} y1={0} x2={i * GRID} y2={H} className="sk-grid" />)}
-        {[...Array(Math.floor(H / GRID) + 1)].map((_, i) => <line key={'h' + i} x1={0} y1={i * GRID} x2={W} y2={i * GRID} className="sk-grid" />)}
-        {mode === 'revolve' && <line x1={AXIS_X} y1={0} x2={AXIS_X} y2={H} className="sk-axis" />}
-        {mode === 'extrude' && <line x1={W / 2} y1={0} x2={W / 2} y2={H} className="sk-axis dim" />}
-        {path && <path d={closeExtrude ? path + ' Z' : path} className="sk-path" />}
-        {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={edit ? 4 : 1.6} className={edit ? 'sk-node' : 'sk-dot'} />)}
-      </svg>
+      <div className="sketch-dock-body">
+        <svg
+          ref={svgRef} viewBox={`0 0 ${W} ${H}`} className={`sketch-svg${full ? ' full' : ''}`}
+          onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} onContextMenu={ctx}
+        >
+          {[...Array(Math.floor(W / GRID) + 1)].map((_, i) => <line key={'v' + i} x1={i * GRID} y1={0} x2={i * GRID} y2={H} className="sk-grid" />)}
+          {[...Array(Math.floor(H / GRID) + 1)].map((_, i) => <line key={'h' + i} x1={0} y1={i * GRID} x2={W} y2={i * GRID} className="sk-grid" />)}
+          {mode === 'revolve' && <line x1={AXIS_X} y1={0} x2={AXIS_X} y2={H} className="sk-axis" />}
+          {mode === 'extrude' && <line x1={W / 2} y1={0} x2={W / 2} y2={H} className="sk-axis dim" />}
+          {path && <path d={closeExtrude ? path + ' Z' : path} className="sk-path" />}
+          {pts.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={edit ? 4 : 1.6} className={edit ? 'sk-node' : 'sk-dot'} />)}
+        </svg>
 
-      <div className="sketch-dock-ctl">
-        <div className="opts c2">
-          <button className="opt" aria-pressed={!edit} onClick={() => setEdit(false)}>Draw</button>
-          <button className="opt" aria-pressed={edit} onClick={() => setEdit(true)}>Edit nodes</button>
+        <div className="sketch-dock-ctl">
+          <div className="opts c2">
+            <button className="opt" aria-pressed={edit} onClick={() => setEdit(true)}>Place vertices</button>
+            <button className="opt" aria-pressed={!edit} onClick={() => setEdit(false)}>Freehand draw</button>
+          </div>
+          <div className="opts c2">
+            <button className="opt" aria-pressed={mode === 'revolve'} onClick={() => changeMode('revolve')}>Revolve</button>
+            <button className="opt" aria-pressed={mode === 'extrude'} onClick={() => changeMode('extrude')}>Extrude</button>
+          </div>
+          {mode === 'extrude'
+            ? <label className="sk-slider">Depth {depth.toFixed(1)} mm<input type="range" min={0.6} max={12} step={0.2} value={depth} onChange={e => changeDepth(+e.target.value)} /></label>
+            : <>
+                <label className="sk-slider">Angle {arc}°<input type="range" min={20} max={360} step={5} value={arc} onChange={e => changeArc(+e.target.value)} /></label>
+                <label className="sk-slider">Sides {segments}<input type="range" min={8} max={96} step={1} value={segments} onChange={e => changeSeg(+e.target.value)} /></label>
+              </>}
+          <label className="sk-check"><input type="checkbox" checked={snap} onChange={e => setSnap(e.target.checked)} />Snap to grid{dims && <span className="sk-dims">{dims}</span>}</label>
+          <div className="opts c2">
+            <button className="opt" onClick={clear}>Clear</button>
+            <button className="opt" onClick={cancel}>Cancel</button>
+          </div>
+          <button className="opt tpl sk-done" onClick={done}>Done</button>
         </div>
-        <div className="opts c2">
-          <button className="opt" aria-pressed={mode === 'revolve'} onClick={() => changeMode('revolve')}>Revolve</button>
-          <button className="opt" aria-pressed={mode === 'extrude'} onClick={() => changeMode('extrude')}>Extrude</button>
-        </div>
-        {mode === 'extrude'
-          ? <label className="sk-slider">Depth {depth.toFixed(1)} mm<input type="range" min={0.6} max={12} step={0.2} value={depth} onChange={e => changeDepth(+e.target.value)} /></label>
-          : <>
-              <label className="sk-slider">Angle {arc}°<input type="range" min={20} max={360} step={5} value={arc} onChange={e => changeArc(+e.target.value)} /></label>
-              <label className="sk-slider">Sides {segments}<input type="range" min={8} max={96} step={1} value={segments} onChange={e => changeSeg(+e.target.value)} /></label>
-            </>}
-        <label className="sk-check"><input type="checkbox" checked={snap} onChange={e => setSnap(e.target.checked)} />Snap to grid{dims && <span className="sk-dims">{dims}</span>}</label>
-        <div className="opts c2">
-          <button className="opt" onClick={clear}>Clear</button>
-          <button className="opt" onClick={cancel}>Cancel</button>
-        </div>
-        <button className="opt tpl sk-done" onClick={done}>Done</button>
       </div>
     </div>
   )

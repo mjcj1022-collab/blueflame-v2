@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import {
-  DEFAULT_SPEC, type DesignSpec, type FitProfile, type ProductCategory, type FinishId
+  DEFAULT_SPEC, NO_STONE, type DesignSpec, type FitProfile, type ProductCategory, type FinishId
 } from '../spec/types'
-import { registerAlloy, type Alloy } from '../catalog'
+import { registerAlloy, SETTINGS, type Alloy } from '../catalog'
 import { MARKET, setMarket as applyMarket, type Market } from '../lib/market'
 import type { WeightUnit } from '../lib/units'
 
@@ -58,6 +58,7 @@ interface DesignStore {
   setEngraving: (patch: Partial<DesignSpec['engraving']>) => void
   setFit: (fit: FitProfile) => void
   toggleHidden: (key: string) => void
+  deleteFeature: (key: string) => void
   reveal: (key: string) => void
   clearHidden: () => void
   load: (spec: DesignSpec) => void
@@ -162,6 +163,33 @@ export const useDesign = create<DesignStore>((rawSet, get) => {
     const cur = s.spec.hidden ?? []
     const hidden = cur.includes(key) ? cur.filter(k => k !== key) : [...cur, key]
     return { spec: { ...s.spec, hidden } }
+  }),
+  // Permanently remove an optional feature (as opposed to toggleHidden, which
+  // just hides-and-can-restore it). Clears the underlying spec field so it's
+  // gone for good; structural parts (band, bail, posts) aren't handled here —
+  // see isDeletable() in lib/features, which gates whether the UI offers this.
+  deleteFeature: key => set(s => {
+    const spec = s.spec
+    switch (key) {
+      case 'engraving':
+        return { spec: { ...spec, engraving: { ...spec.engraving, text: '' } } }
+      case 'chain':
+        return spec.category === 'pendant'
+          ? { spec: { ...spec, pendant: { ...spec.pendant, hasChain: false } } }
+          : s
+      case 'station':
+        return spec.category === 'necklace'
+          ? { spec: { ...spec, necklace: { ...spec.necklace, station: undefined } } }
+          : s
+      case 'halo':
+        // Reset to a plain, non-halo/non-eternity setting; drops any melee too.
+        return { spec: { ...spec, setting: { typeId: SETTINGS[0].id } } }
+      case 'stone':
+      case 'head':
+        return { spec: { ...spec, center: { ...spec.center, stoneTypeId: NO_STONE } } }
+      default:
+        return s
+    }
   }),
   reveal: key => set(s => {
     const cur = s.spec.hidden ?? []

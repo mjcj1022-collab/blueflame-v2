@@ -88,6 +88,22 @@ function CategorySwitch() {
   )
 }
 
+/** Universal entry point (any piece type) into the free-form sketch grid:
+ *  jumps to the Sculpt workspace and opens a blank full-screen vertex/line
+ *  canvas, ready to build a custom part from nothing. */
+function FreeSketchLauncher() {
+  return (
+    <Group title="Free sketch">
+      <button
+        className="opt tpl" style={{ width: '100%' }}
+        onClick={() => { useWorkspace.getState().setMode('model'); useModeler.getState().setSketching(true) }}
+      >
+        Open full-screen grid<small>Place vertices/lines yourself and build a shape from nothing</small>
+      </button>
+    </Group>
+  )
+}
+
 const BAND_PROFILES: [string, string][] = [['round', 'Round'], ['flat', 'Flat'], ['dshape', 'D-shape'], ['knife', 'Knife-edge']]
 
 function RingControls() {
@@ -551,6 +567,7 @@ export function Controls() {
     <>
       <DescribeBar />
       <CategorySwitch />
+      <FreeSketchLauncher />
       <Group title="Quick configure">
         <TemplateBrowser />
         <QuickConfigure />
