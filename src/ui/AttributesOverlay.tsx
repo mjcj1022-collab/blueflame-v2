@@ -6,8 +6,10 @@ const copyOut = (text: string) => { try { void navigator.clipboard?.writeText(te
 /**
  * The attribute table, floated on the left of the 3D stage. Lists every
  * rendered object in the design; click a row to hide/restore it, copy its
- * name to the clipboard, or — for optional additions — permanently delete it
- * from the design (unlike Hide, this can't be undone with "Add" afterward).
+ * name to the clipboard, or — for optional additions — remove it from THIS
+ * design only (the underlying feature/setting itself isn't touched anywhere
+ * else — other saved designs, pinned variants, and the catalog are unaffected;
+ * Ctrl/⌘+Z still undoes it, same as any other edit).
  */
 export function AttributesOverlay() {
   const spec = useDesign(s => s.spec)
@@ -34,9 +36,9 @@ export function AttributesOverlay() {
                   className="attr-del"
                   onClick={e => {
                     e.stopPropagation()
-                    if (window.confirm(`Delete ${f.label}? This can't be undone with Add — use Undo if you change your mind.`)) del(f.key)
+                    if (window.confirm(`Remove ${f.label} from this design? (Only this piece — nothing else is affected.) Unlike Hide, "Add" won't bring it back, but Undo (Ctrl/⌘+Z) will.`)) del(f.key)
                   }}
-                  title="Permanently delete this feature"
+                  title="Remove from this design only — doesn't affect other designs or the catalog"
                 >Delete</button>
               )}
             </span>
