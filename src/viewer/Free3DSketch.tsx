@@ -1,23 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { Line, TransformControls } from '@react-three/drei'
-import type { ThreeEvent } from '@react-three/fiber'
+import { Line } from '@react-three/drei'
+import { useThree, type ThreeEvent } from '@react-three/fiber'
 import { useModeler } from '../state/modeler'
 
-/** Reference floor grid: extent and line spacing, in mm. */
+/** Reference box: extent and grid-line spacing, in mm. */
 const PLANE_SIZE = 60
 const GRID_STEP = 5
 
 /**
- * True free-form 3D building — no starting template. Two reference grids meet
- * at a shared back-bottom edge, like an open box corner: the floor (flat,
- * height 0) and a vertical wall standing up behind it. Click either one to
- * drop a vertex — the floor for anything at ground level, the wall for
- * picking a height directly instead of placing-then-dragging. Click a placed
- * vertex to select it and drag its gizmo to reposition it in full 3D (any
- * axis, not just the grid it started on); right-click a vertex to delete it.
- * Points connect in click order into a wire preview; Done sweeps a solid tube
- * through them, building a real object from nothing.
+ * True free-form 3D building — no starting template. A wireframe box frames
+ * the working volume; its floor and back wall are clickable to drop a vertex
+ * (floor for ground level, wall for picking a height directly). But nothing
+ * is stuck to those two surfaces — press and drag any placed vertex directly
+ * and it follows the cursor on a plane facing the camera, so orbiting the
+ * view and dragging again reaches literally any point inside (or outside)
+ * the box, not just axis-aligned gizmo moves. Right-click a vertex to delete
+ * it. Points connect in click order into a wire preview; Done sweeps a solid
+ * tube through them, building a real object from nothing.
  */
 export function Free3DSketch() {
   const points = useModeler(s => s.sketch3DPoints)
@@ -26,9 +26,22 @@ export function Free3DSketch() {
   const move = useModeler(s => s.move3DPoint)
   const removePt = useModeler(s => s.remove3DPoint)
 
+  const controls = useThree(s => s.controls) as { enabled: boolean } | null
+
   const [pick, setPick] = useState<number | null>(null)
-  const [pickKey, setPickKey] = useState(0)
-  const handleRef = useRef<THREE.Mesh>(null)
+  const draggingRef = useRef(false)
+  const [dragging, setDragging] = useState(false)
+  const planeRef = useRef(new THREE.Plane())
+  const hitRef = useRef(new THREE.Vector3())
+  const normalRef = useRef(new THREE.Vector3())
+
+  // Full box outline so the working volume reads as an enclosing box, not just
+  // a floor and a wall.
+  const boxEdges = useMemo(
+    () => new THREE.EdgesGeometry(new THREE.BoxGeometry(PLANE_SIZE, PLANE_SIZE, PLANE_SIZE)),
+    []
+  )
+  useEffect(() => () => boxEdges.dispose(), [boxEdges])
 
   const gridLines = useMemo(() => {
     const n = Math.round(PLANE_SIZE / GRID_STEP)
@@ -42,7 +55,7 @@ export function Free3DSketch() {
   }, [])
 
   // The wall stands upright behind the floor, sharing its back edge (z = -PLANE_SIZE/2)
-  // so the two grids read as one open corner instead of two disconnected planes.
+  // so the two grids read as one corner of the box rather than two disconnected planes.
   const WALL_Z = -PLANE_SIZE / 2
   const wallGridLines = useMemo(() => {
     const n = Math.round(PLANE_SIZE / GRID_STEP)
@@ -57,24 +70,52 @@ export function Free3DSketch() {
   }, [])
 
   const groundClick = (e: ThreeEvent<MouseEvent>) => {
+    if (draggingRef.current) return
     e.stopPropagation()
     add([Math.round(e.point.x * 10) / 10, 0, Math.round(e.point.z * 10) / 10])
   }
   const wallClick = (e: ThreeEvent<MouseEvent>) => {
+    if (draggingRef.current) return
     e.stopPropagation()
     add([Math.round(e.point.x * 10) / 10, Math.round(e.point.y * 10) / 10, WALL_Z])
   }
-  const grab = (i: number) => (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); setPick(i); setPickKey(k => k + 1) }
+
+  // Press a placed vertex and drag — it follows the cursor across a plane
+  // facing the camera, the same free-drag feel as the mesh sculpting tool.
+  // Orbit is suspended for the duration so the drag doesn't fight the camera.
+  const startDrag = (i: number) => (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return
+    e.stopPropagation()
+    setPick(i)
+    const p = points[i]
+    const worldP = new THREE.Vector3(p[0], p[1], p[2])
+    e.camera.getWorldDirection(normalRef.current)
+    planeRef.current.setFromNormalAndCoplanarPoint(normalRef.current, worldP)
+    draggingRef.current = true
+    setDragging(true)
+    if (controls) controls.enabled = false
+    ;(e.target as Element).setPointerCapture?.(e.pointerId)
+  }
+  const onDragMove = (i: number) => (e: ThreeEvent<PointerEvent>) => {
+    if (!draggingRef.current || pick !== i) return
+    e.stopPropagation()
+    const hit = e.ray.intersectPlane(planeRef.current, hitRef.current)
+    if (!hit) return
+    move(i, [Math.round(hit.x * 10) / 10, Math.round(hit.y * 10) / 10, Math.round(hit.z * 10) / 10])
+  }
+  const endDrag = (e: ThreeEvent<PointerEvent>) => {
+    if (!draggingRef.current) return
+    e.stopPropagation()
+    ;(e.target as Element).releasePointerCapture?.(e.pointerId)
+    draggingRef.current = false
+    setDragging(false)
+    if (controls) controls.enabled = true
+  }
   const del = (i: number) => (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
     removePt(i)
     if (pick === i) setPick(null)
     else if (pick != null && pick > i) setPick(p => (p == null ? p : p - 1))
-  }
-  const drag = () => {
-    if (pick == null || !handleRef.current) return
-    const p = handleRef.current.position
-    move(pick, [p.x, p.y, p.z])
   }
 
   // Delete/Backspace removes the currently selected vertex.
@@ -97,6 +138,11 @@ export function Free3DSketch() {
 
   return (
     <>
+      {/* The box itself — pure framing, not clickable */}
+      <lineSegments geometry={boxEdges} position={[0, PLANE_SIZE / 2, 0]} raycast={() => null}>
+        <lineBasicMaterial color="#3a3448" transparent opacity={0.35} />
+      </lineSegments>
+
       {/* Construction floor — click anywhere to drop the next vertex at height 0 */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} onClick={groundClick}>
         <planeGeometry args={[PLANE_SIZE, PLANE_SIZE]} />
@@ -116,25 +162,32 @@ export function Free3DSketch() {
       {/* Live wire preview through the placed points */}
       {linePoints.length > 1 && <Line points={linePoints} color="#E7C989" lineWidth={2.5} />}
 
-      {/* Placed vertices — click to select, right-click to delete. Small and
-          see-through so they mark a spot without hiding the object forming
-          underneath. */}
-      {points.map((p, i) => (i === pick) ? null : (
-        <mesh key={i} position={p} onClick={grab(i)} onContextMenu={del(i)} renderOrder={10}>
-          <sphereGeometry args={[0.5, 14, 12]} />
-          <meshBasicMaterial color={i === 0 ? '#7FC8FF' : '#C6A265'} toneMapped={false} depthTest={false} transparent opacity={0.55} />
-        </mesh>
-      ))}
-
-      {/* Selected vertex — drag the gizmo to move it anywhere in 3D */}
-      {pick != null && points[pick] && (
-        <TransformControls key={pickKey} mode="translate" size={0.7} onObjectChange={drag} onMouseUp={drag}>
-          <mesh ref={handleRef} position={points[pick]} onContextMenu={del(pick)} renderOrder={11}>
-            <sphereGeometry args={[0.55, 14, 12]} />
-            <meshBasicMaterial color="#E7C989" toneMapped={false} depthTest={false} transparent opacity={0.6} />
+      {/* Placed vertices — press and drag to move anywhere in 3D, right-click
+          to delete. Small and see-through so they mark a spot without hiding
+          the object forming underneath. */}
+      {points.map((p, i) => {
+        const active = i === pick && dragging
+        return (
+          <mesh
+            key={i}
+            position={p}
+            onPointerDown={startDrag(i)}
+            onPointerMove={onDragMove(i)}
+            onPointerUp={endDrag}
+            onContextMenu={del(i)}
+            renderOrder={10}
+          >
+            <sphereGeometry args={[active ? 0.6 : 0.5, 14, 12]} />
+            <meshBasicMaterial
+              color={active ? '#E7C989' : i === 0 ? '#7FC8FF' : '#C6A265'}
+              toneMapped={false}
+              depthTest={false}
+              transparent
+              opacity={active ? 0.75 : 0.55}
+            />
           </mesh>
-        </TransformControls>
-      )}
+        )
+      })}
     </>
   )
 }
