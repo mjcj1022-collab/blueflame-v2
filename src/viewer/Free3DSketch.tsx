@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { Line } from '@react-three/drei'
+import { Html, Line } from '@react-three/drei'
 import { useThree, type ThreeEvent } from '@react-three/fiber'
 import { useModeler } from '../state/modeler'
 
 /** Reference box: extent and grid-line spacing, in mm. */
 const PLANE_SIZE = 60
 const GRID_STEP = 5
+/** How close (mm) a dragged vertex must get to another before it snaps onto it. */
+const SNAP_MM = 1.2
 
 /**
  * True free-form 3D building — no starting template. A wireframe box frames
@@ -15,9 +17,11 @@ const GRID_STEP = 5
  * is stuck to those two surfaces — press and drag any placed vertex directly
  * and it follows the cursor on a plane facing the camera, so orbiting the
  * view and dragging again reaches literally any point inside (or outside)
- * the box, not just axis-aligned gizmo moves. Right-click a vertex to delete
- * it. Points connect in click order into a wire preview; Done sweeps a solid
- * tube through them, building a real object from nothing.
+ * the box, not just axis-aligned gizmo moves. Dragging near another vertex
+ * snaps onto it (handy for closing a loop or lining two points up exactly).
+ * Right-click a vertex to delete it. Points connect in click order into a
+ * wire preview, each segment labeled with its length in mm as you build;
+ * Done sweeps a solid tube through them, building a real object from nothing.
  */
 export function Free3DSketch() {
   const points = useModeler(s => s.sketch3DPoints)
@@ -101,7 +105,16 @@ export function Free3DSketch() {
     e.stopPropagation()
     const hit = e.ray.intersectPlane(planeRef.current, hitRef.current)
     if (!hit) return
-    move(i, [Math.round(hit.x * 10) / 10, Math.round(hit.y * 10) / 10, Math.round(hit.z * 10) / 10])
+    let x = Math.round(hit.x * 10) / 10, y = Math.round(hit.y * 10) / 10, z = Math.round(hit.z * 10) / 10
+    // Snap onto the nearest other vertex once the drag gets close to it.
+    let bestD = SNAP_MM
+    for (let j = 0; j < points.length; j++) {
+      if (j === i) continue
+      const [ox, oy, oz] = points[j]
+      const d = Math.hypot(x - ox, y - oy, z - oz)
+      if (d < bestD) { bestD = d; x = ox; y = oy; z = oz }
+    }
+    move(i, [x, y, z])
   }
   const endDrag = (e: ThreeEvent<PointerEvent>) => {
     if (!draggingRef.current) return
@@ -136,6 +149,19 @@ export function Free3DSketch() {
     return pts
   }, [points, closed])
 
+  // A length label at the midpoint of every segment as it's created — updates
+  // live while dragging so you can watch a dimension change as you adjust it.
+  const segments = useMemo(() => {
+    const segs: { mid: THREE.Vector3; mm: number }[] = []
+    const seg = (a: [number, number, number], b: [number, number, number]) => {
+      const av = new THREE.Vector3(...a), bv = new THREE.Vector3(...b)
+      segs.push({ mid: av.clone().lerp(bv, 0.5), mm: av.distanceTo(bv) })
+    }
+    for (let i = 0; i < points.length - 1; i++) seg(points[i], points[i + 1])
+    if (closed && points.length > 2) seg(points[points.length - 1], points[0])
+    return segs
+  }, [points, closed])
+
   return (
     <>
       {/* The box itself — pure framing, not clickable */}
@@ -161,6 +187,17 @@ export function Free3DSketch() {
 
       {/* Live wire preview through the placed points */}
       {linePoints.length > 1 && <Line points={linePoints} color="#E7C989" lineWidth={2.5} />}
+
+      {/* A length readout on every segment, live while dragging */}
+      {segments.map((s, i) => (
+        <Html key={i} position={s.mid} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
+          <div style={{
+            whiteSpace: 'nowrap', font: '700 11px ui-monospace, monospace', fontVariantNumeric: 'tabular-nums',
+            padding: '2px 7px', borderRadius: 4, color: '#0C1114', background: '#E7C989',
+            boxShadow: '0 1px 6px rgba(0,0,0,0.4)',
+          }}>{s.mm.toFixed(2)} mm</div>
+        </Html>
+      ))}
 
       {/* Placed vertices — press and drag to move anywhere in 3D, right-click
           to delete. Small and see-through so they mark a spot without hiding

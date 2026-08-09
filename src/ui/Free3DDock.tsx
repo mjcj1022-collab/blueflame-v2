@@ -43,8 +43,9 @@ export function Free3DDock() {
           A wireframe box frames the working space — no template. Click the floor for a point at ground level, or
           the upright wall behind it to pick a height directly. Nothing is stuck where it lands: press and drag any
           point and it follows your cursor, so turning the view and dragging again reaches any spot in the box, not
-          just up/down/sideways. Points connect in the order you place them; Done sweeps a solid wire through the
-          path.
+          just up/down/sideways — and dragging one point close to another snaps it into place. Every segment shows
+          its length in mm as you build. Points connect in the order you place them; Done sweeps a solid wire
+          through the path.
         </p>
         <div className="disc" style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>Vertices</span><span>{points.length}</span>
