@@ -414,6 +414,8 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .sk-grid{stroke:#20272a;stroke-width:1}
 .sk-axis{stroke:var(--karat);stroke-width:1.5;stroke-dasharray:3 4}
 .sk-axis.dim{stroke:#39424680;stroke-dasharray:2 4}
+.sk-axis-label{fill:#B3A588;font-family:var(--mono);font-size:7px;letter-spacing:.04em;text-transform:uppercase}
+.sk-explain{margin:2px 0 0;font-size:10px;line-height:1.4;color:#9BA6A9}
 .sk-path{fill:none;stroke:var(--karat-lt);stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round}
 .sk-dot{fill:var(--karat)}
 .sk-node{fill:#0E1113;stroke:var(--karat);stroke-width:1.5;cursor:grab}
