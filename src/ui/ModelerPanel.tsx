@@ -158,8 +158,15 @@ function ParamControls({ sel }: { sel: SculptObject }) {
         )}
         <div className="opts c2" style={{ marginTop: 8 }}>
           <button className="opt tpl" onClick={() => setSketching(true, sel.id)}>Edit profile ✎</button>
-          <button className="opt tpl" onClick={() => { select(sel.id); setEditMode('vertex') }}>Drag 3D nodes</button>
+          <button
+            className="opt tpl"
+            onClick={() => { select(sel.id); setEditMode('vertex') }}
+            title="Click the surface to add a vertex, drag a node to move it in 3D, right-click a node to remove it"
+          >Place vertices in 3D</button>
         </div>
+        <p className="disc" style={{ marginTop: 4 }}>
+          <b>Place vertices in 3D</b>: click the shape's surface to add a vertex there, drag any node to reposition it, right-click a node to delete it — same add/remove/edit concept as the sketch grid, directly on the 3D piece.
+        </p>
         <div className="opts c2" style={{ marginTop: 8 }}>
           <button className="opt" aria-pressed={measuring} onClick={() => { select(sel.id); toggleMeasuring() }}>{measuring ? 'Measuring — click 2 nodes' : 'Measure ⟷'}</button>
           <button className="opt" onClick={() => { const n = window.prompt('Save this profile as a preset — name:'); if (n && n.trim()) saveSketchPreset(n, sk) }}>Save as preset ★</button>
