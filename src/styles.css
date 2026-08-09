@@ -235,6 +235,11 @@ table.cmp td.best{color:var(--patina);font-weight:700}
 .qact .ghost{background:none;color:var(--karat-lt)}
 .qact .ghost:hover{background:rgba(31,138,107,.12)}
 
+/* brief "confirming your subscription" pause between sign-in and the studio */
+.access-checking{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(180deg,#131619,#0F1214);
+  font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8A9296}
+
 /* login gate */
 .login-wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;
   background:radial-gradient(900px 500px at 50% -10%, rgba(31,138,107,.10), transparent 60%),linear-gradient(180deg,#131619,#0F1214)}

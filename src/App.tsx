@@ -105,6 +105,7 @@ export default function App() {
   const mode = useWorkspace(s => s.mode)
   const setMode = useWorkspace(s => s.setMode)
   const subscription = useAuth(s => s.subscription)
+  const subscriptionChecked = useAuth(s => s.subscriptionChecked)
   const load = useDesign(s => s.load)
   const hiddenPanels = useSettings(s => s.hiddenPanels)
   const paperTexture = useSettings(s => s.paperTexture)
@@ -181,8 +182,23 @@ export default function App() {
   // check subscriptions against. A shop with no active subscription (or one-time
   // offline purchase) sees the pricing screen instead of the studio. The offline
   // desktop build has no API, so this never fires there.
-  if (PAYWALL_ENABLED && apiConfigured() && !accessFromSubscription(subscription, Date.now()).allowed) {
-    return <Pricing />
+  //
+  // Wait for the first subscription fetch to land before deciding: without this,
+  // a paying member would flash the pricing screen for a moment right after
+  // sign-in (subscription starts null until the network round trip finishes),
+  // which reads as "sign-in didn't work." A quick "checking" screen instead of
+  // Pricing fixes that without changing who ultimately gets in.
+  if (PAYWALL_ENABLED && apiConfigured()) {
+    if (!subscriptionChecked) {
+      return (
+        <div className="access-checking">
+          <p>Checking your account…</p>
+        </div>
+      )
+    }
+    if (!accessFromSubscription(subscription, Date.now()).allowed) {
+      return <Pricing />
+    }
   }
 
   return (

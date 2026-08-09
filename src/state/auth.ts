@@ -73,6 +73,13 @@ interface AuthStore {
   backend: boolean
   /** Billing state for the signed-in shop; null until fetched (or no backend). */
   subscription: Subscription | null
+  /**
+   * Whether the first subscription fetch since sign-in has finished (success
+   * or failure). Lets the paywall gate show a brief "checking" state instead
+   * of flashing the pricing screen at a paying member before their real
+   * status comes back — see App.tsx.
+   */
+  subscriptionChecked: boolean
   setSubscription: (s: Subscription | null) => void
   /** Fetch the shop's subscription from the backend (no-op without a backend). */
   refreshSubscription: () => Promise<void>
@@ -93,11 +100,13 @@ export const useAuth = create<AuthStore>((set, get) => ({
   role: initRole,
   backend: apiConfigured(),
   subscription: null,
+  subscriptionChecked: false,
 
   setSubscription: s => set({ subscription: s }),
   refreshSubscription: async () => {
-    if (!apiConfigured() || !get().user) return
-    try { set({ subscription: await api.getSubscription() }) } catch { /* leave as-is on failure */ }
+    if (!apiConfigured() || !get().user) { set({ subscriptionChecked: true }); return }
+    try { set({ subscription: await api.getSubscription(), subscriptionChecked: true }) }
+    catch { set({ subscriptionChecked: true }) /* leave subscription as-is on failure */ }
   },
 
   // Standalone gate.
@@ -166,6 +175,6 @@ export const useAuth = create<AuthStore>((set, get) => ({
     setToken(null)
     try { localStorage.removeItem(KEY); localStorage.removeItem(TKEY) } catch { /* */ }
     rememberRole(null)
-    set({ user: null, role: null })
+    set({ user: null, role: null, subscription: null, subscriptionChecked: false })
   }
 }))

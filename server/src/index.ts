@@ -384,8 +384,21 @@ const PLAN_PRICE: Record<string, { mode: 'subscription' | 'payment'; env: string
   'offline-lifetime': { mode: 'payment', env: 'STRIPE_PRICE_OFFLINE' },
 }
 
+// Comped accounts (owner/testing) that always pass the paywall without ever
+// touching Stripe. Set the COMP_EMAILS env var on the server (comma-separated
+// emails) — nothing to deploy from the client, and it can't be spoofed from
+// there since this check runs server-side against the signed-in user's own
+// looked-up email, never a value the client sends.
+const compEmails = (process.env.COMP_EMAILS ?? '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+const isCompedUser = (userId: string): boolean => {
+  if (!compEmails.length) return false
+  const u = db.prepare('SELECT email FROM users WHERE id = ?').get(userId) as { email?: string } | undefined
+  return !!u?.email && compEmails.includes(u.email.toLowerCase())
+}
+
 // The signed-in shop's current billing state, shaped for the frontend gate.
 app.get('/api/subscription', requireAuth, (req, res) => {
+  if (isCompedUser(me(req).id)) { res.json({ status: 'active', planId: 'comp', offline: false }); return }
   const t = db.prepare(
     'SELECT subscription_status, subscription_plan, current_period_end, offline_purchase FROM tenants WHERE id = ?'
   ).get(me(req).tenant_id) as { subscription_status?: string; subscription_plan?: string; current_period_end?: number; offline_purchase?: number } | undefined
