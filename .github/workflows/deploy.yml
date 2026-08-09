@@ -35,6 +35,9 @@ jobs:
           # Set VITE_STRIPE_PK (Stripe publishable key) to turn on the checkout
           # screen. Needs VITE_API_URL + the server's STRIPE_SECRET_KEY too.
           VITE_STRIPE_PK: ${{ vars.VITE_STRIPE_PK }}
+          # Set repo variable VITE_PAYWALL=off to temporarily open the studio
+          # (no subscription required). Unset / any other value = paywall armed.
+          VITE_PAYWALL: ${{ vars.VITE_PAYWALL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
