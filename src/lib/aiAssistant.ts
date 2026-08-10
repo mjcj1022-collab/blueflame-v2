@@ -151,7 +151,7 @@ export function mentionsCategory(text: string): ProductCategory | null {
  *  the strict JSON envelope we parse. Built from the live catalog. */
 export function buildSystemPrompt(): string {
   return [
-    'You are the design assistant for Blue Flame, a fine-jewelry CAD app. You turn a maker\'s words (or a reference photo/sketch) into the app\'s REAL parametric design, using ONLY the catalog ids listed below.',
+    'You are the design assistant for Mandrel, a fine-jewelry CAD app. You turn a maker\'s words (or a reference photo/sketch) into the app\'s REAL parametric design, using ONLY the catalog ids listed below.',
     'Reply with a SINGLE JSON object and NOTHING else — no prose before or after, no markdown code fences.',
     '',
     'CHOOSE ONE OF TWO SHAPES:',

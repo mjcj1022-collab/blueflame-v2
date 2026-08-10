@@ -53,7 +53,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
   # Redeploy the Render API on the same push, so `git push` ships both halves.
-  # Needs repo secret RENDER_DEPLOY_HOOK (Render → blue-flame-api → Settings →
+  # Needs repo secret RENDER_DEPLOY_HOOK (Render → mandrel-api → Settings →
   # Deploy Hook → copy URL). Unset = skipped, front end still deploys.
   # Not needed if you grant Render's GitHub App access to this repo — then
   # Render auto-deploys on push by itself.

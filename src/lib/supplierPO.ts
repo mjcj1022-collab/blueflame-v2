@@ -20,7 +20,7 @@ export interface SupplierPOOpts {
 const pad = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length))
 
 export function supplierPOText(objects: SculptObject[], opts: SupplierPOOpts = {}): string {
-  const { poNumber = String(Date.now()).slice(-6), supplier = '____________________', buyer = 'Blue Flame', date = new Date().toISOString().slice(0, 10) } = opts
+  const { poNumber = String(Date.now()).slice(-6), supplier = '____________________', buyer = 'Mandrel', date = new Date().toISOString().slice(0, 10) } = opts
   const o = stoneOrder(objects)
   const rows = o.rows.map(r => `  ${pad(`${r.qty}`, 4)}${pad(`${r.mm.toFixed(2)} mm ${r.shape} ${r.stone}`, 34)}${pad(`${r.totalCarat.toFixed(2)} ct`, 12)}est. ${money(r.cost)}`)
   return [

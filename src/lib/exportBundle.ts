@@ -1,7 +1,7 @@
 import type { SculptObject } from '../state/modeler'
 import { alloyById } from '../catalog'
 import { strToU8 } from 'fflate'
-import { modelerToObj, blueFlameMtl, modelerToStlBinary, modelerTo3mf } from './cadExport'
+import { modelerToObj, mandrelMtl, modelerToStlBinary, modelerTo3mf } from './cadExport'
 import { modelerToStep } from './stepExport'
 import { modelerToDxf } from './dxfExport'
 import { modelerToSvg } from './svgSpec'
@@ -32,8 +32,8 @@ import { sculptHandoff } from './sculptHandoff'
 export interface BundleOpts { shopName: string; saveName?: string; today?: string }
 
 export function assembleAllExports(objects: SculptObject[], alloyId: string, opts: BundleOpts): Record<string, Uint8Array> {
-  const shopName = opts.shopName || 'Blue Flame'
-  const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'blue-flame'
+  const shopName = opts.shopName || 'Mandrel'
+  const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'mandrel'
   const today = opts.today ?? '1970-01-01'
   const alloy = alloyById(alloyId)
   const files: Record<string, Uint8Array> = {}
@@ -54,7 +54,7 @@ export function assembleAllExports(objects: SculptObject[], alloyId: string, opt
   add(`models/${slug}.stl`, () => modelerToStlBinary(objects))
   add(`models/${slug}.3mf`, () => modelerTo3mf(objects))
   add(`models/${slug}.obj`, () => modelerToObj(objects))
-  add('models/blue-flame.mtl', () => blueFlameMtl())
+  add('models/mandrel.mtl', () => mandrelMtl())
   add(`models/${slug}.step`, () => modelerToStep(objects))
   add(`models/${slug}.dxf`, () => modelerToDxf(objects))
   add(`models/${slug}-spec.svg`, () => modelerToSvg(objects, { brand: shopName, name, ringSize: m?.ringSize }))

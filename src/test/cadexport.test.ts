@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { modelerToObj, blueFlameMtl } from '../lib/cadExport'
+import { modelerToObj, mandrelMtl } from '../lib/cadExport'
 import type { SculptObject } from '../state/modeler'
 
 const obj = (p: Partial<SculptObject>): SculptObject => ({
@@ -44,8 +44,8 @@ describe('modelerToObj', () => {
     const names = [...text.matchAll(/^o (.+)$/gm)].map((m) => m[1])
     expect(names).toHaveLength(3)
     expect(new Set(names).size).toBe(3) // duplicate "Ring" got disambiguated
-    expect(text).toContain('usemtl BlueFlame_Metal')
-    expect(text).toContain('usemtl BlueFlame_Gem')
+    expect(text).toContain('usemtl Mandrel_Metal')
+    expect(text).toContain('usemtl Mandrel_Gem')
   })
 
   it('metalOnly drops the stones', () => {
@@ -55,8 +55,8 @@ describe('modelerToObj', () => {
     ]
     const all = modelerToObj(withGem)
     const metal = modelerToObj(withGem, { metalOnly: true })
-    expect(all).toContain('BlueFlame_Gem')
-    expect(metal).not.toContain('BlueFlame_Gem')
+    expect(all).toContain('Mandrel_Gem')
+    expect(metal).not.toContain('Mandrel_Gem')
     expect(count(metal).f).toBeGreaterThan(0)
   })
 
@@ -70,8 +70,8 @@ describe('modelerToObj', () => {
   })
 
   it('mtl defines both materials', () => {
-    const m = blueFlameMtl()
-    expect(m).toContain('newmtl BlueFlame_Metal')
-    expect(m).toContain('newmtl BlueFlame_Gem')
+    const m = mandrelMtl()
+    expect(m).toContain('newmtl Mandrel_Metal')
+    expect(m).toContain('newmtl Mandrel_Gem')
   })
 })

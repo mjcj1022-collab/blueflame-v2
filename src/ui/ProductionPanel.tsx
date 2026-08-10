@@ -16,7 +16,7 @@ export function ProductionPanel() {
   const [stlMsg, setStlMsg] = useState('')
 
   const exportStl = () => {
-    const ok = downloadStl(spec, `blue-flame-${spec.category}-${Date.now()}.stl`)
+    const ok = downloadStl(spec, `mandrel-${spec.category}-${Date.now()}.stl`)
     setStlMsg(ok ? 'STL downloaded — metal only, true millimetres.' : 'Viewer not ready — rotate the model once and retry.')
     setTimeout(() => setStlMsg(''), 4000)
   }

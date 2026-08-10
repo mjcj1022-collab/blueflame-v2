@@ -1,5 +1,5 @@
 /**
- * Subscription & purchase plans for Blue Flame, plus the pure access-control
+ * Subscription & purchase plans for Mandrel, plus the pure access-control
  * logic that decides whether a shop may use the studio. Kept free of any UI or
  * network code so the gate is deterministic and testable. Prices are the shop's
  * to set in Stripe; the numbers here are the launch defaults shown on the
@@ -20,7 +20,7 @@ export interface Plan {
   highlight?: boolean
 }
 
-/** The two ways to get Blue Flame: a hosted monthly seat, or a one-time offline buy. */
+/** The two ways to get Mandrel: a hosted monthly seat, or a one-time offline buy. */
 export const PLANS: Plan[] = [
   {
     id: 'studio-monthly',
@@ -72,22 +72,28 @@ export interface Subscription {
 /** How long a failed payment (past_due) keeps access before the studio locks. */
 export const GRACE_MS = 3 * 24 * 60 * 60 * 1000   // 3 days
 
-export type AccessReason = 'ok' | 'offline' | 'grace' | 'period-remaining' | 'no-subscription' | 'expired' | 'past-due'
+export type AccessReason = 'ok' | 'offline-only' | 'grace' | 'period-remaining' | 'no-subscription' | 'expired' | 'past-due'
 
 export interface Access { allowed: boolean; reason: AccessReason }
 
 /**
- * Decide whether a subscription grants studio access right now.
- * - a one-time offline purchase always passes
+ * Decide whether a subscription grants HOSTED studio access right now. A
+ * one-time offline purchase is deliberately kept separate — it unlocks the
+ * downloadable desktop build only (which never calls this gate at all, since
+ * it ships with no backend configured), not the hosted site. Without this
+ * split, buying the $450 offline plan once would also grant free access to
+ * the $40/mo hosted studio forever, which undercuts the subscription.
  * - active / trialing pass
  * - canceled still passes until the paid period actually ends (they paid for it)
  * - past_due passes only within the grace window after the period end
+ * - an offline-only purchase with no separate subscription is locked out of
+ *   the hosted site (reason 'offline-only', so the UI can point them at their
+ *   download instead of a paywall)
  * - anything else is locked
  */
 export function accessFromSubscription(sub: Subscription | null | undefined, now: number): Access {
   if (!sub) return { allowed: false, reason: 'no-subscription' }
-  if (sub.offline) return { allowed: true, reason: 'offline' }   // one-time buy — checked before status
-  if (sub.status === 'none') return { allowed: false, reason: 'no-subscription' }
+  if (sub.status === 'none') return { allowed: false, reason: sub.offline ? 'offline-only' : 'no-subscription' }
 
   const end = sub.currentPeriodEnd ?? 0
   switch (sub.status) {
@@ -95,11 +101,11 @@ export function accessFromSubscription(sub: Subscription | null | undefined, now
     case 'trialing':
       return { allowed: true, reason: 'ok' }
     case 'canceled':
-      return end > now ? { allowed: true, reason: 'period-remaining' } : { allowed: false, reason: 'expired' }
+      return end > now ? { allowed: true, reason: 'period-remaining' } : { allowed: false, reason: sub.offline ? 'offline-only' : 'expired' }
     case 'past_due':
-      return now <= end + GRACE_MS ? { allowed: true, reason: 'grace' } : { allowed: false, reason: 'past-due' }
+      return now <= end + GRACE_MS ? { allowed: true, reason: 'grace' } : { allowed: false, reason: sub.offline ? 'offline-only' : 'past-due' }
     default:
-      return { allowed: false, reason: 'no-subscription' }
+      return { allowed: false, reason: sub.offline ? 'offline-only' : 'no-subscription' }
   }
 }
 

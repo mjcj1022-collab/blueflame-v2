@@ -22,7 +22,7 @@ export interface JobTicketOpts {
 
 const pad = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length))
 
-export function jobTicketText(objects: SculptObject[], alloyId: string, brand = 'Blue Flame', opts: JobTicketOpts = {}): string {
+export function jobTicketText(objects: SculptObject[], alloyId: string, brand = 'Mandrel', opts: JobTicketOpts = {}): string {
   const alloy = alloyById(alloyId)
   const est = sculptEstimate(objects, alloyId)
   const lb = laborBreakdown(objects, alloyId)

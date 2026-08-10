@@ -17,7 +17,7 @@ describe('assembleAllExports', () => {
     const f = assembleAllExports([shank(), gem()], '14ky', { shopName: 'Test Shop', today: '2026-01-01' })
     expect(has(f, '.stl')).toBe(true)
     expect(has(f, '.obj')).toBe(true)
-    expect(has(f, 'blue-flame.mtl')).toBe(true)
+    expect(has(f, 'mandrel.mtl')).toBe(true)
     expect(has(f, '.step')).toBe(true)
     expect(has(f, '.dxf')).toBe(true)
     expect(has(f, '-spec.svg')).toBe(true)

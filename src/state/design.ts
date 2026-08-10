@@ -113,7 +113,7 @@ export const useDesign = create<DesignStore>((rawSet, get) => {
   market: { ...MARKET },
   // Update the shared engine settings and clone spec so every price display refreshes.
   setMarket: patch => { applyMarket(patch); set(s => ({ market: { ...s.market, ...patch }, spec: { ...s.spec } })) },
-  shop: { name: 'Blue Flame', hideCost: false },
+  shop: { name: 'Mandrel', hideCost: false },
   setShop: patch => set(s => ({ shop: { ...s.shop, ...patch } })),
   orderStage: 0,
   setOrderStage: i => set({ orderStage: Math.max(0, Math.min(6, i)) }),

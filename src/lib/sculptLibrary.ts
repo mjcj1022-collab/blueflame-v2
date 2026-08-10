@@ -13,7 +13,7 @@ export interface SavedSculpt {
 export const parseTags = (s: string): string[] =>
   Array.from(new Set(s.split(/[,\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)))
 
-const KEY = 'blue-flame.sculpts.v1'
+const KEY = 'mandrel.sculpts.v1'
 
 function readAll(): SavedSculpt[] {
   try {

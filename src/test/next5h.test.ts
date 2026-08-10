@@ -32,7 +32,7 @@ describe('invoice', () => {
 
 describe('certificate of authenticity', () => {
   it('states the piece, metal and stones with a SKU', () => {
-    const h = certificateHtml('Blue Flame', 'Solitaire', [shank(), gem('g', 1)], '18ky', '2026-01-01')
+    const h = certificateHtml('Mandrel', 'Solitaire', [shank(), gem('g', 1)], '18ky', '2026-01-01')
     expect(h).toMatch(/Certificate of Authenticity/)
     expect(h).toMatch(/18K/)
     expect(h).toMatch(/RG-18KY/)
@@ -41,7 +41,7 @@ describe('certificate of authenticity', () => {
 
 describe('intake form', () => {
   it('is a printable form with the key brief fields', () => {
-    const h = intakeFormHtml('Blue Flame')
+    const h = intakeFormHtml('Mandrel')
     expect(h).toMatch(/Custom Piece/)
     expect(h).toMatch(/Budget range/)
     expect(h).toMatch(/Deadline/)

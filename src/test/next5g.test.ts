@@ -49,7 +49,7 @@ describe('line sheet', () => {
       { id: '1', name: 'Solitaire', at: 0, objects: [shank(), gem('g', 1)] },
       { id: '2', name: 'Plain band', at: 0, objects: [shank()] },
     ]
-    const txt = lineSheetText(saved, '14ky', 'Blue Flame')
+    const txt = lineSheetText(saved, '14ky', 'Mandrel')
     expect(txt).toMatch(/COLLECTION LINE SHEET/)
     expect(txt).toMatch(/Solitaire/)
     expect(txt).toMatch(/Plain band/)

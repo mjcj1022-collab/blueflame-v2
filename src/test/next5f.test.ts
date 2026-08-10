@@ -11,7 +11,7 @@ const gem = (id: string, ct: number): SculptObject => ({ id, kind: 'gem', name: 
 
 describe('SVG spec drawing', () => {
   it('produces an SVG with dimensions and the piece name', () => {
-    const svg = modelerToSvg([shank()], { brand: 'Blue Flame', name: 'Solitaire', ringSize: 7 })
+    const svg = modelerToSvg([shank()], { brand: 'Mandrel', name: 'Solitaire', ringSize: 7 })
     expect(svg).toMatch(/^<svg/)
     expect(svg).toMatch(/mm</)
     expect(svg).toMatch(/Solitaire/)
@@ -21,7 +21,7 @@ describe('SVG spec drawing', () => {
 
 describe('sculpt appraisal', () => {
   it('states metal, stones and a replacement value above the estimate', () => {
-    const t = sculptAppraisalText([shank(), gem('g', 1)], '18ky', 'Blue Flame', '2026-01-01')
+    const t = sculptAppraisalText([shank(), gem('g', 1)], '18ky', 'Mandrel', '2026-01-01')
     expect(t).toMatch(/INSURANCE APPRAISAL/)
     expect(t).toMatch(/Retail replacement/)
     expect(t).toMatch(/18K/)

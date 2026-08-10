@@ -4,7 +4,7 @@
  * then attach it to the signup so the affiliate gets credited. Kept tiny and
  * dependency-free; safe to call on every load.
  */
-const REF_KEY = 'blue-flame.ref'
+const REF_KEY = 'mandrel.ref'
 
 export function captureRef(): void {
   try {

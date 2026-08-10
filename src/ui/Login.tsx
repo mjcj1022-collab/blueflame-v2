@@ -43,7 +43,7 @@ export function Login() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
-        <div className="logo">BLUE&nbsp;<em>FLAME</em></div>
+        <div className="logo">MAN<em>DREL</em></div>
         <p className="login-sub">Jewelry Design Studio</p>
 
         {backend && (

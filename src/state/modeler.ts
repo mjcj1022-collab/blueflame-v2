@@ -323,7 +323,7 @@ interface ModelerStore {
 
 const HISTORY_LIMIT = 60
 
-const SNAP_KEY = 'blue-flame.snapshots.v1'
+const SNAP_KEY = 'mandrel.snapshots.v1'
 type Snap = { id: string; name: string; at: number; objects: SculptObject[]; alloyId: string }
 function loadSnaps(): Snap[] {
   try { const raw = localStorage.getItem(SNAP_KEY); return raw ? JSON.parse(raw) as Snap[] : [] } catch { return [] }

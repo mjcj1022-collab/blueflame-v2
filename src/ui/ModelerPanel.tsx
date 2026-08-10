@@ -15,7 +15,7 @@ import { minWallForAlloy } from '../lib/manufacture'
 import { meleeOptions, caratForMm, mmForCarat, MELEE_MM } from '../lib/stoneSize'
 import { HEATMAP_MIN_WALL } from '../lib/heatmap'
 import { seatReport, type SeatReport } from '../lib/seatCheck'
-import { modelerToObj, blueFlameMtl, modelerToStlBinary, modelerTo3mf, stlToVertices, objToVertices } from '../lib/cadExport'
+import { modelerToObj, mandrelMtl, modelerToStlBinary, modelerTo3mf, stlToVertices, objToVertices } from '../lib/cadExport'
 import { modelerToSvg } from '../lib/svgSpec'
 import { sculptAppraisalText } from '../lib/sculptAppraisal'
 import { quoteMessage } from '../lib/quoteMessage'
@@ -747,14 +747,14 @@ export function ModelerPanel() {
   const exportStl = () => {
     if (!objects.length) { flash('Nothing to export.'); return }
     if (!printGateOk()) return
-    downloadBlob(modelerToStlBinary(objects), `blue-flame-sculpt-${Date.now()}.stl`, 'model/stl')
+    downloadBlob(modelerToStlBinary(objects), `mandrel-sculpt-${Date.now()}.stl`, 'model/stl')
     flash('Exported binary STL — the slicer/caster-standard mesh.')
   }
   const export3mf = () => {
     if (!objects.length) { flash('Nothing to export.'); return }
     if (!printGateOk()) return
     const z = modelerTo3mf(objects)
-    downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), `blue-flame-sculpt-${Date.now()}.3mf`, 'model/3mf')
+    downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), `mandrel-sculpt-${Date.now()}.3mf`, 'model/3mf')
     flash('Exported 3MF — parts stay separate, millimetre-accurate.')
   }
   const importModelFile = (file: File) => {
@@ -792,9 +792,9 @@ export function ModelerPanel() {
     if (!objects.length) { flash('Nothing to export.'); return }
     if (!printGateOk()) return
     const stamp = Date.now()
-    download(modelerToObj(objects), `blue-flame-sculpt-${stamp}.obj`, 'model/obj')
-    // The OBJ names blue-flame.mtl; ship it too so parts arrive with their colours.
-    download(blueFlameMtl(), 'blue-flame.mtl', 'text/plain')
+    download(modelerToObj(objects), `mandrel-sculpt-${stamp}.obj`, 'model/obj')
+    // The OBJ names mandrel.mtl; ship it too so parts arrive with their colours.
+    download(mandrelMtl(), 'mandrel.mtl', 'text/plain')
     flash('Exported OBJ + MTL — parts and materials arrive separate in CAD.')
   }
 
@@ -826,7 +826,7 @@ export function ModelerPanel() {
     const files = assembleAllExports(objects, alloyId, { shopName, saveName, today })
     const count = Object.keys(files).length
     if (!count) { flash('Couldn’t assemble any exports for this piece.'); return }
-    const slug = (shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'blue-flame'
+    const slug = (shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-')) || 'mandrel'
     const name = describePiece(objects, alloyId).name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
     const z = zipSync(files)
     downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), `${slug}-${name}-all.zip`, 'application/zip')
@@ -1485,9 +1485,9 @@ export function ModelerPanel() {
           <div style={{ marginTop: 12 }}>
             <div className="row"><label>Collection</label>
               <span style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
-                <button className="mini" onClick={() => { download(lineSheetText(saved, alloyId, shopName), 'blue-flame-line-sheet.txt', 'text/plain'); flash('Line sheet saved.') }} title="Price list across all saved designs">Line sheet</button>
-                <button className="mini" onClick={() => { const z = batchStlZip(saved.map(s => ({ name: s.name, objects: s.objects }))); downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), 'blue-flame-collection-stl.zip', 'application/zip'); flash(`Zipped ${saved.length} STL${saved.length === 1 ? '' : 's'}.`) }} title="Every saved design as an STL, zipped for a caster">STL zip</button>
-                <button className="mini" onClick={() => { const files = assembleCollectionExports(saved.map(s => ({ name: s.name, objects: s.objects })), alloyId, { shopName, today: new Date().toISOString().slice(0, 10) }); const n = Object.keys(files).length; if (!n) { flash('Nothing to bundle.'); return } const z = zipSync(files); downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), 'blue-flame-collection-all.zip', 'application/zip'); flash(`Zipped ${n} files across ${saved.length} design${saved.length === 1 ? '' : 's'}.`) }} title="Every saved design's full export set — CAD, documents, client sheets, data — each in its own folder, one zip">Download all</button>
+                <button className="mini" onClick={() => { download(lineSheetText(saved, alloyId, shopName), 'mandrel-line-sheet.txt', 'text/plain'); flash('Line sheet saved.') }} title="Price list across all saved designs">Line sheet</button>
+                <button className="mini" onClick={() => { const z = batchStlZip(saved.map(s => ({ name: s.name, objects: s.objects }))); downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), 'mandrel-collection-stl.zip', 'application/zip'); flash(`Zipped ${saved.length} STL${saved.length === 1 ? '' : 's'}.`) }} title="Every saved design as an STL, zipped for a caster">STL zip</button>
+                <button className="mini" onClick={() => { const files = assembleCollectionExports(saved.map(s => ({ name: s.name, objects: s.objects })), alloyId, { shopName, today: new Date().toISOString().slice(0, 10) }); const n = Object.keys(files).length; if (!n) { flash('Nothing to bundle.'); return } const z = zipSync(files); downloadBlob((z.buffer as ArrayBuffer).slice(z.byteOffset, z.byteOffset + z.byteLength), 'mandrel-collection-all.zip', 'application/zip'); flash(`Zipped ${n} files across ${saved.length} design${saved.length === 1 ? '' : 's'}.`) }} title="Every saved design's full export set — CAD, documents, client sheets, data — each in its own folder, one zip">Download all</button>
               </span>
             </div>
             <div className="row" style={{ marginTop: 6 }}><label>Compare two designs</label></div>
@@ -1669,7 +1669,7 @@ export function ModelerPanel() {
               <h4 style={{ margin: 0 }}>Bill of materials</h4>
               <span style={{ display: 'flex', gap: 6 }}>
                 <button className="mini" onClick={() => { navigator.clipboard?.writeText(sculptBomText(objects, alloyId, shopName)).then(() => flash('BOM copied.'), () => flash('Could not copy.')) }}>Copy</button>
-                <button className="mini" onClick={() => { download(bomCsv(objects, alloyId), 'blue-flame-bom.csv', 'text/csv'); flash('BOM CSV saved.') }}>CSV</button>
+                <button className="mini" onClick={() => { download(bomCsv(objects, alloyId), 'mandrel-bom.csv', 'text/csv'); flash('BOM CSV saved.') }}>CSV</button>
               </span>
             </div>
             <table className="stone-sched">
@@ -1827,7 +1827,7 @@ export function ModelerPanel() {
               <h4 style={{ margin: 0 }}>Stones to order</h4>
               <span style={{ display: 'flex', gap: 6 }}>
                 <button className="mini" onClick={() => navigator.clipboard?.writeText(stoneOrderText(objects, shopName)).then(() => flash('Order list copied.'), () => flash('Could not copy.'))}>Copy</button>
-                <button className="mini" onClick={() => { download(stoneOrderCsv(objects), 'blue-flame-stones.csv', 'text/csv'); flash('Stones CSV saved.') }}>CSV</button>
+                <button className="mini" onClick={() => { download(stoneOrderCsv(objects), 'mandrel-stones.csv', 'text/csv'); flash('Stones CSV saved.') }}>CSV</button>
               </span>
             </div>
             <table className="stone-sched"><tbody>
@@ -2012,7 +2012,7 @@ export function ModelerPanel() {
 
       <div className="panel-block quote">
         <div className="qact" style={{ marginBottom: 8 }}><button className="primary" style={{ width: '100%' }} onClick={downloadAll} title="Bundle every export for this piece — all CAD/mesh formats, shop documents, client sheets and data files — into one zip">⬇ Download all (one zip)</button></div>
-        <div className="qact"><button className="primary" onClick={exportStl} title="Binary STL — the slicer/caster standard">Export STL</button><button className="ghost" onClick={export3mf} title="3MF — modern container, parts stay separate">Export 3MF</button><button className="ghost" onClick={exportObj} title="Named parts + metal/gem groups, for ZBrush / Blender / Matrix / RhinoGold">Export OBJ</button><button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to export.'); return } if (!printGateOk()) return; download(modelerToStep(objects), `blue-flame-sculpt-${Date.now()}.step`, 'application/step'); flash('Exported STEP — faceted solid for Rhino / Fusion / Matrix.') }} title="STEP AP214 faceted solid B-rep — imports as a solid in Rhino / Fusion / SolidWorks / Matrix">Export STEP</button></div>
+        <div className="qact"><button className="primary" onClick={exportStl} title="Binary STL — the slicer/caster standard">Export STL</button><button className="ghost" onClick={export3mf} title="3MF — modern container, parts stay separate">Export 3MF</button><button className="ghost" onClick={exportObj} title="Named parts + metal/gem groups, for ZBrush / Blender / Matrix / RhinoGold">Export OBJ</button><button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to export.'); return } if (!printGateOk()) return; download(modelerToStep(objects), `mandrel-sculpt-${Date.now()}.step`, 'application/step'); flash('Exported STEP — faceted solid for Rhino / Fusion / Matrix.') }} title="STEP AP214 faceted solid B-rep — imports as a solid in Rhino / Fusion / SolidWorks / Matrix">Export STEP</button></div>
         <div className="qact" style={{ marginTop: 8 }}>
           <label className="ghost" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }} title="Bring in an existing STL model or scan to modify on the bench">
             Import STL / OBJ…
@@ -2023,15 +2023,15 @@ export function ModelerPanel() {
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to check yet.'); return } const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); textToPdf(shopName, 'QC Checklist', bodyAfterTitle(qcChecklistText(objects, alloyId, shopName)), `${slug}-qc.pdf`); flash('QC checklist exported.') }} title="Quality-control checklist tailored to this piece">QC checklist</button>
           <button className="ghost" onClick={careSheet} title="Consumer care sheet from the piece's metal and stones">Care sheet</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to appraise yet.'); return } const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); textToPdf(shopName, 'Insurance Appraisal', bodyAfterTitle(sculptAppraisalText(objects, alloyId, shopName, new Date().toISOString().slice(0, 10))), `${slug}-appraisal.pdf`); flash('Appraisal exported.') }} title="Formal insurance appraisal with replacement value">Appraisal</button>
-          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to draw yet.'); return } const m = measurements(objects, alloyId); downloadBlob(modelerToSvg(objects, { brand: shopName, name: describePiece(objects, alloyId).name, ringSize: m.ringSize }), `blue-flame-spec-${Date.now()}.svg`, 'image/svg+xml'); flash('SVG spec drawing saved.') }} title="Dimensioned top-view technical drawing (SVG)">Spec drawing</button>
+          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to draw yet.'); return } const m = measurements(objects, alloyId); downloadBlob(modelerToSvg(objects, { brand: shopName, name: describePiece(objects, alloyId).name, ringSize: m.ringSize }), `mandrel-spec-${Date.now()}.svg`, 'image/svg+xml'); flash('SVG spec drawing saved.') }} title="Dimensioned top-view technical drawing (SVG)">Spec drawing</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to render yet.'); return } const v = captureThreeViews(); if (!v) { flash('Open the Sculpt stage first to render views.'); return } const m = measurements(objects, alloyId); const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); downloadBlob(multiViewHtml(v, { brand: shopName, name: describePiece(objects, alloyId).name, dims: m.overall, ringSize: m.ringSize }), `${slug}-views.html`, 'text/html'); flash('3-view sheet saved — front, side, top.') }} title="Front / side / top technical render sheet">3-view sheet</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to quote yet.'); return } navigator.clipboard?.writeText(quoteMessage(objects, alloyId, { name: describePiece(objects, alloyId).name, brand: shopName })).then(() => flash('Quote message copied — paste into an email or text.'), () => flash('Could not copy.')) }} title="Copy a ready-to-send customer quote message">Quote message</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to invoice yet.'); return } const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); textToPdf(shopName, 'Invoice', bodyAfterTitle(invoiceText(objects, alloyId, { brand: shopName, invoiceNo: String(Date.now()).slice(-6), today: new Date().toISOString().slice(0, 10) })), `${slug}-invoice.pdf`); flash('Invoice exported.') }} title="Itemized invoice with balance due">Invoice</button>
           <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to certify yet.'); return } const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); downloadBlob(certificateHtml(shopName, describePiece(objects, alloyId).name, objects, alloyId, new Date().toISOString().slice(0, 10)), `${slug}-certificate.html`, 'text/html'); flash('Certificate of authenticity saved.') }} title="Certificate of authenticity for the customer">Certificate</button>
           <button className="ghost" onClick={() => { const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); downloadBlob(intakeFormHtml(shopName), `${slug}-intake-form.html`, 'text/html'); flash('Intake form saved — printable custom-job questionnaire.') }} title="Printable custom-job intake questionnaire">Intake form</button>
-          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to invoice yet.'); return } download(invoiceCsvQBO(objects, alloyId, { customer: 'Custom order' }), 'blue-flame-qbo-invoice.csv', 'text/csv'); flash('QuickBooks invoice CSV saved — import in QBO → Invoices.') }} title="QuickBooks Online invoice-import CSV">QuickBooks CSV</button>
+          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to invoice yet.'); return } download(invoiceCsvQBO(objects, alloyId, { customer: 'Custom order' }), 'mandrel-qbo-invoice.csv', 'text/csv'); flash('QuickBooks invoice CSV saved — import in QBO → Invoices.') }} title="QuickBooks Online invoice-import CSV">QuickBooks CSV</button>
           <button className="ghost" disabled={!objects.some(o => o.kind === 'gem')} onClick={() => { const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-'); textToPdf(shopName, 'Purchase Order', bodyAfterTitle(supplierPOText(objects, { buyer: shopName })), `${slug}-stone-po.pdf`); flash('Supplier PO saved — send to your stone dealer.') }} title="Purchase order for the stones, to email/print to a supplier">Supplier PO</button>
-          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to export.'); return } download(modelerToDxf(objects), `blue-flame-sculpt-${Date.now()}.dxf`, 'application/dxf'); flash('Exported DXF — top-view template for laser / CAM.') }} title="2D top-view wireframe (DXF R12) for laser engraving / wax milling alignment">Export DXF</button>
+          <button className="ghost" onClick={() => { if (!objects.length) { flash('Nothing to export.'); return } download(modelerToDxf(objects), `mandrel-sculpt-${Date.now()}.dxf`, 'application/dxf'); flash('Exported DXF — top-view template for laser / CAM.') }} title="2D top-view wireframe (DXF R12) for laser engraving / wax milling alignment">Export DXF</button>
         </div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={fuse} disabled={metalCount < 2}>Fuse metal</button></div>
         <div className="qact" style={{ marginTop: 8 }}><button className="ghost" onClick={clear}>Clear all</button></div>

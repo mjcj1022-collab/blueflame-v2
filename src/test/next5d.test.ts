@@ -46,7 +46,7 @@ describe('care sheet lines', () => {
 
 describe('job ticket', () => {
   it('lists build, parts, bench operations and sign-off', () => {
-    const t = jobTicketText([shank(), gem('g', 1)], '14ky', 'Blue Flame', { order: '1024' })
+    const t = jobTicketText([shank(), gem('g', 1)], '14ky', 'Mandrel', { order: '1024' })
     expect(t).toMatch(/JOB TICKET/)
     expect(t).toMatch(/BENCH OPERATIONS/)
     expect(t).toMatch(/SIGN-OFF/)

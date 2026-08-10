@@ -22,7 +22,7 @@ describe('QuickBooks invoice CSV', () => {
 
 describe('supplier purchase order', () => {
   it('lists stones grouped with quantities and totals', () => {
-    const po = supplierPOText([gem('a', 0.05), gem('b', 0.05), gem('c', 1, 'sap')], { poNumber: 'PO9', buyer: 'Blue Flame' })
+    const po = supplierPOText([gem('a', 0.05), gem('b', 0.05), gem('c', 1, 'sap')], { poNumber: 'PO9', buyer: 'Mandrel' })
     expect(po).toMatch(/PURCHASE ORDER/)
     expect(po).toMatch(/PO #\s+PO9/)
     expect(po).toMatch(/Sapphire/)

@@ -1,6 +1,6 @@
 /**
  * Optional backend client. Set VITE_API_URL at build time to point the app at a
- * running Blue Flame server (see server/README.md). When unset, the app runs
+ * running Mandrel server (see server/README.md). When unset, the app runs
  * fully standalone on localStorage — nothing here is called.
  *
  * The offline desktop build (`npm run build:offline`, see offline/README.txt)
@@ -178,6 +178,29 @@ export const api = {
   createAffiliate: (a: { name?: string; email?: string; code?: string; ratePct?: number }) => req('/api/affiliates', { method: 'POST', body: JSON.stringify(a) }) as Promise<{ id: string; code: string; rate: number }>,
   updateAffiliate: (id: string, patch: { ratePct?: number; active?: boolean; name?: string; email?: string }) => req(`/api/affiliates/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }) as Promise<{ updated: number }>,
   deactivateAffiliate: (id: string) => req(`/api/affiliates/${id}`, { method: 'DELETE' }) as Promise<{ deactivated: number }>,
+}
+
+/** Trigger a browser download of the offline .zip for a shop that's already
+ *  paid for it. Doesn't go through req() above since the response here is a
+ *  binary file, not JSON. */
+export async function downloadOffline(): Promise<void> {
+  if (!BASE) throw new Error('Backend not configured — set VITE_API_URL')
+  const res = await fetch(BASE + '/api/offline-download', {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string }
+    throw new Error(body.error || res.statusText)
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'Mandrel-Offline.zip'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 /** An affiliate link with its per-link rate and running earnings. */

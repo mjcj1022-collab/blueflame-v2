@@ -1,9 +1,9 @@
 {
-  "name": "blue-flame-server",
+  "name": "mandrel-server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Blue Flame backend — runs locally on SQLite with real auth. Optional Postgres + Stripe for production.",
+  "description": "Mandrel backend — runs locally on SQLite with real auth. Optional Postgres + Stripe for production.",
   "engines": {
     "node": ">=23.4"
   },

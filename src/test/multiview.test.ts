@@ -6,7 +6,7 @@ describe('multi-view sheet', () => {
   it('lays out three labelled images with dimensions', () => {
     const html = multiViewHtml(
       { front: 'data:image/png;base64,AAA', side: 'data:image/png;base64,BBB', top: 'data:image/png;base64,CCC' },
-      { brand: 'Blue Flame', name: 'Solitaire', dims: [18, 22, 12], ringSize: 7 },
+      { brand: 'Mandrel', name: 'Solitaire', dims: [18, 22, 12], ringSize: 7 },
     )
     expect(html).toMatch(/^<!DOCTYPE html>/)
     expect(html).toMatch(/data:image\/png;base64,AAA/)

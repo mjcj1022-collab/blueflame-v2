@@ -1,9 +1,19 @@
-# Render blueprint for the Blue Flame API.
+# Render blueprint for the Mandrel API.
+#
+# NOTE (Blue Flame → Mandrel rename, 2026-08): the `name:` fields below were
+# renamed from blue-flame-api / blue-flame-data. Do NOT hit "Sync Blueprint"
+# in the Render dashboard without reading server-side-rename-notes first —
+# Render matches existing resources by name, so a straight sync could create
+# a brand-new (empty) service + disk instead of renaming the live one. Rename
+# the existing service in the Render dashboard (Settings → Name) yourself
+# first, then this file will match it on the next sync. The app code already
+# migrates the SQLite file itself if it ever does end up on a fresh disk.
+#
 # Deploy: Render → New → Blueprint → point at this repo. Render reads this file.
 # Requires Node ≥ 23.4 for the built-in node:sqlite (pinned via server/.node-version).
 services:
   - type: web
-    name: blue-flame-api
+    name: mandrel-api
     runtime: node
     rootDir: server
     plan: starter                    # paid tier — needed for the persistent disk below
@@ -14,7 +24,7 @@ services:
     # cloud sculpts, orders) survives every deploy and restart. Without this the
     # data resets on redeploy — see the free-tier note at the bottom.
     disk:
-      name: blue-flame-data
+      name: mandrel-data
       mountPath: /var/data
       sizeGB: 1
     envVars:
@@ -23,7 +33,7 @@ services:
       - key: CLIENT_ORIGIN
         value: https://mjcj1022-collab.github.io   # the GitHub Pages origin (for CORS)
       - key: DB_FILE
-        value: /var/data/blueflame.db  # on the mounted disk → persists across deploys
+        value: /var/data/mandrel.db  # on the mounted disk → persists across deploys
       # Live metal spot feed (OPTIONAL). Set METALS_API_KEY to your provider key
       # and quotes track the real gold/platinum market; unset → catalog spots.
       # Provider: 'metalpriceapi' (default, one request) or 'goldapi'.
@@ -52,6 +62,6 @@ services:
 #     plan: free
 # and remove the `disk:` block and point DB_FILE back at a local file:
 #     - key: DB_FILE
-#       value: blueflame.db
+#       value: mandrel.db
 # Data will NOT persist across deploys in that mode — fine for a demo, not for a
 # shop relying on it day to day.

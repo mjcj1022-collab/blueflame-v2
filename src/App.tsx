@@ -56,7 +56,7 @@ function Masthead({ mode, setMode, onLab, onTour, onGallery, onSettings }: { mod
   return (
     <header className="mast">
       <div className="mast-in">
-        <span className="logo">{shop.name === 'Blue Flame' ? <>BLUE&nbsp;<em>FLAME</em></> : shop.name}</span>
+        <span className="logo">{shop.name === 'Mandrel' ? <>MAN<em>DREL</em></> : shop.name}</span>
         <div className="mode-tabs">
           <button aria-pressed={mode === 'design'} onClick={() => setMode('design')}>Design</button>
           <button className="tab-ai" aria-pressed={mode === 'ai'} onClick={() => setMode('ai')}>AI&nbsp;✦</button>
@@ -95,7 +95,7 @@ function Masthead({ mode, setMode, onLab, onTour, onGallery, onSettings }: { mod
   )
 }
 
-const TOUR_KEY = 'blue-flame.tour.v1'
+const TOUR_KEY = 'mandrel.tour.v1'
 
 export default function App() {
   const [labOpen, setLabOpen] = useState(false)

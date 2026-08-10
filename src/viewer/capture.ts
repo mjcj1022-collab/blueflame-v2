@@ -83,7 +83,7 @@ export function downloadHeroPng(scale = 2): boolean {
   const ht = Math.max(64, Math.round(dom.clientHeight * scale))
   const canvas = renderToCanvas(w, ht)
   if (!canvas) return false
-  canvas.toBlob(blob => { if (blob) trigger(blob, 'blue-flame-render.png') }, 'image/png')
+  canvas.toBlob(blob => { if (blob) trigger(blob, 'mandrel-render.png') }, 'image/png')
   return true
 }
 
@@ -123,6 +123,6 @@ export async function downloadSpinGif(opts: { frames?: number; maxDim?: number; 
   enc.finish()
   const bytes = enc.bytes()
   const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
-  trigger(new Blob([ab], { type: 'image/gif' }), 'blue-flame-spin.gif')
+  trigger(new Blob([ab], { type: 'image/gif' }), 'mandrel-spin.gif')
   return true
 }

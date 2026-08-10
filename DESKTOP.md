@@ -1,4 +1,4 @@
-# Blue Flame Studio — Offline Desktop Build
+# Mandrel Studio — Offline Desktop Build
 
 The `desktop/` folder wraps the studio as a native desktop app (the **$450
 downloadable version**). It runs fully offline: design, sculpt, quoting,
@@ -42,9 +42,9 @@ cd desktop
 npm install
 npm run dist          # installer for the OS you're on
 # or target one explicitly:
-#   npm run dist:win     → release/Blue Flame Studio Setup <version>.exe  (NSIS)
-#   npm run dist:mac     → release/Blue Flame Studio-<version>.dmg
-#   npm run dist:linux   → release/Blue Flame Studio-<version>.AppImage
+#   npm run dist:win     → release/Mandrel Studio Setup <version>.exe  (NSIS)
+#   npm run dist:mac     → release/Mandrel Studio-<version>.dmg
+#   npm run dist:linux   → release/Mandrel Studio-<version>.AppImage
 ```
 
 The finished installer lands in `desktop/release/`. That single file is what a

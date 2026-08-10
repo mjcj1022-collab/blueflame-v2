@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Zero-dependency local web server for the offline Blue Flame build. Double
+ * Zero-dependency local web server for the offline Mandrel build. Double
  * clicking a static index.html doesn't work in modern browsers — they block
  * the app's module scripts when loaded from a file:// address — so this
  * spins up a plain HTTP server on localhost and opens it in the default
@@ -88,7 +88,7 @@ function tryListen() {
 
 server.on('listening', () => {
   const url = `http://localhost:${port}/`
-  console.log('\nBlue Flame is running at ' + url)
+  console.log('\nMandrel is running at ' + url)
   console.log('Leave this window open while you work. Close it to stop the studio.\n')
   openBrowser(url)
 })

@@ -27,7 +27,7 @@ export interface QuoteOptions {
  * can never disagree with the order or the estimate on screen.
  */
 export function sculptQuote(handoff: SculptHandoff, opts: QuoteOptions = {}): string {
-  const { brand = 'Blue Flame', validDays = 14, depositRate = 0.5, today = new Date() } = opts
+  const { brand = 'Mandrel', validDays = 14, depositRate = 0.5, today = new Date() } = opts
   const s = handoff.spec
   const until = new Date(today.getTime() + validDays * 86_400_000)
   const date = (d: Date) => d.toISOString().slice(0, 10)
@@ -71,7 +71,7 @@ export function sculptQuote(handoff: SculptHandoff, opts: QuoteOptions = {}): st
  * with its bounding size and material), the metal totals, gemstones, and the
  * same retail estimate the panel shows. Plain monospace text for textToPdf().
  */
-export function sculptTechSheet(objects: SculptObject[], alloyId: string, brand = 'Blue Flame'): string {
+export function sculptTechSheet(objects: SculptObject[], alloyId: string, brand = 'Mandrel'): string {
   const alloy = alloyById(alloyId)
   const est = sculptEstimate(objects, alloyId)
   const gems = objects.filter(o => o.kind === 'gem')

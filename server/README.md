@@ -1,4 +1,4 @@
-# Blue Flame — backend
+# Mandrel — backend
 
 Commerce, accounts, orders and the multi-tenant API. **This runs today** on
 embedded SQLite with real password auth — no external database to provision.
@@ -9,11 +9,12 @@ Stripe (payments) and Postgres (scale) are optional upgrades.
 ```bash
 cd server
 npm install
-npm run seed     # creates the "Blue Flame" shop + users mike / liliya
+npm run seed     # creates the "Mandrel" shop + users mike / liliya
 npm run start    # http://localhost:8787/api/health
 ```
 
-Data lives in `server/blueflame.db` (SQLite file, gitignored). That's it — no
+Data lives in `server/mandrel.db` (SQLite file, gitignored; auto-migrated
+from the old `blueflame.db` if that file still exists). That's it — no
 database server, no accounts. Verified end to end: register/login (scrypt +
 JWT), save/list designs, quotes, orders with an approval timestamp, and
 tenant-scoped, auth-gated access.

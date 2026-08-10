@@ -29,9 +29,13 @@ describe('access control', () => {
     expect(accessFromSubscription(sub({ status: 'active' }), NOW).allowed).toBe(true)
     expect(accessFromSubscription(sub({ status: 'trialing' }), NOW).allowed).toBe(true)
   })
-  it('a one-time offline purchase never lapses', () => {
-    expect(accessFromSubscription({ status: 'none', offline: true }, NOW).allowed).toBe(true)
-    expect(accessFromSubscription({ status: 'canceled', offline: true, currentPeriodEnd: 0 }, NOW).reason).toBe('offline')
+  it('a one-time offline purchase does NOT unlock the hosted studio on its own', () => {
+    expect(accessFromSubscription({ status: 'none', offline: true }, NOW).allowed).toBe(false)
+    expect(accessFromSubscription({ status: 'none', offline: true }, NOW).reason).toBe('offline-only')
+    expect(accessFromSubscription({ status: 'canceled', offline: true, currentPeriodEnd: 0 }, NOW).reason).toBe('offline-only')
+  })
+  it('an offline purchase plus an active subscription still gets hosted access', () => {
+    expect(accessFromSubscription(sub({ status: 'active', offline: true }), NOW).allowed).toBe(true)
   })
   it('canceled keeps access until the paid period actually ends', () => {
     expect(accessFromSubscription(sub({ status: 'canceled', currentPeriodEnd: NOW + 5_000 }), NOW).allowed).toBe(true)

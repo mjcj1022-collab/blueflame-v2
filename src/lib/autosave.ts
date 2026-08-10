@@ -8,9 +8,9 @@ import type { SculptObject } from '../state/modeler'
  *  - projects: named snapshots that bundle a design AND a sculpt together.
  */
 
-const D_KEY = 'blue-flame.autosave.design'
-const S_KEY = 'blue-flame.autosave.sculpt'
-const P_KEY = 'blue-flame.projects.v1'
+const D_KEY = 'mandrel.autosave.design'
+const S_KEY = 'mandrel.autosave.sculpt'
+const P_KEY = 'mandrel.projects.v1'
 
 function debounce<A extends unknown[]>(fn: (...a: A) => void, ms: number): (...a: A) => void {
   let t: ReturnType<typeof setTimeout> | undefined

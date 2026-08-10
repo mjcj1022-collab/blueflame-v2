@@ -1,10 +1,14 @@
 import express, { type Request, type Response } from 'express'
 import cors from 'cors'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { db, uid, audit } from './db.js'
 import { requireAuth, requireRole, signToken, hashPassword, verifyPassword, type Claims } from './auth.js'
 import { createPaymentIntent, constructWebhookEvent, createCheckoutSession } from './stripe.js'
 import { getSpot } from './spot.js'
 import { runAssistant, aiEnabled } from './ai.js'
+import { sendOfflineDownloadEmail } from './mail.js'
 
 const app = express()
 app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? '*' }))
@@ -50,12 +54,33 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
   }
 
   if (event.type === 'checkout.session.completed') {
-    const s = event.data.object as { mode?: string; client_reference_id?: string; metadata?: Record<string, string>; customer?: string; subscription?: string }
+    const s = event.data.object as {
+      mode?: string; client_reference_id?: string; metadata?: Record<string, string>
+      customer?: string; subscription?: string; customer_details?: { email?: string }; customer_email?: string
+    }
     const tenantId = s.metadata?.tenant_id ?? s.client_reference_id ?? ''
     const planId = s.metadata?.plan_id ?? null
     if (tenantId) {
       if (s.mode === 'payment') {
-        updateTenantSub(tenantId, { offline_purchase: 1, subscription_plan: planId ?? 'offline-lifetime', stripe_customer_id: s.customer ?? null })
+        // Prefer the email Stripe actually collected at checkout; fall back to
+        // the tenant's own admin user if that's ever missing.
+        let buyerEmail = s.customer_details?.email ?? s.customer_email ?? null
+        if (!buyerEmail) {
+          const u = db.prepare('SELECT email FROM users WHERE tenant_id = ? ORDER BY created_at LIMIT 1').get(tenantId) as { email?: string } | undefined
+          buyerEmail = u?.email ?? null
+        }
+        updateTenantSub(tenantId, {
+          offline_purchase: 1,
+          subscription_plan: planId ?? 'offline-lifetime',
+          stripe_customer_id: s.customer ?? null,
+          offline_purchase_email: buyerEmail,
+        })
+        if (buyerEmail) {
+          const t = db.prepare('SELECT name FROM tenants WHERE id = ?').get(tenantId) as { name?: string } | undefined
+          // Fire-and-forget: a slow or failed email must never hold up the
+          // webhook response, which Stripe expects promptly.
+          void sendOfflineDownloadEmail(buyerEmail, t?.name ?? '')
+        }
       } else {
         updateTenantSub(tenantId, { subscription_status: 'active', subscription_plan: planId ?? 'studio-monthly', stripe_customer_id: s.customer ?? null, stripe_subscription_id: s.subscription ?? null })
       }
@@ -89,7 +114,7 @@ const me = (req: Request) => (req as Request & { user: Claims }).user
 const emailExists = (email: string): boolean =>
   !!db.prepare('SELECT 1 FROM users WHERE email = ?').get(String(email).toLowerCase())
 
-app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'blue-flame', db: 'sqlite', time: new Date().toISOString() }))
+app.get('/api/health', (_req, res) => res.json({ ok: true, service: 'mandrel', db: 'sqlite', time: new Date().toISOString() }))
 
 // Daily precious-metal spot (public — prices aren't sensitive). Cached server-side.
 app.get('/api/spot', async (_req, res) => {
@@ -418,11 +443,16 @@ app.post('/api/billing/checkout', requireAuth, async (req, res) => {
     if (!plan) { res.status(400).json({ error: 'unknown plan' }); return }
     const priceId = process.env[plan.env] ?? ''
     const origin = process.env.CLIENT_ORIGIN && process.env.CLIENT_ORIGIN !== '*' ? process.env.CLIENT_ORIGIN : ''
+    // Pass the signed-in user's own email so Stripe pre-fills checkout and —
+    // more importantly — so the webhook can read it straight off the session
+    // afterward to send the offline-download email to the right address.
+    const buyer = db.prepare('SELECT email FROM users WHERE id = ?').get(me(req).id) as { email?: string } | undefined
     const session = await createCheckoutSession({
       mode: plan.mode,
       priceId,
       tenantId: me(req).tenant_id,
       planId,
+      customerEmail: buyer?.email,
       successUrl: `${origin}/?billing=success`,
       cancelUrl: `${origin}/?billing=cancel`,
     })
@@ -430,6 +460,34 @@ app.post('/api/billing/checkout', requireAuth, async (req, res) => {
   } catch (e) {
     res.status(501).json({ error: (e as Error).message })
   }
+})
+
+// The desktop build itself lives in the repo at server/offline-dist/ (see the
+// README there for how to (re)publish it) — this route just gates it behind
+// the same billing state the paywall trusts, so the link only works for a
+// shop that actually bought it (or the comped owner account, for testing).
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+// Blue Flame → Mandrel rename (2026-08): prefer the new filename, but fall
+// back to whatever Michael already published under the old name so existing
+// offline builds keep working until he re-uploads under the new one.
+const OFFLINE_ZIP_DIR = process.env.OFFLINE_ZIP_PATH
+  ? path.dirname(process.env.OFFLINE_ZIP_PATH)
+  : path.join(__dirname, '..', 'offline-dist')
+const OFFLINE_ZIP_NEW = process.env.OFFLINE_ZIP_PATH ?? path.join(OFFLINE_ZIP_DIR, 'Mandrel-Offline.zip')
+const OFFLINE_ZIP_LEGACY = path.join(OFFLINE_ZIP_DIR, 'BlueFlame-Offline.zip')
+function resolveOfflineZip(): string {
+  return fs.existsSync(OFFLINE_ZIP_NEW) ? OFFLINE_ZIP_NEW : OFFLINE_ZIP_LEGACY
+}
+
+app.get('/api/offline-download', requireAuth, (req, res) => {
+  if (!isCompedUser(me(req).id)) {
+    const t = db.prepare('SELECT offline_purchase FROM tenants WHERE id = ?').get(me(req).tenant_id) as { offline_purchase?: number } | undefined
+    if (!t?.offline_purchase) { res.status(403).json({ error: 'no offline purchase on file for this shop' }); return }
+  }
+  const zip = resolveOfflineZip()
+  if (!fs.existsSync(zip)) { res.status(503).json({ error: 'offline build not published yet — contact support' }); return }
+  audit(me(req).tenant_id, me(req).id, 'offline.download')
+  res.download(zip, 'Mandrel-Offline.zip')
 })
 
 /* ---------------- checkout (Stripe, optional) ---------------- */
@@ -453,4 +511,4 @@ app.post('/api/checkout', requireAuth, async (req, res) => {
 })
 
 const port = Number(process.env.PORT ?? 8787)
-app.listen(port, () => console.log(`Blue Flame API listening on http://localhost:${port}`))
+app.listen(port, () => console.log(`Mandrel API listening on http://localhost:${port}`))

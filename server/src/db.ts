@@ -1,8 +1,30 @@
 import { DatabaseSync } from 'node:sqlite'
+import { existsSync, renameSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 // Embedded SQLite — no external database to provision. The file lives beside
 // the server. For production scale, swap to Postgres (schema.sql mirrors this).
-export const db = new DatabaseSync(process.env.DB_FILE ?? 'blueflame.db')
+const DB_FILE = process.env.DB_FILE ?? 'mandrel.db'
+
+// Blue Flame → Mandrel rename (2026-08): an existing deployment may still have
+// its data under the old 'blueflame.db' filename. If nothing exists yet under
+// the new name, rename the old file (and its WAL/SHM siblings) in place so no
+// production data is lost — this only runs once, the first time it applies.
+try {
+  if (!existsSync(DB_FILE)) {
+    const legacy = DB_FILE.includes('mandrel.db')
+      ? DB_FILE.replace('mandrel.db', 'blueflame.db')
+      : join(dirname(DB_FILE), 'blueflame.db')
+    if (existsSync(legacy)) {
+      renameSync(legacy, DB_FILE)
+      for (const suffix of ['-wal', '-shm']) {
+        if (existsSync(legacy + suffix)) renameSync(legacy + suffix, DB_FILE + suffix)
+      }
+    }
+  }
+} catch { /* best-effort — worst case a fresh db is created under the new name */ }
+
+export const db = new DatabaseSync(DB_FILE)
 
 db.exec(`
   PRAGMA journal_mode = WAL;
@@ -120,6 +142,7 @@ for (const col of [
   'stripe_customer_id text',
   'stripe_subscription_id text',
   'offline_purchase integer NOT NULL DEFAULT 0',       // 1 = bought the offline build outright
+  'offline_purchase_email text',                       // where the download email was sent
 ]) {
   try { db.exec(`ALTER TABLE tenants ADD COLUMN ${col}`) } catch { /* column already exists */ }
 }

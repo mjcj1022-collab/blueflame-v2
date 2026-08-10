@@ -1,4 +1,4 @@
-# Blue Flame
+# Mandrel
 
 Fine-jewelry design studio — a parametric configurator **and** a free-form 3D
 sculptor, sharing one weight/cost engine, with an optional multi-tenant backend

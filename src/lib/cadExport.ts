@@ -27,8 +27,8 @@ export interface ObjExportOptions {
   metalOnly?: boolean
 }
 
-const MTL_METAL = 'BlueFlame_Metal'
-const MTL_GEM = 'BlueFlame_Gem'
+const MTL_METAL = 'Mandrel_Metal'
+const MTL_GEM = 'Mandrel_Gem'
 
 // OBJ group/object names can't contain whitespace — collapse it to underscores.
 const slug = (s: string, i: number) =>
@@ -50,10 +50,10 @@ export function modelerToObj(objects: SculptObject[], opts: ObjExportOptions = {
   const names = uniqueNames(objects)
 
   const lines: string[] = [
-    '# Blue Flame — modeler export',
+    '# Mandrel — modeler export',
     '# Units: millimetres. Parts are separate objects; metal and gems are',
     '# grouped so they can be selected independently after import.',
-    'mtllib blue-flame.mtl',
+    'mtllib mandrel.mtl',
   ]
 
   let base = 0 // running 1-based vertex offset across the whole file
@@ -81,9 +81,9 @@ export function modelerToObj(objects: SculptObject[], opts: ObjExportOptions = {
 }
 
 /** A minimal companion .mtl so the two groups arrive with sane colours. */
-export function blueFlameMtl(): string {
+export function mandrelMtl(): string {
   return [
-    '# Blue Flame materials',
+    '# Mandrel materials',
     `newmtl ${MTL_METAL}`,
     'Ka 0.20 0.16 0.09',
     'Kd 0.83 0.68 0.38', // warm gold
@@ -158,7 +158,7 @@ export function modelerTo3mf(objects: SculptObject[], opts: ObjExportOptions = {
 
   const model = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
- <metadata name="Application">Blue Flame</metadata>
+ <metadata name="Application">Mandrel</metadata>
  <resources>${objXml.join('')}</resources>
  <build>${buildXml.join('')}</build>
 </model>`

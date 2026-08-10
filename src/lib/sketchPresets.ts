@@ -8,7 +8,7 @@ export interface SketchPreset {
   builtin?: boolean
 }
 
-const KEY = 'blue-flame:sketch-presets'
+const KEY = 'mandrel:sketch-presets'
 
 const rev = (points: [number, number][], segments = 48, arc = 360): SketchDef =>
   ({ points, mode: 'revolve', depth: 3, segments, arc })

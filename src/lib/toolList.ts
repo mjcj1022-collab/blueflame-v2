@@ -48,7 +48,7 @@ export function toolList(objects: SculptObject[]): ToolItem[] {
   return items
 }
 
-export function toolListText(objects: SculptObject[], brand = 'Blue Flame'): string {
+export function toolListText(objects: SculptObject[], brand = 'Mandrel'): string {
   const items = toolList(objects)
   return [`${brand.toUpperCase()} — TOOL & BUR LIST`, '', ...items.map(i => `  [ ] ${i.tool} — ${i.detail}`)].join('\n')
 }

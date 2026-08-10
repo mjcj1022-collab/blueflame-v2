@@ -17,7 +17,7 @@ export interface GemStock {
   qty: number
 }
 
-const KEY = 'blue-flame.geminv.v1'
+const KEY = 'mandrel.geminv.v1'
 
 function readAll(): GemStock[] {
   try { const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) as GemStock[] : [] } catch { return [] }

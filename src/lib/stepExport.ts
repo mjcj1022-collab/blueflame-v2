@@ -51,7 +51,7 @@ export function modelerToStep(objects: SculptObject[], opts: { metalOnly?: boole
   const appCtx = E(`APPLICATION_CONTEXT('automotive design')`)
   E(`APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,#${appCtx})`)
   const prodCtx = E(`PRODUCT_CONTEXT('',#${appCtx},'mechanical')`)
-  const product = E(`PRODUCT('BlueFlame','BlueFlame','',(#${prodCtx}))`)
+  const product = E(`PRODUCT('Mandrel','Mandrel','',(#${prodCtx}))`)
   const pdf = E(`PRODUCT_DEFINITION_FORMATION('','',#${product})`)
   const pdCtx = E(`PRODUCT_DEFINITION_CONTEXT('part definition',#${appCtx},'design')`)
   const pd = E(`PRODUCT_DEFINITION('design','',#${pdf},#${pdCtx})`)
@@ -94,7 +94,7 @@ export function modelerToStep(objects: SculptObject[], opts: { metalOnly?: boole
   // MANIFOLD_SOLID_BREP is an invalid (empty) solid.
   if (faceIds.length) {
     const shell = E(`CLOSED_SHELL('',(${faceIds.map(f => `#${f}`).join(',')}))`)
-    const brep = E(`MANIFOLD_SOLID_BREP('BlueFlame',#${shell})`)
+    const brep = E(`MANIFOLD_SOLID_BREP('Mandrel',#${shell})`)
     const repr = E(`ADVANCED_BREP_SHAPE_REPRESENTATION('',(#${brep}),#${geoCtx})`)
     E(`SHAPE_DEFINITION_REPRESENTATION(#${pds},#${repr})`)
   }
@@ -102,8 +102,8 @@ export function modelerToStep(objects: SculptObject[], opts: { metalOnly?: boole
   const header = [
     'ISO-10303-21;',
     'HEADER;',
-    `FILE_DESCRIPTION(('Blue Flame faceted solid'),'2;1');`,
-    `FILE_NAME('blue-flame.step','',(''),(''),'Blue Flame','Blue Flame','');`,
+    `FILE_DESCRIPTION(('Mandrel faceted solid'),'2;1');`,
+    `FILE_NAME('mandrel.step','',(''),(''),'Mandrel','Mandrel','');`,
     `FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));`,
     'ENDSEC;',
     'DATA;',

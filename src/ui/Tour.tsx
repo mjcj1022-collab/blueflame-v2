@@ -5,7 +5,7 @@ export interface TourStep { title: string; body: string }
 /** The first-run walkthrough. Kept as data so it's easy to test and extend. */
 export const TOUR_STEPS: TourStep[] = [
   {
-    title: 'Welcome to Blue Flame',
+    title: 'Welcome to Mandrel',
     body: 'Design fine jewelry two ways — a parametric configurator and a free-form 3D sculptor. Here’s the 30-second tour. You can reopen it any time from the “?” in the top bar.'
   },
   {

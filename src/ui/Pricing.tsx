@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { PLANS, type Plan } from '../lib/plans'
 import { useAuth } from '../state/auth'
-import { api, apiConfigured } from '../lib/api'
+import { api, apiConfigured, downloadOffline } from '../lib/api'
 
 /**
  * The pricing / paywall screen. Shown by the gate when the paywall is on and the
@@ -11,6 +11,7 @@ import { api, apiConfigured } from '../lib/api'
  */
 export function Pricing() {
   const user = useAuth(s => s.user)
+  const subscription = useAuth(s => s.subscription)
   const loginRemote = useAuth(s => s.loginRemote)
   const registerRemote = useAuth(s => s.registerRemote)
   const logout = useAuth(s => s.logout)
@@ -24,6 +25,21 @@ export function Pricing() {
 
   const [busy, setBusy] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [dlBusy, setDlBusy] = useState(false)
+  const [dlErr, setDlErr] = useState<string | null>(null)
+
+  // An offline purchase doesn't unlock this hosted studio on its own (see
+  // accessFromSubscription) — so a signed-in offline-only buyer still lands
+  // here. Point them at their download instead of asking them to pay again.
+  const ownsOffline = !!user && !!subscription?.offline
+
+  const runDownload = async () => {
+    setDlErr(null)
+    setDlBusy(true)
+    try { await downloadOffline() }
+    catch (e) { setDlErr((e as Error).message || 'Download failed — try again in a moment.') }
+    setDlBusy(false)
+  }
 
   const submitAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -57,7 +73,7 @@ export function Pricing() {
   return (
     <div className="pricing">
       <div className="pricing-head">
-        <h1>Blue Flame — Maker Studio</h1>
+        <h1>Mandrel — Maker Studio</h1>
         <p>The complete jewelry design, quoting and production studio. Choose how you want to work.</p>
       </div>
 
@@ -92,19 +108,41 @@ export function Pricing() {
         </p>
       )}
 
+      {ownsOffline && (
+        <div className="pricing-owned">
+          <p>
+            <b>You already own the offline build.</b> That's a downloadable copy for your own machine —
+            it doesn't include this hosted studio, so you're seeing this screen. Grab your download below,
+            or subscribe to Studio — Online underneath if you'd also like the hosted version.
+          </p>
+          <button className="primary" type="button" disabled={dlBusy} onClick={runDownload}>
+            {dlBusy ? 'Preparing download…' : 'Download offline build'}
+          </button>
+          {dlErr && <p className="pricing-err">{dlErr}</p>}
+        </div>
+      )}
+
       <div className="pricing-grid">
-        {PLANS.map(p => (
-          <div key={p.id} className={`price-card${p.highlight ? ' featured' : ''}`}>
-            {p.highlight && <span className="price-tag">Most popular</span>}
-            <h2>{p.name}</h2>
-            <div className="price-amt"><b>${p.price}</b><span>{p.cadence === 'month' ? '/ month' : ' one-time'}</span></div>
-            <p className="price-blurb">{p.blurb}</p>
-            <ul className="price-feats">{p.features.map((f, i) => <li key={i}>{f}</li>)}</ul>
-            <button className={p.highlight ? 'primary' : 'ghost'} disabled={busy !== null || !user} title={!user ? 'Create your account above first' : ''} onClick={() => choose(p)}>
-              {busy === p.id ? 'Starting checkout…' : p.cta}
-            </button>
-          </div>
-        ))}
+        {PLANS.map(p => {
+          const alreadyOwned = ownsOffline && p.kind === 'oneoff'
+          return (
+            <div key={p.id} className={`price-card${p.highlight ? ' featured' : ''}`}>
+              {p.highlight && <span className="price-tag">Most popular</span>}
+              <h2>{p.name}</h2>
+              <div className="price-amt"><b>${p.price}</b><span>{p.cadence === 'month' ? '/ month' : ' one-time'}</span></div>
+              <p className="price-blurb">{p.blurb}</p>
+              <ul className="price-feats">{p.features.map((f, i) => <li key={i}>{f}</li>)}</ul>
+              <button
+                className={p.highlight ? 'primary' : 'ghost'}
+                disabled={busy !== null || !user || alreadyOwned}
+                title={!user ? 'Create your account above first' : alreadyOwned ? 'You already bought this' : ''}
+                onClick={() => choose(p)}
+              >
+                {alreadyOwned ? 'Already purchased' : busy === p.id ? 'Starting checkout…' : p.cta}
+              </button>
+            </div>
+          )
+        })}
       </div>
       {err && <p className="pricing-err">{err}</p>}
       <p className="pricing-foot">

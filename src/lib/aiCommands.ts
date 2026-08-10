@@ -117,7 +117,7 @@ export function parseCommandReply(text: string): CommandReply {
 
 export function buildCommandPrompt(): string {
   return [
-    'You control the finishing and setting tools of the Blue Flame jewelry modeler, on the piece ALREADY on the bench. The maker tells you what to do to it; you return an ordered list of tool operations.',
+    'You control the finishing and setting tools of the Mandrel jewelry modeler, on the piece ALREADY on the bench. The maker tells you what to do to it; you return an ordered list of tool operations.',
     'Reply with a SINGLE JSON object and NOTHING else: { "reply": "<one short sentence>", "commands": [ { "op": "...", ...args } ] }',
     'Use ONLY these ops and argument shapes:',
     'texture {style: hammered|stipple|florentine, depth: mm} — hammer/stipple/engrave the selected metal surface',

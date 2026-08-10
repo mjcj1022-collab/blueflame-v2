@@ -45,7 +45,7 @@ export function stoneOrder(objects: SculptObject[]): { rows: StoneOrderRow[]; to
 }
 
 /** Plain-text order list for copy/paste to a supplier. */
-export function stoneOrderText(objects: SculptObject[], brand = 'Blue Flame'): string {
+export function stoneOrderText(objects: SculptObject[], brand = 'Mandrel'): string {
   const o = stoneOrder(objects)
   const pad = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length))
   const lines = o.rows.map(r => `  ${pad(`${r.qty}×`, 4)}${pad(`${r.mm.toFixed(2)} mm ${r.shape} ${r.stone}`, 34)}${r.totalCarat.toFixed(2)} ct`)

@@ -44,7 +44,7 @@ export function qcChecklist(objects: SculptObject[], alloyId: string): QcItem[] 
   return items
 }
 
-export function qcChecklistText(objects: SculptObject[], alloyId: string, brand = 'Blue Flame'): string {
+export function qcChecklistText(objects: SculptObject[], alloyId: string, brand = 'Mandrel'): string {
   const items = qcChecklist(objects, alloyId)
   const lines: string[] = [`${brand.toUpperCase()} — QC CHECKLIST`, '']
   let section = ''

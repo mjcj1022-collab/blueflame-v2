@@ -13,7 +13,7 @@ export const APPRAISAL_MULTIPLIER = 1.35
  * replacement value — for the customer to insure it. Mirrors the design-side
  * appraisal but reads the sculpted geometry. Plain text for a PDF.
  */
-export function sculptAppraisalText(objects: SculptObject[], alloyId: string, brand = 'Blue Flame', dateStr = ''): string {
+export function sculptAppraisalText(objects: SculptObject[], alloyId: string, brand = 'Mandrel', dateStr = ''): string {
   const alloy = alloyById(alloyId)
   const est = sculptEstimate(objects, alloyId)
   const gems = objects.filter(o => o.kind === 'gem')

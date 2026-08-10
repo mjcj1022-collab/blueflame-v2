@@ -11,7 +11,7 @@ export const APPRAISAL_MULTIPLIER = 1.15
  * A formal insurance appraisal, generated from the same spec as everything else
  * — metal, graded stone, certificate, and an estimated retail replacement value.
  */
-export function appraisal(spec: DesignSpec, brand = 'BLUE FLAME', dateStr = new Date().toLocaleDateString()): string {
+export function appraisal(spec: DesignSpec, brand = 'MANDREL', dateStr = new Date().toLocaleDateString()): string {
   const p = computePrice(spec)
   const m = computeMetal(spec)
   const alloy = alloyById(spec.metal.alloyId)

@@ -109,5 +109,5 @@ export function downloadTechPack(spec: DesignSpec, shopName: string, hero?: Hero
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(140, 146, 150)
   doc.text('Castability checks are heuristic — confirm wall and prong minimums with your caster. Geometry supplied separately as STL (metal only, true millimetres).', M, PAGE_H - 40, { maxWidth: PAGE_W - M * 2 })
 
-  doc.save(`blue-flame-techpack-${spec.category}.pdf`)
+  doc.save(`mandrel-techpack-${spec.category}.pdf`)
 }

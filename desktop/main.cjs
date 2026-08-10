@@ -1,6 +1,6 @@
 'use strict'
 /**
- * Blue Flame Studio — offline desktop app (the $450 downloadable version).
+ * Mandrel Studio — offline desktop app (the $450 downloadable version).
  * Serves the bundled studio over a local port and opens it in a native window.
  * Runs fully offline: the studio's design, sculpt, quoting and export tools are
  * all client-side. Cloud sync, team accounts and the AI studio need the hosted
@@ -23,7 +23,7 @@ async function createWindow() {
     minWidth: 1024,
     minHeight: 680,
     backgroundColor: '#131619',
-    title: 'Blue Flame Studio',
+    title: 'Mandrel Studio',
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   })
@@ -36,7 +36,7 @@ async function createWindow() {
 }
 
 app.whenReady().then(createWindow).catch(err => {
-  console.error('Failed to start Blue Flame Studio:', err)
+  console.error('Failed to start Mandrel Studio:', err)
   app.quit()
 })
 

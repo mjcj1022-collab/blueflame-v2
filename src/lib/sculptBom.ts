@@ -55,7 +55,7 @@ export function sculptBom(objects: SculptObject[], alloyId: string): SculptBom {
 }
 
 /** Plain-text BOM for copy/paste. */
-export function sculptBomText(objects: SculptObject[], alloyId: string, brand = 'Blue Flame'): string {
+export function sculptBomText(objects: SculptObject[], alloyId: string, brand = 'Mandrel'): string {
   const b = sculptBom(objects, alloyId)
   const pad = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length))
   const lines = b.rows.map(r => `  ${pad(`${r.qty}×`, 4)}${pad(r.item, 22)}${pad(r.material, 16)}${r.detail}`)

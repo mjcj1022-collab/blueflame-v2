@@ -35,7 +35,7 @@ export function modelerToDxf(objects: SculptObject[], opts: { metalOnly?: boolea
 
   const body: string[] = []
   for (const [x1, z1, x2, z2] of edges) {
-    body.push('0', 'LINE', '8', 'BLUEFLAME', '10', q(x1), '20', q(z1), '30', '0.0', '11', q(x2), '21', q(z2), '31', '0.0')
+    body.push('0', 'LINE', '8', 'MANDREL', '10', q(x1), '20', q(z1), '30', '0.0', '11', q(x2), '21', q(z2), '31', '0.0')
   }
   return [
     '0', 'SECTION', '2', 'ENTITIES',

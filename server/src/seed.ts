@@ -1,11 +1,24 @@
 import { db, uid } from './db.js'
 import { hashPassword } from './auth.js'
 
-// Seeds a Blue Flame tenant and the two demo users. Safe to re-run.
-let tenant = db.prepare('SELECT id FROM tenants WHERE slug = ?').get('blue-flame') as { id: string } | undefined
+// Seeds a Mandrel tenant and the two demo users. Safe to re-run.
+//
+// Blue Flame → Mandrel rename (2026-08): if this deployment already seeded a
+// tenant under the old slug/name, rename that row in place instead of
+// inserting a second tenant — keeps every existing user, design, and order
+// attached to the same shop.
+let tenant = db.prepare('SELECT id FROM tenants WHERE slug = ?').get('mandrel') as { id: string } | undefined
+if (!tenant) {
+  const legacy = db.prepare('SELECT id FROM tenants WHERE slug = ?').get('blue-flame') as { id: string } | undefined
+  if (legacy) {
+    db.prepare('UPDATE tenants SET name = ?, slug = ? WHERE id = ?').run('Mandrel', 'mandrel', legacy.id)
+    tenant = legacy
+    console.log('renamed tenant blue-flame -> mandrel (id ' + legacy.id + ')')
+  }
+}
 if (!tenant) {
   const id = uid()
-  db.prepare('INSERT INTO tenants (id, name, slug) VALUES (?,?,?)').run(id, 'Blue Flame', 'blue-flame')
+  db.prepare('INSERT INTO tenants (id, name, slug) VALUES (?,?,?)').run(id, 'Mandrel', 'mandrel')
   tenant = { id }
 }
 

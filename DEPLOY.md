@@ -14,11 +14,11 @@ enter your keys.
 
 1. Go to **render.com** → **New → Blueprint**.
 2. Connect this GitHub repo. Render reads [`render.yaml`](render.yaml) and creates
-   a service called **blue-flame-api** on the free plan.
+   a service called **mandrel-api** on the free plan.
 3. Click **Apply** and wait for the first deploy (~2–3 min).
-4. Copy the service URL, e.g. `https://blue-flame-api.onrender.com`.
+4. Copy the service URL, e.g. `https://mandrel-api.onrender.com`.
 5. Verify it: open **`<that URL>/api/health`** — you should see
-   `{"ok":true,"service":"blue-flame",...}`.
+   `{"ok":true,"service":"mandrel",...}`.
 
 `JWT_SECRET` is generated for you. `CLIENT_ORIGIN` is preset to the GitHub Pages
 origin. Node is pinned to 24 (needed for the built-in SQLite).
@@ -44,7 +44,7 @@ Do this only when you want real checkout. Use **test** keys first.
 
 1. **Stripe → Developers → API keys**: copy the **Publishable** (`pk_…`) and
    **Secret** (`sk_…`) keys.
-2. **Render → blue-flame-api → Environment**: set `STRIPE_SECRET_KEY` = `sk_…`
+2. **Render → mandrel-api → Environment**: set `STRIPE_SECRET_KEY` = `sk_…`
    → Save (it redeploys).
 3. **GitHub → Actions Variables**: add `VITE_STRIPE_PK` = `pk_…` → re-run the
    deploy workflow. The checkout screen now appears.
@@ -61,8 +61,8 @@ The front end redeploys on every push to `main`. The API does **not**, because i
 was connected by public URL rather than through Render's GitHub App. Pick one:
 
 **A · Auto-deploy, no secrets (simplest).** Grant Render's GitHub App access to
-this repo: Render → *blue-flame-api* → Settings → Repository → connect it (or
-GitHub → Settings → Applications → Render → grant `blue-flame`). After that
+this repo: Render → *mandrel-api* → Settings → Repository → connect it (or
+GitHub → Settings → Applications → Render → grant `mandrel`). After that
 `git push` deploys **both** halves and nothing else is needed.
 
 ```powershell
@@ -70,7 +70,7 @@ git push          # front end + API both redeploy
 ```
 
 **B · Deploy hook (scriptable, one secret you create).** Render →
-*blue-flame-api* → Settings → **Deploy Hook** → copy the URL. Then either:
+*mandrel-api* → Settings → **Deploy Hook** → copy the URL. Then either:
 
 *Fire it straight from PowerShell:*
 ```powershell
@@ -86,7 +86,7 @@ automatically; with no secret set it just skips.
 
 **Check what's live at any time:**
 ```powershell
-Invoke-RestMethod https://blue-flame-api.onrender.com/api/health
+Invoke-RestMethod https://mandrel-api.onrender.com/api/health
 ```
 
 ---

@@ -6,12 +6,12 @@ import { alloyById } from '../catalog'
 describe('client sheet HTML', () => {
   it('renders a self-contained page with specs, price and total', () => {
     const html = clientSheetHtml({
-      brand: 'Blue Flame', name: 'Solitaire',
+      brand: 'Mandrel', name: 'Solitaire',
       specs: [['Metal', '14K Yellow'], ['Ring size', 'US 7']],
       priceLines: [['Metal', '$120.00']], total: '$450.00', today: '2026-01-01',
     })
     expect(html).toMatch(/<!DOCTYPE html>/)
-    expect(html).toMatch(/Blue Flame/)
+    expect(html).toMatch(/Mandrel/)
     expect(html).toMatch(/US 7/)
     expect(html).toMatch(/\$450\.00/)
     expect(html).toMatch(/Render preview/) // no image → placeholder

@@ -19,7 +19,7 @@ export interface NewGalleryItem {
   spec?: DesignSpec | null
 }
 
-const LKEY = 'blue-flame.gallery'
+const LKEY = 'mandrel.gallery'
 
 function parseServer(row: ServerGalleryItem): GalleryItem {
   let spec: DesignSpec | null = null

@@ -9,9 +9,9 @@ const USERS: Record<string, string> = { mike: 'mike123', liliya: 'liliya123' }
 // gate behaves the same offline as it does against the server.
 const SOFT_ROLES: Record<string, string> = { mike: 'admin', liliya: 'associate' }
 const softRole = (user: string): string => SOFT_ROLES[user] ?? 'associate'
-const KEY = 'blue-flame.user'
-const TKEY = 'blue-flame.token'
-const RKEY = 'blue-flame.role'
+const KEY = 'mandrel.user'
+const TKEY = 'mandrel.token'
+const RKEY = 'mandrel.role'
 
 const stored = (): string | null => {
   try { return localStorage.getItem(KEY) } catch { return null }

@@ -1,8 +1,8 @@
 {
-  "name": "blue-flame-desktop",
+  "name": "mandrel-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Blue Flame Studio — offline desktop build",
+  "description": "Mandrel Studio — offline desktop build",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
@@ -16,9 +16,9 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "com.blueflame.studio",
-    "productName": "Blue Flame Studio",
-    "copyright": "© Blue Flame",
+    "appId": "com.mandrel.studio",
+    "productName": "Mandrel Studio",
+    "copyright": "© Mandrel",
     "files": [
       "main.cjs",
       "server.cjs",

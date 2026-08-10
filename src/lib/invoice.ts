@@ -22,7 +22,7 @@ const pad = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.
 const amountRow = (label: string, amount: string, width = 46) => `  ${pad(label, width - amount.length)}${amount}`
 
 export function invoiceText(objects: SculptObject[], alloyId: string, opts: InvoiceOpts = {}): string {
-  const { invoiceNo = '—', customer = '—', depositPaid = 0, today = '', brand = 'Blue Flame' } = opts
+  const { invoiceNo = '—', customer = '—', depositPaid = 0, today = '', brand = 'Mandrel' } = opts
   const est = sculptEstimate(objects, alloyId)
   const alloy = alloyById(alloyId)
   const balance = Math.max(0, est.total - depositPaid)

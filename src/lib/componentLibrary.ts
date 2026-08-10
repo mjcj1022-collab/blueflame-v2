@@ -10,7 +10,7 @@ export interface SavedComponent {
   objects: SculptObject[]
 }
 
-const KEY = 'blue-flame.parts.v1'
+const KEY = 'mandrel.parts.v1'
 
 function defaultId(): string {
   const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto

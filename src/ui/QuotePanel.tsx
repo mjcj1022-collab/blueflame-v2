@@ -89,7 +89,7 @@ function stoneLines(spec: DesignSpec): string[] {
   ].filter(Boolean)
 }
 
-function techSheet(spec: DesignSpec, brand = 'Blue Flame') {
+function techSheet(spec: DesignSpec, brand = 'Mandrel') {
   const p = computePrice(spec)
   const m = p.metal
   const alloy = alloyById(spec.metal.alloyId)
@@ -216,7 +216,7 @@ export function QuotePanel() {
 
       <h4 style={{ marginTop: 18 }}>Shop</h4>
       <input className="lib-name" style={{ width: '100%' }} value={shop.name}
-        onChange={e => setShop({ name: e.target.value })} onBlur={e => { if (!e.target.value.trim()) setShop({ name: 'Blue Flame' }) }} placeholder="Shop name (white-label)" />
+        onChange={e => setShop({ name: e.target.value })} onBlur={e => { if (!e.target.value.trim()) setShop({ name: 'Mandrel' }) }} placeholder="Shop name (white-label)" />
       <label className="filter-row" style={{ marginTop: 10 }}>
         <input type="checkbox" checked={shop.hideCost} onChange={e => setShop({ hideCost: e.target.checked })} />
         Sales-associate mode<small>hide cost basis</small>

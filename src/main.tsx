@@ -6,8 +6,10 @@ import { ClientReview } from './ui/ClientReview'
 import { useAuth } from './state/auth'
 import { reviewFromUrl } from './lib/share'
 import { captureRef } from './lib/referral'
+import { migrateLegacyStorage } from './lib/brandMigration'
 import './styles.css'
 
+migrateLegacyStorage()           // Blue Flame → Mandrel: carry over old localStorage keys once
 captureRef()                     // stash an affiliate ?ref= code before anything else
 const review = reviewFromUrl()   // a ?review= link opens the client screen, no login
 

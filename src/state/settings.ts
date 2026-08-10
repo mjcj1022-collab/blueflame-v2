@@ -10,7 +10,7 @@ import type { ProductCategory } from '../spec/types'
  *  - compact: tighter spacing throughout.
  * At least one category is always kept enabled. `dismissed` is session-only.
  */
-const KEY = 'blue-flame.settings.v1'
+const KEY = 'mandrel.settings.v1'
 export const ALL_CATEGORIES: ProductCategory[] = ['ring', 'pendant', 'earring', 'bracelet', 'necklace', 'body']
 
 /** Toggleable side panels (key → label). Order matches the builder. */

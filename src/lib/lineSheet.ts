@@ -11,7 +11,7 @@ import { money } from './units'
  * Priced in the metal the maker is currently working in.
  */
 
-export function lineSheetText(saved: SavedSculpt[], alloyId: string, brand = 'Blue Flame'): string {
+export function lineSheetText(saved: SavedSculpt[], alloyId: string, brand = 'Mandrel'): string {
   const alloy = alloyById(alloyId)
   const pad = (s: string, n: number) => (s.length >= n ? s : s + ' '.repeat(n - s.length))
   const rows = saved.map(s => {

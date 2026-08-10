@@ -63,7 +63,7 @@ describe('version-history persistence', () => {
   })
   it('writes snapshots to localStorage so they survive a reload', () => {
     useModeler.getState().saveSnapshot('base')
-    const raw = localStorage.getItem('blue-flame.snapshots.v1')
+    const raw = localStorage.getItem('mandrel.snapshots.v1')
     expect(raw).toBeTruthy()
     const parsed = JSON.parse(raw!)
     expect(parsed.length).toBe(1)
@@ -72,6 +72,6 @@ describe('version-history persistence', () => {
   it('removes them from storage on delete', () => {
     const id = useModeler.getState().saveSnapshot('base')
     useModeler.getState().deleteSnapshot(id)
-    expect(JSON.parse(localStorage.getItem('blue-flame.snapshots.v1')!).length).toBe(0)
+    expect(JSON.parse(localStorage.getItem('mandrel.snapshots.v1')!).length).toBe(0)
   })
 })

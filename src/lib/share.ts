@@ -45,5 +45,5 @@ export function reviewFromUrl(): { spec: DesignSpec; shop: string } | null {
   const token = params.get('review')
   if (!token) return null
   const spec = decodeSpec(token)
-  return spec ? { spec, shop: params.get('shop') || 'Blue Flame' } : null
+  return spec ? { spec, shop: params.get('shop') || 'Mandrel' } : null
 }

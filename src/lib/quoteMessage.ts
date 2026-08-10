@@ -20,7 +20,7 @@ export interface QuoteMessageOpts {
 }
 
 export function quoteMessage(objects: SculptObject[], alloyId: string, opts: QuoteMessageOpts = {}): string {
-  const { name = 'your custom piece', customer, brand = 'Blue Flame', depositRate = 0.5 } = opts
+  const { name = 'your custom piece', customer, brand = 'Mandrel', depositRate = 0.5 } = opts
   const est = sculptEstimate(objects, alloyId)
   const alloy = alloyById(alloyId)
   const sched = paymentSchedule(est.total, depositRate)

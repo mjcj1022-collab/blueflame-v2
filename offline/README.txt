@@ -1,26 +1,26 @@
-BLUE FLAME — OFFLINE STUDIO
+MANDREL — OFFLINE STUDIO
 ============================
 
-Thanks for buying the offline copy of Blue Flame. This runs entirely on your
+Thanks for buying the offline copy of Mandrel. This runs entirely on your
 own computer — no internet connection needed once it's installed, and none of
 your designs leave this machine.
 
 HOW TO START
 ------------
-Windows:  double-click "Start Blue Flame (Windows).bat"
-Mac:      double-click "Start Blue Flame (Mac).command"
+Windows:  double-click "Start Mandrel (Windows).bat"
+Mac:      double-click "Start Mandrel (Mac).command"
           (first time only, if macOS blocks it: right-click the file,
           choose Open, then click Open again to confirm)
 
 A browser window will open automatically to the studio. Leave the black
 console window open in the background while you work — closing it shuts the
-studio down. To use Blue Flame again later, just double-click the same
+studio down. To use Mandrel again later, just double-click the same
 launcher file.
 
 FIRST-TIME SETUP
 -----------------
 Node.js is required to run the local studio server (a free, standard tool —
-not related to Blue Flame itself). If it's not already on your computer, the
+not related to Mandrel itself). If it's not already on your computer, the
 launcher will tell you and link you to https://nodejs.org — install the LTS
 version, then double-click the launcher again.
 
