@@ -15,8 +15,10 @@ const SNAP_MM = 1.2
 
 /**
  * True free-form 3D building — no starting template. A wireframe box frames
- * the working volume; its floor and back wall are clickable to drop a vertex
- * (floor for ground level, wall for picking a height directly). But nothing
+ * the working volume; double-click its floor or back wall to drop a vertex
+ * (floor for ground level, wall for picking a height directly) — a single
+ * click is left free for orbiting the view without accidentally placing a
+ * point. But nothing
  * is stuck to those two surfaces — press and drag any placed vertex directly
  * and it follows the cursor on a plane facing the camera, so orbiting the
  * view and dragging again reaches literally any point inside (or outside)
@@ -90,6 +92,9 @@ export function Free3DSketch() {
     return lines
   }, [])
 
+  // Double-click to place — a single click is reserved for orbiting/selecting
+  // so a normal drag-to-orbit gesture (which fires a click on release) can't
+  // accidentally drop a vertex.
   const groundClick = (e: ThreeEvent<MouseEvent>) => {
     if (draggingRef.current) return
     e.stopPropagation()
@@ -227,7 +232,7 @@ export function Free3DSketch() {
       </lineSegments>
 
       {/* Construction floor — click anywhere to drop the next vertex at height 0 */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} onClick={groundClick}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} onDoubleClick={groundClick}>
         <planeGeometry args={[PLANE_SIZE, PLANE_SIZE]} />
         <meshBasicMaterial color="#0E1113" transparent opacity={0.28} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
@@ -236,7 +241,7 @@ export function Free3DSketch() {
       {/* Vertical wall, standing on the floor's back edge — click to drop a
           vertex at any height directly, instead of placing on the floor and
           dragging it up. */}
-      <mesh position={[0, PLANE_SIZE / 2, WALL_Z]} onClick={wallClick}>
+      <mesh position={[0, PLANE_SIZE / 2, WALL_Z]} onDoubleClick={wallClick}>
         <planeGeometry args={[PLANE_SIZE, PLANE_SIZE]} />
         <meshBasicMaterial color="#140F1B" transparent opacity={0.28} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>

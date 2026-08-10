@@ -37,12 +37,12 @@ export function Free3DDock() {
     <div className="sketch-dock">
       <div className="sketch-dock-head">
         <b>Build in 3D</b>
-        <span>click the floor or back wall to place · drag a point to move it, or snap it onto another to close the loop · click a line to curve it or resize it · right-click a point to delete</span>
+        <span>double-click the floor or back wall to place · drag a point to move it, or snap it onto another to close the loop · click a line to curve it or resize it · right-click a point to delete</span>
         <button className="sketch-x" onClick={cancel} title="Cancel" aria-label="Cancel">×</button>
       </div>
       <div className="sketch-dock-ctl">
         <p className="sk-explain">
-          A wireframe box frames the working space — no template. Click the floor for a point at ground level, or
+          A wireframe box frames the working space — no template. Double-click the floor for a point at ground level, or
           the upright wall behind it to pick a height directly. Nothing is stuck where it lands: press and drag any
           point and it follows your cursor, so turning the view and dragging again reaches any spot in the box, not
           just up/down/sideways — and dragging one point close to another snaps it into place. Snap the last point
