@@ -218,50 +218,55 @@ export default function App() {
     <>
       <Masthead mode={mode} setMode={setMode} onLab={() => setLabOpen(true)} onTour={() => setTourOpen(true)} onGallery={() => setGalleryOpen(true)} onSettings={() => setSettingsOpen(true)} />
       <div className="app">
+        {/* Each scene's <Canvas> stays mounted for the life of the app — only its
+            visibility toggles with the active mode. Fully unmounting a Canvas on
+            every switch tears down its WebGL context, and creating a fresh one
+            right as the old one is being torn down can stall or silently fail to
+            ever size/draw (surfaced as Sculpt flashing black for several seconds,
+            or occasionally never recovering). Keeping one instance per scene alive
+            sidesteps that entirely — switching modes is just a display toggle. */}
+        <div style={{ display: mode === 'design' || mode === 'ai' ? 'contents' : 'none' }}>
+          <Scene suggest={mode === 'design'} />
+        </div>
+        <div style={{ display: mode === 'color' ? 'contents' : 'none' }}>
+          <ColorScene />
+        </div>
+        <div style={{ display: mode === 'model' ? 'contents' : 'none' }}>
+          <ModelerScene />
+        </div>
+
         {mode === 'design' ? (
-          <>
-            <Scene suggest />
-            <aside className="panel">
-              <div className="panel-scroll">
-                <Controls />
-                {show('stoneSource') && <StoneSourcePanel />}
-                {show('variants') && <VariantsPanel />}
-                <MetalPanel />
-                {show('metalOptions') && <MetalOptionsPanel />}
-                {show('production') && <ProductionPanel />}
-                {show('customers') && <CustomersPanel />}
-                <TeamPanel />
-                <AffiliatesPanel />
-                {show('library') && <LibraryPanel />}
-                {show('projects') && <ProjectsPanel />}
-              </div>
-            </aside>
-          </>
+          <aside className="panel">
+            <div className="panel-scroll">
+              <Controls />
+              {show('stoneSource') && <StoneSourcePanel />}
+              {show('variants') && <VariantsPanel />}
+              <MetalPanel />
+              {show('metalOptions') && <MetalOptionsPanel />}
+              {show('production') && <ProductionPanel />}
+              {show('customers') && <CustomersPanel />}
+              <TeamPanel />
+              <AffiliatesPanel />
+              {show('library') && <LibraryPanel />}
+              {show('projects') && <ProjectsPanel />}
+            </div>
+          </aside>
         ) : mode === 'color' ? (
-          <>
-            <ColorScene />
-            <aside className="panel">
-              <div className="panel-scroll">
-                <ColorPanel />
-              </div>
-            </aside>
-          </>
+          <aside className="panel">
+            <div className="panel-scroll">
+              <ColorPanel />
+            </div>
+          </aside>
         ) : mode === 'ai' ? (
-          <>
-            <Scene />
-            <aside className="panel ai-aside">
-              <AIStudioPanel />
-            </aside>
-          </>
+          <aside className="panel ai-aside">
+            <AIStudioPanel />
+          </aside>
         ) : (
-          <>
-            <ModelerScene />
-            <aside className="panel">
-              <div className="panel-scroll">
-                <ModelerPanel />
-              </div>
-            </aside>
-          </>
+          <aside className="panel">
+            <div className="panel-scroll">
+              <ModelerPanel />
+            </div>
+          </aside>
         )}
       </div>
       <MetalGenerator open={labOpen} onClose={() => setLabOpen(false)} />

@@ -52,7 +52,7 @@ export function ModelerScene() {
         <directionalLight position={[10, 18, 12]} intensity={1.5} castShadow />
         <directionalLight position={[-10, 4, -8]} intensity={0.6} color="#BFD4FF" />
 
-        <gridHelper args={[100, 50, '#39424633', '#252b2e']} />
+        <gridHelper args={[100, 50, '#394246', '#252b2e']} />
         <CaptureRig />
 
         {objects.map(o => (

@@ -220,7 +220,7 @@ export function Scene({ suggest = false }: { suggest?: boolean } = {}) {
             onCommit={v => commitEdit(v)}
           />
         )}
-        {grid && <gridHelper args={[80, 40, '#39424633', '#252b2e']} position={[0, -13, 0]} />}
+        {grid && <gridHelper args={[80, 40, '#394246', '#252b2e']} position={[0, -13, 0]} />}
         <ContactShadows position={[0, -13, 0]} opacity={0.5} scale={70} blur={2.6} far={26} resolution={512} color="#000000" />
         <OrbitControls
           makeDefault
