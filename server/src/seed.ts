@@ -22,6 +22,14 @@ if (!tenant) {
   tenant = { id }
 }
 
+// This seeded tenant is the shop's own operator account, not a paying
+// customer — it should never be paywalled. New shops that register through
+// the app (a separate tenant, created in index.ts) still start with
+// subscription_status='none' and go through Stripe checkout as normal; this
+// unconditional update only ever touches the one seeded 'mandrel' tenant.
+db.prepare("UPDATE tenants SET subscription_status = 'active' WHERE id = ? AND subscription_status = 'none'")
+  .run(tenant.id)
+
 for (const [email, pw, role] of [['mike', 'mike123', 'admin'], ['liliya', 'liliya123', 'associate']] as const) {
   const exists = db.prepare('SELECT id FROM users WHERE tenant_id = ? AND email = ?').get(tenant.id, email)
   if (!exists) {
