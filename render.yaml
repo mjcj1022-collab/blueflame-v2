@@ -31,7 +31,7 @@ services:
       - key: JWT_SECRET
         generateValue: true          # Render generates a strong secret for you
       - key: CLIENT_ORIGIN
-        value: https://mjcj1022-collab.github.io   # the GitHub Pages origin (for CORS)
+        value: https://mjcj1022-collab.github.io,https://mandrel.netlify.app   # comma-separated allowed origins (for CORS)
       - key: DB_FILE
         value: /var/data/mandrel.db  # on the mounted disk → persists across deploys
       # Live metal spot feed (OPTIONAL). Set METALS_API_KEY to your provider key

@@ -11,7 +11,15 @@ import { runAssistant, aiEnabled } from './ai.js'
 import { sendOfflineDownloadEmail } from './mail.js'
 
 const app = express()
-app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? '*' }))
+// CLIENT_ORIGIN accepts one origin or a comma-separated list (e.g. the
+// GitHub Pages site plus a Netlify preview/mirror). Unset -> allow all,
+// which is fine since every route that touches real data is auth-gated.
+const allowedOrigins = (process.env.CLIENT_ORIGIN ?? '*').split(',').map(o => o.trim()).filter(Boolean)
+app.use(cors({
+  origin: allowedOrigins.includes('*')
+    ? true
+    : (origin, cb) => cb(null, !origin || allowedOrigins.includes(origin)),
+}))
 
 /* ---------- Stripe webhook (raw body, before the JSON parser) ----------
  * Stripe posts here when a payment settles; the signature is verified against
@@ -442,7 +450,13 @@ app.post('/api/billing/checkout', requireAuth, async (req, res) => {
     const plan = PLAN_PRICE[planId]
     if (!plan) { res.status(400).json({ error: 'unknown plan' }); return }
     const priceId = process.env[plan.env] ?? ''
-    const origin = process.env.CLIENT_ORIGIN && process.env.CLIENT_ORIGIN !== '*' ? process.env.CLIENT_ORIGIN : ''
+    // CLIENT_ORIGIN may now be a comma-separated list (multiple hosted
+    // mirrors) — send the buyer back to whichever one they actually checked
+    // out from, falling back to the first configured origin.
+    const reqOrigin = req.headers.origin
+    const origin = (reqOrigin && allowedOrigins.includes(reqOrigin))
+      ? reqOrigin
+      : (allowedOrigins.find(o => o !== '*') ?? '')
     // Pass the signed-in user's own email so Stripe pre-fills checkout and —
     // more importantly — so the webhook can read it straight off the session
     // afterward to send the offline-download email to the right address.
