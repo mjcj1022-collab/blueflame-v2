@@ -16,24 +16,22 @@ services:
     name: mandrel-api
     runtime: node
     rootDir: server
-    plan: starter                    # paid tier — needed for the persistent disk below
+    plan: free                       # free tier — matches the old blue-flame-api service (no persistent disk)
     buildCommand: npm install
     startCommand: npm run seed && npm run start
     healthCheckPath: /api/health
-    # Durable storage: a mounted disk so the SQLite database (accounts, team,
-    # cloud sculpts, orders) survives every deploy and restart. Without this the
-    # data resets on redeploy — see the free-tier note at the bottom.
-    disk:
-      name: mandrel-data
-      mountPath: /var/data
-      sizeGB: 1
+    # NOTE: no mounted disk on the free plan, so the SQLite file is ephemeral —
+    # it resets on every deploy/restart (accounts, team, cloud sculpts, orders
+    # all reseed). This matches the old blue-flame-api service's setup exactly,
+    # so switching to this service is not a behavior regression. Upgrade to
+    # `plan: starter` + add a `disk:` block later if persistent data is needed.
     envVars:
       - key: JWT_SECRET
         generateValue: true          # Render generates a strong secret for you
       - key: CLIENT_ORIGIN
         value: https://mjcj1022-collab.github.io,https://mandrel.netlify.app   # comma-separated allowed origins (for CORS)
       - key: DB_FILE
-        value: /var/data/mandrel.db  # on the mounted disk → persists across deploys
+        value: mandrel.db            # local ephemeral file (free tier has no persistent disk)
       # Live metal spot feed (OPTIONAL). Set METALS_API_KEY to your provider key
       # and quotes track the real gold/platinum market; unset → catalog spots.
       # Provider: 'metalpriceapi' (default, one request) or 'goldapi'.
@@ -55,13 +53,14 @@ services:
       - key: STRIPE_PRICE_OFFLINE
         sync: false
 
-# --- Running on the free tier instead --------------------------------------
-# The free plan can't mount a disk, so its filesystem is ephemeral — the SQLite
-# file resets on every deploy/restart (accounts, team, cloud sculpts, orders all
-# reseed). To run free anyway, set:
-#     plan: free
-# and remove the `disk:` block and point DB_FILE back at a local file:
+# --- Upgrading to a persistent disk later -----------------------------------
+# To keep data (accounts, team, cloud sculpts, orders) across deploys, switch to
+# a paid plan and mount a disk:
+#     plan: starter
+#     disk:
+#       name: mandrel-data
+#       mountPath: /var/data
+#       sizeGB: 1
+# and point DB_FILE at the mounted disk:
 #     - key: DB_FILE
-#       value: mandrel.db
-# Data will NOT persist across deploys in that mode — fine for a demo, not for a
-# shop relying on it day to day.
+#       value: /var/data/mandrel.db
