@@ -349,6 +349,9 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 /* metal lab */
 .mast-lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;padding:6px 12px;background:var(--karat);color:#3A2E1E;border:1px solid var(--karat);cursor:pointer;border-radius:6px}
 .mast-lab:hover{background:var(--karat-lt)}
+/* Standalone save — sits with the account controls on the far right so it's
+   reachable from every tab, not just tucked in a side-panel section. */
+.mast-save{margin-left:12px}
 .lab-overlay{position:fixed;inset:0;background:rgba(6,8,9,.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:50;padding:24px}
 .lab{background:var(--graphite);border:1px solid var(--rule-dark);width:min(1000px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 30px 90px rgba(0,0,0,.6)}
 .lab-head{display:flex;justify-content:space-between;align-items:flex-start;padding:20px 24px;border-bottom:1px solid var(--rule-dark)}

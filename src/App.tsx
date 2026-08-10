@@ -30,7 +30,7 @@ import { apiConfigured } from './lib/api'
 import { Pricing } from './ui/Pricing'
 import { useWorkspace } from './state/workspace'
 import { useSettings } from './state/settings'
-import { autosave } from './lib/autosave'
+import { autosave, projects } from './lib/autosave'
 import { computeMetal } from './lib/metal'
 import { CATEGORY_LABEL } from './spec/types'
 import { shareUrl, specFromUrl } from './lib/share'
@@ -49,9 +49,21 @@ function Masthead({ mode, setMode, onLab, onTour, onGallery, onSettings }: { mod
   const authUser = useAuth(s => s.user)
   const logout = useAuth(s => s.logout)
   const [shared, setShared] = useState(false)
+  const [saved, setSaved] = useState(false)
   const m = computeMetal(spec)
   const share = async () => {
     try { await navigator.clipboard.writeText(shareUrl(spec)); setShared(true); setTimeout(() => setShared(false), 2000) } catch { /* clipboard blocked */ }
+  }
+  // One-click save reachable from every tab — bundles the current design AND
+  // whatever's on the Sculpt bench into a single named project, same data a
+  // manual save from the Projects panel would capture. Named automatically so
+  // there's nothing to type; open the Projects panel to rename or manage saves.
+  const quickSave = () => {
+    const s = useDesign.getState().spec
+    const sculpt = useModeler.getState().objects
+    const stamp = new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    projects.save(`${CATEGORY_LABEL[s.category]} — ${stamp}`, s, sculpt)
+    setSaved(true); setTimeout(() => setSaved(false), 2000)
   }
   return (
     <header className="mast">
@@ -88,6 +100,7 @@ function Masthead({ mode, setMode, onLab, onTour, onGallery, onSettings }: { mod
             <button className="mast-reset" onClick={reset}>Reset</button>
           </>
         )}
+        <button className="mast-lab mast-save" onClick={quickSave} title="Save the current design + sculpt as a project — works from any tab">{saved ? 'Saved ✓' : 'Save'}</button>
         <BackendStatus />
         <span className="mast-user">{authUser}<button className="mast-signout" onClick={logout}>sign out</button></span>
       </div>
