@@ -206,7 +206,13 @@ export function Scene({ suggest = false }: { suggest?: boolean } = {}) {
         <directionalLight position={[6, 12, 9]} intensity={L.key[1]} color={L.key[0]} />
         <directionalLight position={[-8, 3, -7]} intensity={L.fill[1]} color={L.fill[0]} />
         <Turntable on={spin && !reduced && !editActive}>
-          <group ref={g => { pieceHandle.current = g }}>
+          {/* Double-click the piece itself to jump straight into vertex editing
+              (Edit tool) without hunting for the toolbar button — a plain single
+              click is left alone since a drag-to-orbit release also fires one. */}
+          <group
+            ref={g => { pieceHandle.current = g }}
+            onDoubleClick={editActive ? undefined : e => { e.stopPropagation(); enterEdit('edit') }}
+          >
             {!editActive && <Piece spec={spec} />}
           </group>
         </Turntable>
@@ -245,7 +251,7 @@ export function Scene({ suggest = false }: { suggest?: boolean } = {}) {
       </div>
 
       <div className="stage-foot">
-        <div className="scalebar"><i /> {editActive ? EDIT_HINT[editTool] : 'Drag to orbit · scroll to zoom'}</div>
+        <div className="scalebar"><i /> {editActive ? EDIT_HINT[editTool] : 'Drag to orbit · scroll to zoom · double-click the piece to edit its vertices'}</div>
       </div>
 
       <div className="stage-toolbar">
