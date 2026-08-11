@@ -20,6 +20,7 @@ import { ModelerPanel } from './ui/ModelerPanel'
 import { MetalGenerator } from './ui/MetalGenerator'
 import { Tour } from './ui/Tour'
 import { SettingsModal } from './ui/SettingsModal'
+import { HotkeysModal } from './ui/HotkeysModal'
 import { SuggestToast } from './ui/SuggestToast'
 import { BackendStatus } from './ui/BackendStatus'
 import { useDesign } from './state/design'
@@ -38,7 +39,7 @@ import { fetchAndApplySpot } from './lib/spot'
 
 type Mode = 'design' | 'model' | 'color' | 'ai'
 
-function Masthead({ mode, setMode, onLab, onTour, onGallery, onSettings }: { mode: Mode; setMode: (m: Mode) => void; onLab: () => void; onTour: () => void; onGallery: () => void; onSettings: () => void }) {
+function Masthead({ mode, setMode, onLab, onTour, onGallery, onSettings, onHotkeys }: { mode: Mode; setMode: (m: Mode) => void; onLab: () => void; onTour: () => void; onGallery: () => void; onSettings: () => void; onHotkeys: () => void }) {
   const spec = useDesign(s => s.spec)
   const reset = useDesign(s => s.reset)
   const shop = useDesign(s => s.shop)
@@ -92,6 +93,7 @@ function Masthead({ mode, setMode, onLab, onTour, onGallery, onSettings }: { mod
         <button className="mast-lab" onClick={onGallery} title="Open the gallery">Gallery</button>
         <button className="mast-lab" onClick={onLab}>Metal Lab</button>
         <button className="mast-lab" onClick={onSettings} title="Settings" aria-label="Settings">⚙</button>
+        <button className="mast-lab" onClick={onHotkeys} title="Keyboard shortcuts" aria-label="Keyboard shortcuts">⌨</button>
         <button className="mast-lab" onClick={onTour} title="Show the tour" aria-label="Show the tour">?</button>
         {mode === 'design' && (
           <>
@@ -114,6 +116,7 @@ export default function App() {
   const [labOpen, setLabOpen] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(true)   // the first window on launch
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [hotkeysOpen, setHotkeysOpen] = useState(false)
   const [tourOpen, setTourOpen] = useState(() => { try { return !localStorage.getItem(TOUR_KEY) } catch { return false } })
   const mode = useWorkspace(s => s.mode)
   const setMode = useWorkspace(s => s.setMode)
@@ -216,7 +219,7 @@ export default function App() {
 
   return (
     <>
-      <Masthead mode={mode} setMode={setMode} onLab={() => setLabOpen(true)} onTour={() => setTourOpen(true)} onGallery={() => setGalleryOpen(true)} onSettings={() => setSettingsOpen(true)} />
+      <Masthead mode={mode} setMode={setMode} onLab={() => setLabOpen(true)} onTour={() => setTourOpen(true)} onGallery={() => setGalleryOpen(true)} onSettings={() => setSettingsOpen(true)} onHotkeys={() => setHotkeysOpen(true)} />
       <div className="app">
         {/* Each scene's <Canvas> stays mounted for the life of the app — only its
             visibility toggles with the active mode. Fully unmounting a Canvas on
@@ -272,6 +275,7 @@ export default function App() {
       <MetalGenerator open={labOpen} onClose={() => setLabOpen(false)} />
       {galleryOpen && <GalleryModal onClose={() => setGalleryOpen(false)} />}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {hotkeysOpen && <HotkeysModal onClose={() => setHotkeysOpen(false)} />}
       {tourOpen && !galleryOpen && <Tour onClose={closeTour} />}
       <SuggestToast />
     </>

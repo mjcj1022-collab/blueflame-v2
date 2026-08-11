@@ -3,6 +3,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Environment, Lightformer, ContactShadows } from '@react-three/drei'
 import * as THREE from 'three'
 import { useDesign } from '../state/design'
+import { useWorkspace } from '../state/workspace'
+import { useHotkeys } from '../state/hotkeys'
 import { alloyById, shapeById, stoneMm } from '../catalog'
 import { sizeToDiameter, formatSize } from '../lib/sizing'
 import { CATEGORY_LABEL, stoneOnPiece } from '../spec/types'
@@ -188,6 +190,35 @@ export function Scene({ suggest = false }: { suggest?: boolean } = {}) {
     beginEdit(verts, tool)
   }
 
+  // Tool hotkeys for the vertex-edit toolbar below — reassignable from the ⌨
+  // shortcuts modal. Scene stays mounted while another tab is active (so its
+  // WebGL context is never torn down and recreated), so this must ignore
+  // keypresses unless Design or AI is actually the visible tab. Refs hold the
+  // latest enterEdit/exitEdit so the listener itself only needs to attach once.
+  const mode = useWorkspace(s => s.mode)
+  const enterEditRef = useRef(enterEdit)
+  enterEditRef.current = enterEdit
+  const exitEditRef = useRef(exitEdit)
+  exitEditRef.current = exitEdit
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (mode !== 'design' && mode !== 'ai') return
+      const t = e.target as HTMLElement
+      if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const key = e.key.toLowerCase()
+      const k = useHotkeys.getState().bindings
+      if (key === k['design.move']) { exitEditRef.current(); e.preventDefault() }
+      else if (key === k['design.select']) { enterEditRef.current('select'); e.preventDefault() }
+      else if (key === k['design.edit']) { enterEditRef.current('edit'); e.preventDefault() }
+      else if (key === k['design.add']) { enterEditRef.current('add'); e.preventDefault() }
+      else if (key === k['design.remove']) { enterEditRef.current('remove'); e.preventDefault() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mode])
+  const hotkey = useHotkeys(s => s.keyFor)
+
   const target = viewTarget(spec)
 
   return (
@@ -266,11 +297,11 @@ export function Scene({ suggest = false }: { suggest?: boolean } = {}) {
         </div>
         <div className="tbar-grp">
           <span className="tbar-lbl">Tools</span>
-          <button className="sbtn" aria-pressed={!editActive} onClick={exitEdit} title="View / orbit the parametric piece">Move</button>
-          <button className="sbtn" aria-pressed={editActive && editTool === 'select'} onClick={() => enterEdit('select')} title="Select vertices only">Select</button>
-          <button className="sbtn" aria-pressed={editActive && editTool === 'edit'} onClick={() => enterEdit('edit')} title="Left-click a vertex and drag to reshape">Edit</button>
-          <button className="sbtn" aria-pressed={editActive && editTool === 'add'} onClick={() => enterEdit('add')} title="Click the surface to add a vertex">Add</button>
-          <button className="sbtn" aria-pressed={editActive && editTool === 'remove'} onClick={() => enterEdit('remove')} title="Double-click a vertex to remove it">Remove</button>
+          <button className="sbtn" aria-pressed={!editActive} onClick={exitEdit} title={`View / orbit the parametric piece  ·  key ${hotkey('design.move')}`}>Move</button>
+          <button className="sbtn" aria-pressed={editActive && editTool === 'select'} onClick={() => enterEdit('select')} title={`Select vertices only  ·  key ${hotkey('design.select')}`}>Select</button>
+          <button className="sbtn" aria-pressed={editActive && editTool === 'edit'} onClick={() => enterEdit('edit')} title={`Left-click a vertex and drag to reshape  ·  key ${hotkey('design.edit')}`}>Edit</button>
+          <button className="sbtn" aria-pressed={editActive && editTool === 'add'} onClick={() => enterEdit('add')} title={`Click the surface to add a vertex  ·  key ${hotkey('design.add')}`}>Add</button>
+          <button className="sbtn" aria-pressed={editActive && editTool === 'remove'} onClick={() => enterEdit('remove')} title={`Double-click a vertex to remove it  ·  key ${hotkey('design.remove')}`}>Remove</button>
         </div>
         <div className="tbar-grp">
           <span className="tbar-lbl">Export</span>

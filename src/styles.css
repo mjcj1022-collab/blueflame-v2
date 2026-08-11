@@ -55,6 +55,23 @@ code{font-family:var(--mono);font-size:.92em}
 .settings-row.inset{padding:12px 0 12px 2px}
 .settings-section .settings-row.inset+.settings-row.inset{border-top:1px dashed var(--rule)}
 
+/* keyboard shortcuts modal */
+.hotkeys-win{width:min(560px,100%);max-height:min(680px,88vh);display:flex;flex-direction:column}
+.hotkeys-body{overflow-y:auto}
+.hotkeys-intro{margin:4px 0 2px;font-size:12.5px;line-height:1.5;color:var(--slate)}
+.hotkeys-group>b{margin-bottom:2px}
+.hotkey-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 0}
+.hotkey-row span{font-size:13px;color:var(--graphite)}
+.hotkey-ctl{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+.hotkey-key{min-width:64px;padding:6px 10px;border:1px solid var(--rule-dark);border-radius:6px;background:#FFFFFF;
+  font-family:var(--mono);font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--graphite);cursor:pointer;text-align:center}
+.hotkey-key:hover{border-color:var(--karat)}
+.hotkey-key.capturing{border-color:var(--karat);background:#EAF5F0;color:var(--karat);text-transform:none;min-width:96px}
+.hotkey-reset{background:none;border:none;color:var(--slate);font-size:14px;cursor:pointer;padding:2px 4px;border-radius:5px}
+.hotkey-reset:hover{color:var(--graphite);background:rgba(0,0,0,.05)}
+.hotkey-warn{margin-top:10px;padding:9px 11px;border-radius:7px;background:#FBEFE8;border:1px solid #E7C4A8;color:#8A4A22;font-size:12.5px;line-height:1.45}
+.hotkeys-reset-all{margin-top:16px;width:100%}
+
 /* appearance preferences (toggled from Settings) */
 /* wall-thickness heat-map legend */
 .heat-legend{display:flex;flex-direction:column;gap:5px;margin-top:9px;font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--slate)}

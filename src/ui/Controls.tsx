@@ -98,17 +98,15 @@ function FreeSketchLauncher() {
       <div className="opts c2">
         <button
           className="opt tpl"
-          title="key G"
           onClick={() => { useWorkspace.getState().setMode('model'); useModeler.getState().setSketching(true) }}
         >
-          2D grid<small>Draw a profile, then revolve or extrude it · key G</small>
+          2D grid<small>Draw a profile, then revolve or extrude it</small>
         </button>
         <button
           className="opt tpl"
-          title="key B"
           onClick={() => { useWorkspace.getState().setMode('model'); useModeler.getState().setSketching3D(true) }}
         >
-          3D builder<small>No template — place vertices in 3D and wire them together · key B</small>
+          3D builder<small>No template — place vertices in 3D and wire them together</small>
         </button>
       </div>
     </Group>
