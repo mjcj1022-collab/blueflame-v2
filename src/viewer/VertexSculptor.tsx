@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { Edges } from '@react-three/drei'
 import { useThree, type ThreeEvent } from '@react-three/fiber'
 import { sculptPull, addVertexInTriangle, removeVertexNear } from '../lib/sculpt'
+import { circleSprite } from './circleSprite'
 import type { VertexTool } from '../state/modeler'
 
 export interface VertexSculptorProps {
@@ -62,6 +63,10 @@ export function VertexSculptor({ vertices, color, falloff, symmetry, tool, selec
   const normalRef = useRef(new THREE.Vector3())
   const draggingRef = useRef(false)
   const [dragging, setDragging] = useState(false)
+  // The nearest vertex under the cursor, live — separate from the clicked
+  // `selectedVertex` so a vertex can light up just by hovering it, before
+  // it's picked.
+  const [hoverVertex, setHoverVertex] = useState<number | null>(null)
 
   const endDrag = () => {
     if (!draggingRef.current) return
@@ -108,7 +113,16 @@ export function VertexSculptor({ vertices, color, falloff, symmetry, tool, selec
   }
 
   const move = (e: ThreeEvent<PointerEvent>) => {
-    if (!draggingRef.current) return
+    if (!draggingRef.current) {
+      // Not dragging — just track which vertex the cursor is nearest to, so
+      // it can highlight on hover before it's actually picked. Only for the
+      // tools where picking a single vertex matters.
+      if (tool === 'select' || tool === 'edit') {
+        const lp = e.eventObject.worldToLocal(e.point.clone())
+        setHoverVertex(nearest(lp))
+      }
+      return
+    }
     const base = baseRef.current
     if (!base) return
     e.stopPropagation()
@@ -155,9 +169,20 @@ export function VertexSculptor({ vertices, color, falloff, symmetry, tool, selec
   }, [geom, selectedVertex])
 
   // Show the actual vertices as dots so grab points are visible; skipped on
-  // dense meshes. The overlay never raycasts, so drags still hit the surface.
+  // dense meshes. The overlay never raycasts, so drags still hit the surface
+  // (hover/pick both come from the surface mesh's own pointer events).
   const showPoints = geom.getAttribute('position').count <= 20000
-  const dotSize = tool === 'select' ? 0.85 : 0.6
+  const dotSize = tool === 'select' ? 0.5 : 0.38
+  const sprite = circleSprite()
+
+  // The hovered vertex, in the mesh's current (possibly mid-edit) space —
+  // same lookup as the selected-vertex marker below.
+  const hoverMarker = useMemo(() => {
+    if (hoverVertex == null || hoverVertex === selectedVertex) return null
+    const pos = geom.getAttribute('position') as THREE.BufferAttribute
+    if (hoverVertex >= pos.count) return null
+    return new THREE.Vector3(pos.getX(hoverVertex), pos.getY(hoverVertex), pos.getZ(hoverVertex))
+  }, [geom, hoverVertex, selectedVertex])
 
   return (
     <>
@@ -167,6 +192,7 @@ export function VertexSculptor({ vertices, color, falloff, symmetry, tool, selec
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}
+        onPointerOut={() => setHoverVertex(null)}
         onClick={click}
         onDoubleClick={dbl}
         castShadow
@@ -175,16 +201,34 @@ export function VertexSculptor({ vertices, color, falloff, symmetry, tool, selec
       </mesh>
       {showPoints && (
         <points geometry={geom} raycast={() => null}>
-          <pointsMaterial size={dotSize} sizeAttenuation color="#9BB4C6" transparent opacity={tool === 'select' ? 0.85 : 0.7} />
+          <pointsMaterial
+            size={dotSize}
+            sizeAttenuation
+            map={sprite}
+            alphaTest={0.5}
+            transparent
+            color="#9BB4C6"
+            opacity={tool === 'select' ? 0.85 : 0.7}
+          />
         </points>
+      )}
+
+      {/* Hover feedback — lights up the nearest vertex to the cursor before
+          it's clicked. Hidden once that same vertex becomes the real pick,
+          and mid-drag since the surface itself is the live feedback. */}
+      {hoverMarker && !dragging && (
+        <mesh position={hoverMarker} raycast={() => null}>
+          <sphereGeometry args={[0.32, 16, 12]} />
+          <meshBasicMaterial color="#EAF4FF" toneMapped={false} transparent opacity={0.55} depthTest={false} />
+        </mesh>
       )}
 
       {/* Highlight the picked vertex; hidden mid-drag since the surface itself
           is the live feedback. */}
       {marker && !dragging && (
         <mesh position={marker} raycast={() => null}>
-          <sphereGeometry args={[0.4, 18, 14]} />
-          <meshBasicMaterial color={tool === 'select' ? '#7FC8FF' : '#C6A265'} toneMapped={false} transparent opacity={0.65} />
+          <sphereGeometry args={[0.3, 18, 14]} />
+          <meshBasicMaterial color={tool === 'select' ? '#7FC8FF' : '#C6A265'} toneMapped={false} transparent opacity={0.7} depthTest={false} />
         </mesh>
       )}
     </>

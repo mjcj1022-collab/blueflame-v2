@@ -4,6 +4,7 @@ import { Html, TransformControls } from '@react-three/drei'
 import { useThree } from '@react-three/fiber'
 import { useModeler, type SculptObject } from '../state/modeler'
 import { pointInPolygon, groupCentroid } from '../lib/vertexSelect'
+import { circleSprite } from './circleSprite'
 
 /**
  * ArcGIS-style vertex tools for an editable mesh:
@@ -147,7 +148,15 @@ function GroupGizmo({ o, indices, onMove, onDelete }: { o: SculptObject; indices
   return (
     <>
       <points geometry={dots} raycast={() => null}>
-        <pointsMaterial size={1.15} sizeAttenuation color="#FF5D8F" toneMapped={false} />
+        <pointsMaterial
+          size={0.55}
+          sizeAttenuation
+          map={circleSprite()}
+          alphaTest={0.5}
+          transparent
+          color="#FF5D8F"
+          toneMapped={false}
+        />
       </points>
       <TransformControls mode="translate" size={0.7} onMouseUp={commit}>
         <object3D ref={ref} />
