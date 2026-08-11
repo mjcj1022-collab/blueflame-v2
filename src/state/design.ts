@@ -18,6 +18,11 @@ interface DesignStore {
   setOrderStage: (i: number) => void
   viewWire: boolean
   toggleWire: () => void
+  /** 0.15 (barely there) – 1 (full strength) — a global fade on every gem's
+   *  material, independent of its own transmission/IOR physics. Shared by the
+   *  Design/AI viewer and the Sculpt tab so "the jewels" means all of them. */
+  gemOpacity: number
+  setGemOpacity: (v: number) => void
   colorwork: { metal: string | null; stone: string | null; bg: string | null }
   setColorwork: (patch: Partial<{ metal: string | null; stone: string | null; bg: string | null }>) => void
   resetColorwork: () => void
@@ -119,6 +124,8 @@ export const useDesign = create<DesignStore>((rawSet, get) => {
   setOrderStage: i => set({ orderStage: Math.max(0, Math.min(6, i)) }),
   viewWire: false,
   toggleWire: () => set(s => ({ viewWire: !s.viewWire })),
+  gemOpacity: 1,
+  setGemOpacity: v => set({ gemOpacity: Math.max(0.15, Math.min(1, v)) }),
   colorwork: { metal: null, stone: null, bg: null },
   setColorwork: patch => set(s => ({ colorwork: { ...s.colorwork, ...patch } })),
   resetColorwork: () => set({ colorwork: { metal: null, stone: null, bg: null } }),

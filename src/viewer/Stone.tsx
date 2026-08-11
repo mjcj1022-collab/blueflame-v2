@@ -21,6 +21,7 @@ export function Stone({ shapeId, stoneTypeId, carat, grading }: Props) {
   const geometry = useMemo(() => brilliantGeometry(width, shape.segments), [width, shape.segments])
 
   const override = useDesign(s => s.colorwork.stone)   // custom colour from the Color studio
+  const gemOpacity = useDesign(s => s.gemOpacity)       // global "how see-through" slider
   const graded = grading && isGradeable(stoneTypeId)
   const material = useMemo(() => {
     const optics = graded ? clarityOptics(grading!.clarity) : null
@@ -29,7 +30,7 @@ export function Stone({ shapeId, stoneTypeId, carat, grading }: Props) {
       color,
       metalness: 0,
       roughness: optics ? optics.roughness : 0.02,
-      transmission: optics ? optics.transmission : (stone.transparent ? 0.94 : 0.3),
+      transmission: (optics ? optics.transmission : (stone.transparent ? 0.94 : 0.3)) * gemOpacity,
       thickness: width * 0.5,
       ior: stone.ior,
       envMapIntensity: 2.8,
@@ -37,9 +38,9 @@ export function Stone({ shapeId, stoneTypeId, carat, grading }: Props) {
       clearcoatRoughness: 0,
       flatShading: true,
       transparent: true,
-      opacity: stone.transparent ? 1 : 0.97
+      opacity: (stone.transparent ? 1 : 0.97) * gemOpacity
     })
-  }, [stone, width, graded, grading, override])
+  }, [stone, width, graded, grading, override, gemOpacity])
 
   return (
     <group scale={[1, 1, shape.lwRatio]}>

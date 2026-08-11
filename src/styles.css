@@ -821,3 +821,6 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 /* Modeler stage — lighting environment selector */
 .stage-env{position:absolute;top:14px;right:14px;z-index:5;background:rgba(20,24,26,.72);color:#E6E8EC;border:1px solid #39424666;border-radius:8px;padding:5px 8px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
 .stage-env:hover{border-color:var(--karat)}
+.stage-jewels{position:absolute;top:50px;right:14px;z-index:5;display:flex;align-items:center;gap:7px;background:rgba(20,24,26,.72);
+  border:1px solid #39424666;border-radius:8px;padding:5px 8px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#E6E8EC}
+.stage-jewels input{width:64px;accent-color:var(--karat)}

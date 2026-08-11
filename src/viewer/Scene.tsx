@@ -111,6 +111,8 @@ export function Scene({ suggest = false }: { suggest?: boolean } = {}) {
   const toggleWire = useDesign(s => s.toggleWire)
   const explode = useDesign(s => s.explode)
   const setExplode = useDesign(s => s.setExplode)
+  const gemOpacity = useDesign(s => s.gemOpacity)
+  const setGemOpacity = useDesign(s => s.setGemOpacity)
   const tryOn = useDesign(s => s.tryOn)
   const toggleTryOn = useDesign(s => s.toggleTryOn)
   const skinTone = useDesign(s => s.skinTone)
@@ -295,6 +297,12 @@ export function Scene({ suggest = false }: { suggest?: boolean } = {}) {
           <span>Explode</span>
           <input type="range" min={0} max={1} step={0.02} value={explode} onChange={e => setExplode(+e.target.value)} />
         </label>
+        {stoneOnPiece(spec) && (
+          <label className="explode-row" title="Fades every stone's material — drag left for more see-through, right for fully opaque">
+            <span>Jewels</span>
+            <input type="range" min={0.15} max={1} step={0.02} value={gemOpacity} onChange={e => setGemOpacity(+e.target.value)} />
+          </label>
+        )}
         {isRing && tryOn && (
           <div className="skin-row">
             {SKIN_TONES.map(c => (

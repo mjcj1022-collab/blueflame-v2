@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Environment, GizmoHelper, GizmoViewport } from '@react-three/drei'
 import * as THREE from 'three'
 import { useModeler } from '../state/modeler'
+import { useDesign } from '../state/design'
 import { SculptMesh } from './SculptMesh'
 import { EnvBoundary } from './EnvBoundary'
 import { CaptureRig } from './CaptureRig'
@@ -22,6 +23,9 @@ export function ModelerScene() {
   const explode = useModeler(s => s.explode)
   const envPreset = useModeler(s => s.envPreset)
   const setEnvPreset = useModeler(s => s.setEnvPreset)
+  const gemOpacity = useDesign(s => s.gemOpacity)
+  const setGemOpacity = useDesign(s => s.setGemOpacity)
+  const hasGem = objects.some(o => o.material === 'gem')
 
   // Exploded view: push each part outward from the assembly centre by `explode`.
   const cx = objects.length ? objects.reduce((s, o) => s + o.position[0], 0) / objects.length : 0
@@ -90,6 +94,12 @@ export function ModelerScene() {
         <option value="apartment">Soft</option>
         <option value="warehouse">Dramatic</option>
       </select>
+      {hasGem && (
+        <label className="stage-jewels" title="Fades every stone's material — drag left for more see-through, right for fully opaque">
+          <span>Jewels</span>
+          <input type="range" min={0.15} max={1} step={0.02} value={gemOpacity} onChange={e => setGemOpacity(+e.target.value)} />
+        </label>
+      )}
       <ObjectListOverlay />
       <ModelerToolbar />
       {sketching && <SketchDock />}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { TransformControls, Edges } from '@react-three/drei'
 import { useModeler, type SculptObject } from '../state/modeler'
+import { useDesign } from '../state/design'
 import { stoneById, alloyById } from '../catalog'
 import { renderGeometry } from '../lib/sculpt'
 import { wallThicknessColors, HEATMAP_MIN_WALL } from '../lib/heatmap'
@@ -11,23 +12,28 @@ import { SurfaceDraw } from './SurfaceDraw'
 
 function useSculptMaterial(o: SculptObject, metalRoughness: number) {
   const stoneId = o.material === 'gem' ? (o.params?.stoneTypeId ?? 'dia') : ''
+  const gemOpacity = useDesign(s => s.gemOpacity)   // shared with the Design/AI viewer's slider
   return useMemo(() => {
     if (o.material === 'gem') {
       const st = stoneById(stoneId)
       if (!st.transparent) {
-        // Opaque gems (opal, onyx, turquoise, pearl) — no light passes through.
-        return new THREE.MeshPhysicalMaterial({ color: o.color, metalness: 0, roughness: 0.35, clearcoat: 0.4, clearcoatRoughness: 0.2, envMapIntensity: 1.1 })
+        // Opaque gems (opal, onyx, turquoise, pearl) — no light passes through,
+        // but the transparency slider still fades them.
+        return new THREE.MeshPhysicalMaterial({
+          color: o.color, metalness: 0, roughness: 0.35, clearcoat: 0.4, clearcoatRoughness: 0.2,
+          envMapIntensity: 1.1, transparent: true, opacity: gemOpacity,
+        })
       }
       const ior = Math.min(2.333, Math.max(1.0, st.ior))       // three clamps physical IOR to ≤2.333
       const fire = st.ior >= 2.3 ? 0.08 : st.ior >= 1.9 ? 0.05 : 0.02  // diamond/moissanite sparkle more
       return new THREE.MeshPhysicalMaterial({
-        color: o.color, metalness: 0, roughness: 0.02, transmission: 0.92,
+        color: o.color, metalness: 0, roughness: 0.02, transmission: 0.92 * gemOpacity,
         thickness: 3, ior, dispersion: fire, clearcoat: 1, clearcoatRoughness: 0.03,
-        specularIntensity: 1, envMapIntensity: 1.4, transparent: true,
+        specularIntensity: 1, envMapIntensity: 1.4, transparent: true, opacity: gemOpacity,
       })
     }
     return new THREE.MeshStandardMaterial({ color: o.color, metalness: 1, roughness: metalRoughness, envMapIntensity: 1.35 })
-  }, [o.material, o.color, stoneId, metalRoughness])
+  }, [o.material, o.color, stoneId, metalRoughness, gemOpacity])
 }
 
 const snapTo = (v: number, step: number) => Math.round(v / step) * step
