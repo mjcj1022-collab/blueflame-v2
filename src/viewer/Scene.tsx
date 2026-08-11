@@ -193,7 +193,7 @@ export function Scene({ suggest = false }: { suggest?: boolean } = {}) {
       <Canvas
         dpr={[1, 2]}
         camera={{ fov: 30, position: [18, 16, 44] }}
-        gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
       >
         <color attach="background" args={[L.bg]} />
         <CaptureRig />

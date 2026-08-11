@@ -258,7 +258,8 @@ table.cmp td.best{color:var(--patina);font-weight:700}
 /* landing / ad page — shown once, before Login */
 .landing-wrap{position:fixed;inset:0;overflow-y:auto;display:flex;align-items:flex-start;justify-content:center;padding:56px 24px;
   background:radial-gradient(900px 500px at 50% -10%, rgba(31,138,107,.10), transparent 60%),linear-gradient(180deg,#131619,#0F1214)}
-.landing-card{width:min(720px,94vw);background:var(--graphite);border:1px solid var(--rule-dark);padding:44px 46px;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 30px 90px rgba(0,0,0,.5);text-align:center}
+.landing-flank{width:min(1120px,96vw);display:flex;align-items:center;justify-content:center;gap:22px}
+.landing-card{width:min(720px,94vw);flex:0 1 720px;background:var(--graphite);border:1px solid var(--rule-dark);padding:44px 46px;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 30px 90px rgba(0,0,0,.5);text-align:center}
 .landing-logo{font-size:26px}
 .landing-head{margin:14px 0 4px;font-family:var(--ui);font-weight:600;font-size:26px;line-height:1.25;color:#EDEFF1;max-width:520px}
 .landing-sub{margin:0 0 18px;font-family:var(--ui);font-size:14px;line-height:1.55;color:#9AA3A6;max-width:540px}
@@ -267,6 +268,17 @@ table.cmp td.best{color:var(--patina);font-weight:700}
 .landing-feat b{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--karat-lt)}
 .landing-feat span{font-family:var(--ui);font-size:12.5px;line-height:1.45;color:#9AA3A6}
 .landing-cta{width:100%;max-width:360px;padding:14px 18px;font-size:12px}
+
+/* Flanking sample-piece icons — a quick "this is a jewelry design tool" cue
+   either side of the card. Hidden entirely below the width where they'd
+   just crowd the card (see media query). */
+.landing-icon-col{flex:0 0 auto;display:flex;flex-direction:column;gap:18px}
+.landing-icon-card{width:96px;background:var(--graphite);border:1px solid var(--rule-dark);border-radius:10px;padding:14px 8px 12px;
+  display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:0 14px 34px rgba(0,0,0,.4)}
+.landing-icon-svg{width:100%;height:64px}
+.landing-icon-card span{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#8A9296}
+
+@media(max-width:1000px){.landing-icon-col{display:none}}
 @media(max-width:640px){.landing-card{padding:32px 22px}.landing-head{font-size:21px}.landing-feats{grid-template-columns:1fr}}
 
 /* masthead user */
