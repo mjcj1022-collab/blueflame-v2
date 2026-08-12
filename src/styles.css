@@ -91,8 +91,8 @@ html.compact .panel-block{padding:12px 16px}
 .panel-scroll::-webkit-scrollbar-thumb:hover,.ai-chat::-webkit-scrollbar-thumb:hover{background:var(--karat);background-clip:content-box}
 
 /* masthead */
-.mast{background:var(--graphite) var(--grain);background-blend-mode:overlay;color:#EDE3CC;border-bottom:2px solid var(--karat);min-height:var(--mast-h)}
-.mast-in{max-width:1560px;margin:0 auto;padding:6px 20px;min-height:var(--mast-h);display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.mast{position:relative;background:var(--graphite) var(--grain);background-blend-mode:overlay;color:#EDE3CC;border-bottom:2px solid var(--karat);min-height:var(--mast-h)}
+.mast-in{max-width:1560px;margin:0 auto;padding:6px 155px 6px 20px;min-height:var(--mast-h);display:flex;align-items:center;gap:18px;flex-wrap:wrap}
 .logo{font-family:var(--serif);font-weight:600;letter-spacing:.14em;font-size:17px;color:#F3EAD4}
 .logo em{font-style:italic;color:var(--karat-lt);font-weight:600}
 .tag{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:#9C8E72}
@@ -392,9 +392,14 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 /* metal lab */
 .mast-lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;padding:6px 12px;background:var(--karat);color:#3A2E1E;border:1px solid var(--karat);cursor:pointer;border-radius:6px}
 .mast-lab:hover{background:var(--karat-lt)}
+/* Deliberately set apart from the .mast-lab cluster — its own pinned corner
+   spot, bigger and with an icon, so it reads as THE save action on every
+   tab instead of one more pill among Gallery/Metal Lab/settings. */
+.mast-save-fab{position:absolute;top:50%;right:20px;transform:translateY(-50%);z-index:5;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;padding:9px 18px;background:var(--karat);color:#FFFFFF;border:1px solid var(--karat-lt);border-radius:20px;cursor:pointer;box-shadow:0 3px 14px rgba(31,138,107,.55);white-space:nowrap}
+.mast-save-fab:hover{background:var(--karat-lt);box-shadow:0 4px 18px rgba(31,138,107,.7)}
+@media(max-width:900px){.mast-save-fab{position:static;display:block;float:right;transform:none;margin:0 16px 10px 0;box-shadow:none}}
 /* Standalone save — sits with the account controls on the far right so it's
    reachable from every tab, not just tucked in a side-panel section. */
-.mast-save{margin-left:12px}
 .lab-overlay{position:fixed;inset:0;background:rgba(6,8,9,.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:50;padding:24px}
 .lab{background:var(--graphite);border:1px solid var(--rule-dark);width:min(1000px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 30px 90px rgba(0,0,0,.6)}
 .lab-head{display:flex;justify-content:space-between;align-items:flex-start;padding:20px 24px;border-bottom:1px solid var(--rule-dark)}
