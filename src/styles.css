@@ -490,6 +490,11 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .opt.primary{background:var(--karat);color:#FFFFFF;border-color:var(--karat)}
 .opt.primary:hover:not(:disabled){background:var(--karat-lt)}
 .opt.primary:disabled{opacity:.4;cursor:not-allowed}
+.sk-templates{display:flex;flex-direction:column;gap:6px;padding-bottom:8px;margin-bottom:2px;border-bottom:1px solid var(--rule-dark)}
+.sk-templates-lbl{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#B3A588}
+.sk-tpl-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.sk-tpl-grid .opt{padding:9px 2px;font-size:16px;line-height:1}
+.sk-tpl-grid .opt small{font-size:8px;margin-top:5px}
 
 /* client review screen */
 .review-body{padding:22px}

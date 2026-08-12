@@ -19,6 +19,7 @@ export function Free3DDock() {
   const clear = useModeler(s => s.clear3DPoints)
   const finish = useModeler(s => s.finish3DSketch)
   const cancel = useModeler(s => s.cancel3DSketch)
+  const loadTemplate = useModeler(s => s.load3DTemplate)
 
   // Escape cancels the build; Enter finishes it once there are enough points
   // to sweep a solid (mirrors the Cancel/Done buttons below).
@@ -41,11 +42,25 @@ export function Free3DDock() {
         <button className="sketch-x" onClick={cancel} title="Cancel" aria-label="Cancel">×</button>
       </div>
       <div className="sketch-dock-ctl">
+        {points.length === 0 && (
+          <div className="sk-templates">
+            <span className="sk-templates-lbl">Start from a shape</span>
+            <div className="sk-tpl-grid">
+              <button className="opt" onClick={() => loadTemplate('flat')}>▭<small>Flat plate</small></button>
+              <button className="opt" onClick={() => loadTemplate('square')}>◻<small>Square</small></button>
+              <button className="opt" onClick={() => loadTemplate('circle')}>◯<small>Circle</small></button>
+              <button className="opt" onClick={() => loadTemplate('hexagon')}>⬡<small>Hexagon</small></button>
+              <button className="opt" onClick={() => loadTemplate('triangle')}>△<small>Triangle</small></button>
+            </div>
+            <small style={{ display: 'block', textTransform: 'none', letterSpacing: 0 }}>drops a ready-made, closed outline you can drag, restyle, or add more points to — or skip this and place every point yourself below</small>
+          </div>
+        )}
         <p className="sk-explain">
-          A wireframe box frames the working space — no template. Double-click the floor for a point at ground level, or
+          A wireframe box frames the working space. Double-click the floor for a point at ground level, or
           the upright wall behind it to pick a height directly. Nothing is stuck where it lands: press and drag any
           point and it follows your cursor, so turning the view and dragging again reaches any spot in the box, not
-          just up/down/sideways — and dragging one point close to another snaps it into place. Snap the last point
+          just up/down/sideways — and dragging one point close to another snaps it into place, sized to be easy to
+          hit at any zoom level, with a glowing halo confirming the target. Snap the last point
           back onto the first and the loop closes itself, filling the interior with a solid panel automatically —
           the shape is built the moment the outline meets itself. Every line shows its length in mm as you build.
           Click a line to select it: switch it between a hard straight edge and a smoothed curve, and set its own

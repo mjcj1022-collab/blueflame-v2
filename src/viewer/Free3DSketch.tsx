@@ -10,8 +10,15 @@ const DEFAULT_SEG: Seg3DStyle = { curved: false, thickness: 1.2, depth: 1.2 }
 /** Reference box: extent and grid-line spacing, in mm. */
 const PLANE_SIZE = 60
 const GRID_STEP = 5
-/** How close (mm) a dragged vertex must get to another before it snaps onto it. */
-const SNAP_MM = 1.2
+/** How close (on screen, in pixels) a dragged vertex's cursor must get to
+ *  another vertex before it snaps onto it. Screen-space rather than a raw mm
+ *  distance so the target feels the same size whether the view is zoomed in
+ *  tight or pulled back to see the whole piece — a fixed mm threshold shrinks
+ *  to almost nothing once you're zoomed out, which made closing a loop feel
+ *  fiddly. */
+const SNAP_PX = 26
+const tmpNdcA = new THREE.Vector3()
+const tmpNdcB = new THREE.Vector3()
 
 /**
  * True free-form 3D building — no starting template. A wireframe box frames
@@ -49,6 +56,7 @@ export function Free3DSketch() {
   const setSegDepth = useModeler(s => s.setSeg3DDepth)
 
   const controls = useThree(s => s.controls) as { enabled: boolean } | null
+  const size = useThree(s => s.size)
 
   const [pick, setPick] = useState<number | null>(null)
   const draggingRef = useRef(false)
@@ -57,6 +65,10 @@ export function Free3DSketch() {
   const hitRef = useRef(new THREE.Vector3())
   const normalRef = useRef(new THREE.Vector3())
   const [selSeg, setSelSeg] = useState<number | null>(null)
+  // Which other vertex the point being dragged is currently close enough to
+  // snap onto — highlighted live so the snap target is obvious before you
+  // let go, not just discovered after the fact.
+  const [snapTarget, setSnapTarget] = useState<number | null>(null)
 
   // Full box outline so the working volume reads as an enclosing box, not just
   // a floor and a wall.
@@ -127,16 +139,24 @@ export function Free3DSketch() {
     e.stopPropagation()
     const hit = e.ray.intersectPlane(planeRef.current, hitRef.current)
     if (!hit) return
-    let x = Math.round(hit.x * 10) / 10, y = Math.round(hit.y * 10) / 10, z = Math.round(hit.z * 10) / 10
-    // Snap onto the nearest other vertex once the drag gets close to it.
-    let bestD = SNAP_MM
+    const rawX = Math.round(hit.x * 10) / 10, rawY = Math.round(hit.y * 10) / 10, rawZ = Math.round(hit.z * 10) / 10
+    let x = rawX, y = rawY, z = rawZ
+    // Snap onto the nearest other vertex once the cursor gets close to it on
+    // screen — compared in the same raw hit position for every candidate so
+    // the nearest one wins regardless of scan order.
+    tmpNdcA.set(rawX, rawY, rawZ).project(e.camera)
+    let bestPx = SNAP_PX
     let snapTo = -1
     for (let j = 0; j < points.length; j++) {
       if (j === i) continue
       const [ox, oy, oz] = points[j]
-      const d = Math.hypot(x - ox, y - oy, z - oz)
-      if (d < bestD) { bestD = d; x = ox; y = oy; z = oz; snapTo = j }
+      tmpNdcB.set(ox, oy, oz).project(e.camera)
+      const dx = (tmpNdcA.x - tmpNdcB.x) * size.width / 2
+      const dy = (tmpNdcA.y - tmpNdcB.y) * size.height / 2
+      const dpx = Math.hypot(dx, dy)
+      if (dpx < bestPx) { bestPx = dpx; x = ox; y = oy; z = oz; snapTo = j }
     }
+    setSnapTarget(snapTo >= 0 ? snapTo : null)
     move(i, [x, y, z])
     // Snapping one end of the path onto the other closes the loop — and,
     // with fill on, builds the shape's interior automatically.
@@ -151,6 +171,7 @@ export function Free3DSketch() {
     ;(e.target as Element).releasePointerCapture?.(e.pointerId)
     draggingRef.current = false
     setDragging(false)
+    setSnapTarget(null)
     if (controls) controls.enabled = true
   }
   const del = (i: number) => (e: ThreeEvent<MouseEvent>) => {
@@ -310,6 +331,15 @@ export function Free3DSketch() {
             </label>
           </div>
         </Html>
+      )}
+
+      {/* While dragging, a glowing ring around whatever vertex is currently
+          in snap range — confirms the target before you let go. */}
+      {dragging && snapTarget != null && (
+        <mesh position={points[snapTarget]} renderOrder={11} raycast={() => null}>
+          <sphereGeometry args={[0.9, 16, 14]} />
+          <meshBasicMaterial color="#7FFFB0" toneMapped={false} transparent opacity={0.4} depthTest={false} wireframe />
+        </mesh>
       )}
 
       {/* Placed vertices — press and drag to move anywhere in 3D, right-click

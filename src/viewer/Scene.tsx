@@ -225,6 +225,7 @@ export function Scene({ suggest = false }: { suggest?: boolean } = {}) {
     <div className="stage">
       <Canvas
         dpr={[1, 2]}
+        frameloop={mode === 'design' || mode === 'ai' ? 'always' : 'never'}
         camera={{ fov: 30, position: [18, 16, 44] }}
         gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
       >

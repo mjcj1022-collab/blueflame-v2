@@ -260,6 +260,11 @@ interface ModelerStore {
   setSeg3DCurved: (i: number, curved: boolean) => void
   setSeg3DThickness: (i: number, mm: number) => void
   setSeg3DDepth: (i: number, mm: number) => void
+  /** Seeds the 3D builder with a ready-made outline (closed + filled) instead
+   *  of starting from an empty box — a starting point to drag, add to, or
+   *  restyle rather than placing every vertex from scratch. Replaces whatever
+   *  points are currently on the bench. */
+  load3DTemplate: (shape: 'flat' | 'circle' | 'square' | 'triangle' | 'hexagon') => void
   /** Build the solid from the placed points and add it to the bench; returns
    *  the new object's id (or null if there weren't enough points). */
   finish3DSketch: () => string | null
@@ -823,6 +828,28 @@ export const useModeler = create<ModelerStore>((set, get) => {
   })),
   undo3DPoint: () => set(s => ({ sketch3DPoints: s.sketch3DPoints.slice(0, -1), sketch3DSegs: s.sketch3DSegs.slice(0, -1) })),
   clear3DPoints: () => set({ sketch3DPoints: [], sketch3DSegs: [] }),
+  load3DTemplate: shape => set(s => {
+    const R = 14
+    const ring = (n: number, rot = 0): [number, number, number][] =>
+      Array.from({ length: n }, (_, i) => {
+        const a = rot + (i / n) * Math.PI * 2
+        return [Math.round(Math.cos(a) * R * 10) / 10, 0, Math.round(Math.sin(a) * R * 10) / 10] as [number, number, number]
+      })
+    const shapes: Record<typeof shape, [number, number, number][]> = {
+      flat: [[-18, 0, -8], [18, 0, -8], [18, 0, 8], [-18, 0, 8]],
+      square: [[-R, 0, -R], [R, 0, -R], [R, 0, R], [-R, 0, R]],
+      triangle: ring(3, -Math.PI / 2),
+      hexagon: ring(6),
+      circle: ring(16),
+    }
+    const pts = shapes[shape]
+    return {
+      sketch3DPoints: pts,
+      sketch3DSegs: pts.map(() => ({ curved: shape === 'circle', thickness: s.sketch3DWire, depth: s.sketch3DWire })),
+      sketch3DClosed: true,
+      sketch3DFill: true,
+    }
+  }),
   set3DWire: mm => set({ sketch3DWire: Math.max(0.2, mm) }),
   toggle3DClosed: () => set(s => ({ sketch3DClosed: !s.sketch3DClosed })),
   set3DClosed: v => set({ sketch3DClosed: v }),

@@ -4,6 +4,7 @@ import { OrbitControls, Environment, GizmoHelper, GizmoViewport } from '@react-t
 import * as THREE from 'three'
 import { useModeler } from '../state/modeler'
 import { useDesign } from '../state/design'
+import { useWorkspace } from '../state/workspace'
 import { SculptMesh } from './SculptMesh'
 import { EnvBoundary } from './EnvBoundary'
 import { CaptureRig } from './CaptureRig'
@@ -26,6 +27,7 @@ export function ModelerScene() {
   const gemOpacity = useDesign(s => s.gemOpacity)
   const setGemOpacity = useDesign(s => s.setGemOpacity)
   const hasGem = objects.some(o => o.material === 'gem')
+  const mode = useWorkspace(s => s.mode)
 
   // Exploded view: push each part outward from the assembly centre by `explode`.
   const cx = objects.length ? objects.reduce((s, o) => s + o.position[0], 0) / objects.length : 0
@@ -42,6 +44,7 @@ export function ModelerScene() {
       <Canvas
         dpr={[1, 2]}
         shadows
+        frameloop={mode === 'model' ? 'always' : 'never'}
         camera={{ fov: 35, position: [34, 28, 46] }}
         gl={{ antialias: true, preserveDrawingBuffer: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
         onPointerMissed={() => select(null)}

@@ -3,6 +3,7 @@ import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber'
 import { OrbitControls, Environment, Lightformer, ContactShadows } from '@react-three/drei'
 import * as THREE from 'three'
 import { useDesign } from '../state/design'
+import { useWorkspace } from '../state/workspace'
 import { Piece, viewTarget } from './Piece'
 
 const DEFAULT_BG = '#0E1113'
@@ -39,6 +40,7 @@ export function ColorScene() {
   const bg = useDesign(s => s.colorwork.bg) ?? DEFAULT_BG
   const setTarget = useDesign(s => s.setColorTarget)
   const target = viewTarget(spec)
+  const mode = useWorkspace(s => s.mode)
 
   const pick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
@@ -54,6 +56,7 @@ export function ColorScene() {
     <div className="stage colorstage">
       <Canvas
         dpr={[1, 2]}
+        frameloop={mode === 'color' ? 'always' : 'never'}
         camera={{ fov: 30, position: [18, 16, 44] }}
         gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.05 }}
       >
