@@ -127,6 +127,33 @@ db.exec(`
     created_at text NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_sculpts_tenant ON sculpts (tenant_id);
+
+  -- Affiliate program: one shop (tenant) hands out ?ref=CODE links so other
+  -- shops sign up through them. 'rate' is a fraction (0.2 = 20%) of whatever
+  -- the referred shop pays Mandrel. Credits are logged individually so
+  -- earned/pending totals and a conversion count can be computed on read.
+  CREATE TABLE IF NOT EXISTS affiliates (
+    id text PRIMARY KEY,
+    tenant_id text NOT NULL,
+    code text UNIQUE NOT NULL,
+    name text,
+    email text,
+    rate real NOT NULL DEFAULT 0.2,
+    active integer NOT NULL DEFAULT 1,
+    created_at text NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_affiliates_tenant ON affiliates (tenant_id);
+
+  CREATE TABLE IF NOT EXISTS affiliate_credits (
+    id text PRIMARY KEY,
+    affiliate_id text NOT NULL,
+    tenant_id text NOT NULL,
+    event text NOT NULL,
+    amount_cents integer NOT NULL,
+    status text NOT NULL DEFAULT 'pending',
+    created_at text NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_affiliate_credits_affiliate ON affiliate_credits (affiliate_id);
 `)
 
 // Link orders to a customer. Additive on an existing database (the column may
@@ -143,6 +170,7 @@ for (const col of [
   'stripe_subscription_id text',
   'offline_purchase integer NOT NULL DEFAULT 0',       // 1 = bought the offline build outright
   'offline_purchase_email text',                       // where the download email was sent
+  'referred_by_affiliate_id text',                     // set at signup from ?ref=CODE, if any
 ]) {
   try { db.exec(`ALTER TABLE tenants ADD COLUMN ${col}`) } catch { /* column already exists */ }
 }

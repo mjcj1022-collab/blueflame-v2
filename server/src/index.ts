@@ -61,6 +61,22 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
     db.prepare(`UPDATE tenants SET ${set} WHERE id = ?`).run(...cols.map(c => patch[c] as never), tenantId)
   }
 
+  // If this tenant signed up on an affiliate link, log a commission credit for
+  // whatever they just paid. Covers both the first payment (checkout.session.
+  // completed) and every subsequent one (invoice.payment_succeeded), matching
+  // the "credits every month" promise on the Affiliates panel.
+  const creditAffiliate = (tenantId: string, amountCents: number, event: string) => {
+    if (!tenantId || !amountCents) return
+    const t = db.prepare('SELECT referred_by_affiliate_id FROM tenants WHERE id = ?').get(tenantId) as { referred_by_affiliate_id?: string | null } | undefined
+    if (!t?.referred_by_affiliate_id) return
+    const af = db.prepare('SELECT id, rate FROM affiliates WHERE id = ? AND active = 1').get(t.referred_by_affiliate_id) as { id?: string; rate?: number } | undefined
+    if (!af?.id) return
+    const cents = Math.round(amountCents * (af.rate ?? 0.2))
+    if (cents <= 0) return
+    db.prepare('INSERT INTO affiliate_credits (id, affiliate_id, tenant_id, event, amount_cents) VALUES (?,?,?,?,?)')
+      .run(uid(), af.id, tenantId, event, cents)
+  }
+
   if (event.type === 'checkout.session.completed') {
     const s = event.data.object as {
       mode?: string; client_reference_id?: string; metadata?: Record<string, string>
@@ -91,6 +107,8 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
         }
       } else {
         updateTenantSub(tenantId, { subscription_status: 'active', subscription_plan: planId ?? 'studio-monthly', stripe_customer_id: s.customer ?? null, stripe_subscription_id: s.subscription ?? null })
+        const s2 = s as unknown as { amount_total?: number }
+        if (s2.amount_total) creditAffiliate(tenantId, s2.amount_total, 'checkout.session.completed')
       }
       audit(tenantId, null, 'billing.checkout', planId ?? undefined, { mode: s.mode })
     }
@@ -106,6 +124,14 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
     if (inv.subscription) {
       const t = db.prepare('SELECT id FROM tenants WHERE stripe_subscription_id = ?').get(inv.subscription) as { id?: string } | undefined
       if (t?.id) updateTenantSub(t.id, { subscription_status: 'past_due' })
+    }
+  } else if (event.type === 'invoice.payment_succeeded') {
+    // Every recurring month a referred shop pays, not just the first —
+    // matches what the Affiliates panel tells the admin to expect.
+    const inv = event.data.object as { subscription?: string; billing_reason?: string; amount_paid?: number }
+    if (inv.subscription && inv.billing_reason !== 'subscription_create') {
+      const t = db.prepare('SELECT id FROM tenants WHERE stripe_subscription_id = ?').get(inv.subscription) as { id?: string } | undefined
+      if (t?.id && inv.amount_paid) creditAffiliate(t.id, inv.amount_paid, 'invoice.payment_succeeded')
     }
   }
 
@@ -149,13 +175,19 @@ app.post('/api/assistant', requireAuth, async (req, res) => {
 /* ---------------- auth ---------------- */
 
 app.post('/api/auth/register', (req, res) => {
-  const { shop, email, password } = req.body ?? {}
+  const { shop, email, password, ref } = req.body ?? {}
   if (!shop || !email || !password) { res.status(400).json({ error: 'shop, email and password are required' }); return }
   if (emailExists(email)) { res.status(400).json({ error: 'that email is already registered' }); return }
   const tenantId = uid()
   const slug = `${String(shop).toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${tenantId.slice(0, 4)}`
+  // Credit whoever's affiliate link this shop signed up on, if the code is
+  // real and still active. Silently ignored if not — signup must never fail
+  // over a stale or made-up ref code.
+  const affiliate = ref
+    ? db.prepare('SELECT id FROM affiliates WHERE code = ? AND active = 1').get(String(ref).toLowerCase()) as { id?: string } | undefined
+    : undefined
   try {
-    db.prepare('INSERT INTO tenants (id, name, slug) VALUES (?,?,?)').run(tenantId, shop, slug)
+    db.prepare('INSERT INTO tenants (id, name, slug, referred_by_affiliate_id) VALUES (?,?,?,?)').run(tenantId, shop, slug, affiliate?.id ?? null)
     const userId = uid()
     db.prepare('INSERT INTO users (id, tenant_id, email, password_hash, role) VALUES (?,?,?,?,?)')
       .run(userId, tenantId, String(email).toLowerCase(), hashPassword(password), 'admin')
@@ -323,13 +355,73 @@ app.delete('/api/customers/:id', requireAuth, (req, res) => {
   res.json({ deleted: info.changes })
 })
 
-/* ---------------- gallery (curated showcase) ---------------- */
+/* ---------------- affiliates (referral program) ---------------- */
 
 // Everyone in the shop can view the active gallery; only admins curate it.
+// (Also used below by the affiliate routes — admin + backend only.)
 const requireAdmin = (req: Request, res: Response): boolean => {
   if (me(req).role !== 'admin') { res.status(403).json({ error: 'admin only' }); return false }
   return true
 }
+
+const affiliateCode = (name: string | undefined): string => {
+  const base = (name ?? 'affiliate').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 12) || 'affiliate'
+  // Collisions are astronomically unlikely (random 4-char suffix) but retry
+  // once just in case someone hands out the exact same name+suffix twice.
+  for (let i = 0; i < 5; i++) {
+    const code = `${base}-${Math.random().toString(36).slice(2, 6)}`
+    if (!db.prepare('SELECT 1 FROM affiliates WHERE code = ?').get(code)) return code
+  }
+  return `${base}-${uid().slice(0, 8)}`
+}
+
+app.get('/api/affiliates', requireAuth, (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const rows = db.prepare(`
+    SELECT a.*,
+      (SELECT COUNT(*) FROM tenants WHERE referred_by_affiliate_id = a.id) AS referrals,
+      (SELECT COUNT(*) FROM affiliate_credits WHERE affiliate_id = a.id) AS conversions,
+      (SELECT COALESCE(SUM(amount_cents), 0) FROM affiliate_credits WHERE affiliate_id = a.id) AS earned_cents,
+      (SELECT COALESCE(SUM(amount_cents), 0) FROM affiliate_credits WHERE affiliate_id = a.id AND status = 'pending') AS pending_cents
+    FROM affiliates a WHERE a.tenant_id = ? ORDER BY a.created_at DESC
+  `).all(me(req).tenant_id)
+  res.json(rows)
+})
+
+app.post('/api/affiliates', requireAuth, (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const { name, email, code, ratePct } = req.body ?? {}
+  const rate = Math.max(0, Math.min(1, (Number(ratePct) || 20) / 100))
+  const finalCode = code && String(code).trim() ? String(code).trim().toLowerCase().slice(0, 64) : affiliateCode(name)
+  if (db.prepare('SELECT 1 FROM affiliates WHERE code = ?').get(finalCode)) { res.status(400).json({ error: 'that code is already in use' }); return }
+  const id = uid()
+  db.prepare('INSERT INTO affiliates (id, tenant_id, code, name, email, rate) VALUES (?,?,?,?,?,?)')
+    .run(id, me(req).tenant_id, finalCode, name ? String(name).trim() : null, email ? String(email).trim() : null, rate)
+  audit(me(req).tenant_id, me(req).id, 'affiliate.create', id, { code: finalCode })
+  res.json({ id, code: finalCode, rate })
+})
+
+app.patch('/api/affiliates/:id', requireAuth, (req, res) => {
+  if (!requireAdmin(req, res)) return
+  const { ratePct, active, name, email } = req.body ?? {}
+  const rate = ratePct !== undefined ? Math.max(0, Math.min(1, Number(ratePct) / 100)) : null
+  const info = db.prepare(
+    `UPDATE affiliates SET rate = COALESCE(?, rate), active = COALESCE(?, active), name = COALESCE(?, name), email = COALESCE(?, email)
+     WHERE id = ? AND tenant_id = ?`
+  ).run(rate, active !== undefined ? (active ? 1 : 0) : null, name ? String(name).trim() : null, email ? String(email).trim() : null, req.params.id, me(req).tenant_id)
+  res.json({ updated: info.changes })
+})
+
+app.delete('/api/affiliates/:id', requireAuth, (req, res) => {
+  if (!requireAdmin(req, res)) return
+  // Deactivate rather than hard-delete — past credits and referred tenants
+  // still reference this affiliate id, and the panel's "Off" button already
+  // implies "stop crediting", not "erase history".
+  const info = db.prepare('UPDATE affiliates SET active = 0 WHERE id = ? AND tenant_id = ?').run(req.params.id, me(req).tenant_id)
+  res.json({ deactivated: info.changes })
+})
+
+/* ---------------- gallery (curated showcase) ---------------- */
 
 app.get('/api/gallery', requireAuth, (req, res) => {
   res.json(db.prepare('SELECT id, title, subtitle, image, spec, created_at FROM gallery WHERE tenant_id = ? ORDER BY created_at DESC').all(me(req).tenant_id))
