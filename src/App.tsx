@@ -106,14 +106,17 @@ function Masthead({ mode, setMode, onLab, onTour, onGallery, onSettings, onHotke
           </>
         )}
         <BackendStatus />
-        <span className="mast-user">{authUser}<button className="mast-signout" onClick={logout}>sign out</button></span>
+        {/* Pinned as a group to the header's far right, on every tab — Save sits
+            right next to Sign out so the one-click save is always in the same
+            unmistakable spot regardless of which tab you're on. */}
+        <span className="mast-user">
+          {authUser}
+          <button className="mast-signout" onClick={logout}>sign out</button>
+          <button className="mast-save-fab" onClick={quickSave} title="Save the current design + sculpt as a project — works from any tab">
+            {saved ? '✓ Saved' : '💾 Save'}
+          </button>
+        </span>
       </div>
-      {/* Pinned to the header's own top-right corner, outside the crowded
-          icon row — same one-click save on every tab, but unmistakable
-          instead of blending into the Gallery/Metal Lab/settings cluster. */}
-      <button className="mast-save-fab" onClick={quickSave} title="Save the current design + sculpt as a project — works from any tab">
-        {saved ? '✓ Saved' : '💾 Save'}
-      </button>
     </header>
   )
 }
