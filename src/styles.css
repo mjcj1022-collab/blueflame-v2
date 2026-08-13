@@ -506,8 +506,8 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .seg3d-head b{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#DDE2E3}
 .seg3d-x{background:none;border:1px solid var(--rule-dark);color:#9BA6A9;width:18px;height:18px;line-height:1;border-radius:4px;cursor:pointer;font-size:12px;padding:0}
 .seg3d-x:hover{color:#fff;border-color:var(--karat)}
-.seg3d-curve{font-family:var(--mono);font-size:9px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;padding:7px 6px;border:1px solid var(--rule-dark);background:none;color:#C4CBCE;cursor:pointer;border-radius:6px;line-height:1.35}
-.seg3d-curve[aria-pressed="true"]{background:var(--karat);border-color:var(--karat);color:#fff}
+.seg3d-type{font-family:var(--mono);font-size:11px;letter-spacing:.02em;text-transform:none;font-weight:700;padding:6px 7px;border:1px solid var(--rule-dark);background:rgba(0,0,0,.25);color:#DDE2E3;cursor:pointer;border-radius:6px}
+.seg3d-type:hover,.seg3d-type:focus{border-color:var(--karat)}
 .seg3d-panel .sk-slider{color:#B3A588}
 .opt.primary{background:var(--karat);color:#FFFFFF;border-color:var(--karat)}
 .opt.primary:hover:not(:disabled){background:var(--karat-lt)}

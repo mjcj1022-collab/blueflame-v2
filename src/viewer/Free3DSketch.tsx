@@ -362,13 +362,16 @@ export function Free3DSketch() {
               <b>Line {selSeg + 1}</b>
               <button className="seg3d-x" onClick={() => setSelSeg(null)} aria-label="Close">×</button>
             </div>
-            <button
-              className="seg3d-curve"
-              aria-pressed={styleAt(selSeg).curved}
-              onClick={() => setSegCurved(selSeg, !styleAt(selSeg).curved)}
-            >
-              {styleAt(selSeg).curved ? 'Curved — click to straighten' : 'Straight — click to curve'}
-            </button>
+            <label className="sk-slider">Line type
+              <select
+                className="seg3d-type"
+                value={styleAt(selSeg).curved ? 'curved' : 'straight'}
+                onChange={e => setSegCurved(selSeg, e.target.value === 'curved')}
+              >
+                <option value="straight">Straight</option>
+                <option value="curved">Curved</option>
+              </select>
+            </label>
             <label className="sk-slider">Thickness {styleAt(selSeg).thickness.toFixed(1)} mm
               <input
                 type="range" min={0.3} max={6} step={0.1}
