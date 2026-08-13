@@ -20,6 +20,12 @@ export function Free3DDock() {
   const finish = useModeler(s => s.finish3DSketch)
   const cancel = useModeler(s => s.cancel3DSketch)
   const loadTemplate = useModeler(s => s.load3DTemplate)
+  const tool = useModeler(s => s.sketch3DTool)
+  const setTool = useModeler(s => s.setSketch3DTool)
+  const selected = useModeler(s => s.sketch3DSelected)
+  const removePts = useModeler(s => s.remove3DPoints)
+  const snapEnabled = useModeler(s => s.sketch3DSnapEnabled)
+  const toggleSnap = useModeler(s => s.toggleSketch3DSnap)
 
   // Escape cancels the build; Enter finishes it once there are enough points
   // to sweep a solid (mirrors the Cancel/Done buttons below).
@@ -38,10 +44,28 @@ export function Free3DDock() {
     <div className="sketch-dock">
       <div className="sketch-dock-head">
         <b>Build in 3D</b>
-        <span>double-click the floor or back wall to place · drag a point to move it, or snap it onto another to close the loop · click a line to curve it or resize it · right-click a point to delete</span>
+        <span>double-click the floor or back wall to place · Select to click/shift-click and drag vertices (grab any selected one to move the group) · Add to click a midpoint and split that line · Delete to click a vertex and remove it · click a line to curve it or resize it · right-click a point always deletes it</span>
         <button className="sketch-x" onClick={cancel} title="Cancel" aria-label="Cancel">×</button>
       </div>
       <div className="sketch-dock-ctl">
+        {points.length > 0 && (
+          <div className="opts" role="group" aria-label="Vertex tool">
+            <button className="opt" aria-pressed={tool === 'select'} onClick={() => setTool('select')} title="Click (shift-click to multi-select) and drag vertices">Select</button>
+            <button className="opt" aria-pressed={tool === 'add'} onClick={() => setTool('add')} title="Click a line's midpoint to insert a new vertex there">Add vertex</button>
+            <button className="opt" aria-pressed={tool === 'delete'} onClick={() => setTool('delete')} title="Click a vertex to remove it">Delete vertex</button>
+          </div>
+        )}
+        {points.length > 0 && (
+          <label className="sk-check">
+            <input type="checkbox" checked={snapEnabled} onChange={toggleSnap} />Snap to vertex
+            <small style={{ textTransform: 'none', letterSpacing: 0 }}>dragging a single vertex near another snaps onto it — off for exact manual placement</small>
+          </label>
+        )}
+        {selected.length > 0 && (
+          <div className="opts">
+            <button className="opt" onClick={() => removePts(selected)}>Delete selected ({selected.length})</button>
+          </div>
+        )}
         {points.length === 0 && (
           <div className="sk-templates">
             <span className="sk-templates-lbl">Start from a shape</span>

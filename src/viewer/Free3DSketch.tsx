@@ -48,17 +48,22 @@ export function Free3DSketch() {
   const wire = useModeler(s => s.sketch3DWire)
   const segs = useModeler(s => s.sketch3DSegs)
   const add = useModeler(s => s.add3DPoint)
+  const insertAt = useModeler(s => s.insert3DPointAt)
   const move = useModeler(s => s.move3DPoint)
   const removePt = useModeler(s => s.remove3DPoint)
+  const removePts = useModeler(s => s.remove3DPoints)
   const setClosed = useModeler(s => s.set3DClosed)
   const setSegCurved = useModeler(s => s.setSeg3DCurved)
   const setSegThickness = useModeler(s => s.setSeg3DThickness)
   const setSegDepth = useModeler(s => s.setSeg3DDepth)
+  const tool = useModeler(s => s.sketch3DTool)
+  const selected = useModeler(s => s.sketch3DSelected)
+  const setSelected = useModeler(s => s.setSketch3DSelected)
+  const snapEnabled = useModeler(s => s.sketch3DSnapEnabled)
 
   const controls = useThree(s => s.controls) as { enabled: boolean } | null
   const size = useThree(s => s.size)
 
-  const [pick, setPick] = useState<number | null>(null)
   const draggingRef = useRef(false)
   const [dragging, setDragging] = useState(false)
   const planeRef = useRef(new THREE.Plane())
@@ -67,8 +72,14 @@ export function Free3DSketch() {
   const [selSeg, setSelSeg] = useState<number | null>(null)
   // Which other vertex the point being dragged is currently close enough to
   // snap onto — highlighted live so the snap target is obvious before you
-  // let go, not just discovered after the fact.
+  // let go, not just discovered after the fact. Only meaningful for a
+  // single-vertex drag (a multi-selection moves as a rigid group instead).
   const [snapTarget, setSnapTarget] = useState<number | null>(null)
+  // Group-drag bookkeeping: the plane-hit position and every selected point's
+  // position at the moment the drag started, so the whole group can be moved
+  // by a consistent world-space delta each frame instead of drifting.
+  const dragStartHitRef = useRef(new THREE.Vector3())
+  const dragStartPositionsRef = useRef<Map<number, [number, number, number]>>(new Map())
 
   // Full box outline so the working volume reads as an enclosing box, not just
   // a floor and a wall.
@@ -106,63 +117,101 @@ export function Free3DSketch() {
 
   // Double-click to place — a single click is reserved for orbiting/selecting
   // so a normal drag-to-orbit gesture (which fires a click on release) can't
-  // accidentally drop a vertex.
+  // accidentally drop a vertex. Appending a new endpoint this way works in
+  // any tool — it's a distinct "extend the path" affordance, separate from
+  // the Select/Add/Delete tools below which act on vertices that already exist.
   const groundClick = (e: ThreeEvent<MouseEvent>) => {
     if (draggingRef.current) return
     e.stopPropagation()
+    if (tool === 'select') { setSelected([]); return }
     add([Math.round(e.point.x * 10) / 10, 0, Math.round(e.point.z * 10) / 10])
   }
   const wallClick = (e: ThreeEvent<MouseEvent>) => {
     if (draggingRef.current) return
     e.stopPropagation()
+    if (tool === 'select') { setSelected([]); return }
     add([Math.round(e.point.x * 10) / 10, Math.round(e.point.y * 10) / 10, WALL_Z])
   }
 
-  // Press a placed vertex and drag — it follows the cursor across a plane
-  // facing the camera, the same free-drag feel as the mesh sculpting tool.
-  // Orbit is suspended for the duration so the drag doesn't fight the camera.
+  // Click (or shift/ctrl-click to add to the selection) a vertex, and — in the
+  // Select tool — press-drag to move it. Dragging any member of a multi-vertex
+  // selection moves the whole group together, rigidly.
   const startDrag = (i: number) => (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return
     e.stopPropagation()
-    setPick(i)
+    if (tool === 'delete') { removePt(i); setSelSeg(null); return }
+    if (tool === 'add') return // Add tool acts on midpoint markers, not existing vertices.
+
+    const additive = e.shiftKey || e.ctrlKey || e.metaKey
+    let nextSelected = selected
+    if (additive) {
+      nextSelected = selected.includes(i) ? selected.filter(j => j !== i) : [...selected, i]
+      setSelected(nextSelected)
+      if (!nextSelected.includes(i)) return // just deselected — nothing to drag
+    } else if (!selected.includes(i)) {
+      nextSelected = [i]
+      setSelected(nextSelected)
+    }
+
     const p = points[i]
     const worldP = new THREE.Vector3(p[0], p[1], p[2])
     e.camera.getWorldDirection(normalRef.current)
     planeRef.current.setFromNormalAndCoplanarPoint(normalRef.current, worldP)
+    const hit = e.ray.intersectPlane(planeRef.current, hitRef.current)
+    if (hit) dragStartHitRef.current.copy(hit)
+    dragStartPositionsRef.current = new Map(nextSelected.map(j => [j, points[j]]))
     draggingRef.current = true
     setDragging(true)
     if (controls) controls.enabled = false
     ;(e.target as Element).setPointerCapture?.(e.pointerId)
   }
   const onDragMove = (i: number) => (e: ThreeEvent<PointerEvent>) => {
-    if (!draggingRef.current || pick !== i) return
+    if (!draggingRef.current || !selected.includes(i)) return
     e.stopPropagation()
     const hit = e.ray.intersectPlane(planeRef.current, hitRef.current)
     if (!hit) return
-    const rawX = Math.round(hit.x * 10) / 10, rawY = Math.round(hit.y * 10) / 10, rawZ = Math.round(hit.z * 10) / 10
-    let x = rawX, y = rawY, z = rawZ
-    // Snap onto the nearest other vertex once the cursor gets close to it on
-    // screen — compared in the same raw hit position for every candidate so
-    // the nearest one wins regardless of scan order.
-    tmpNdcA.set(rawX, rawY, rawZ).project(e.camera)
-    let bestPx = SNAP_PX
-    let snapTo = -1
-    for (let j = 0; j < points.length; j++) {
-      if (j === i) continue
-      const [ox, oy, oz] = points[j]
-      tmpNdcB.set(ox, oy, oz).project(e.camera)
-      const dx = (tmpNdcA.x - tmpNdcB.x) * size.width / 2
-      const dy = (tmpNdcA.y - tmpNdcB.y) * size.height / 2
-      const dpx = Math.hypot(dx, dy)
-      if (dpx < bestPx) { bestPx = dpx; x = ox; y = oy; z = oz; snapTo = j }
+
+    // A single selected vertex: the original snap-onto-another-vertex drag.
+    if (selected.length <= 1) {
+      const rawX = Math.round(hit.x * 10) / 10, rawY = Math.round(hit.y * 10) / 10, rawZ = Math.round(hit.z * 10) / 10
+      let x = rawX, y = rawY, z = rawZ
+      let snapTo = -1
+      if (snapEnabled) {
+        // Snap onto the nearest other vertex once the cursor gets close to it
+        // on screen — compared in the same raw hit position for every
+        // candidate so the nearest one wins regardless of scan order.
+        tmpNdcA.set(rawX, rawY, rawZ).project(e.camera)
+        let bestPx = SNAP_PX
+        for (let j = 0; j < points.length; j++) {
+          if (j === i) continue
+          const [ox, oy, oz] = points[j]
+          tmpNdcB.set(ox, oy, oz).project(e.camera)
+          const dx = (tmpNdcA.x - tmpNdcB.x) * size.width / 2
+          const dy = (tmpNdcA.y - tmpNdcB.y) * size.height / 2
+          const dpx = Math.hypot(dx, dy)
+          if (dpx < bestPx) { bestPx = dpx; x = ox; y = oy; z = oz; snapTo = j }
+        }
+      }
+      setSnapTarget(snapTo >= 0 ? snapTo : null)
+      move(i, [x, y, z])
+      // Snapping one end of the path onto the other closes the loop — and,
+      // with fill on, builds the shape's interior automatically.
+      const last = points.length - 1
+      if (!closed && points.length > 2 && ((i === 0 && snapTo === last) || (i === last && snapTo === 0))) {
+        setClosed(true)
+      }
+      return
     }
-    setSnapTarget(snapTo >= 0 ? snapTo : null)
-    move(i, [x, y, z])
-    // Snapping one end of the path onto the other closes the loop — and,
-    // with fill on, builds the shape's interior automatically.
-    const last = points.length - 1
-    if (!closed && points.length > 2 && ((i === 0 && snapTo === last) || (i === last && snapTo === 0))) {
-      setClosed(true)
+
+    // A multi-vertex selection: move the whole group by the same world-space
+    // delta, no snapping (which vertex would it even snap to?).
+    const dx = hit.x - dragStartHitRef.current.x
+    const dy = hit.y - dragStartHitRef.current.y
+    const dz = hit.z - dragStartHitRef.current.z
+    for (const j of selected) {
+      const start = dragStartPositionsRef.current.get(j)
+      if (!start) continue
+      move(j, [Math.round((start[0] + dx) * 10) / 10, Math.round((start[1] + dy) * 10) / 10, Math.round((start[2] + dz) * 10) / 10])
     }
   }
   const endDrag = (e: ThreeEvent<PointerEvent>) => {
@@ -177,9 +226,14 @@ export function Free3DSketch() {
   const del = (i: number) => (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
     removePt(i)
-    if (pick === i) setPick(null)
-    else if (pick != null && pick > i) setPick(p => (p == null ? p : p - 1))
     setSelSeg(null)
+  }
+
+  // Add tool: click a segment's midpoint marker to split it, inserting a new
+  // vertex there (inherits that edge's curve/thickness/depth on both halves).
+  const midClick = (afterIndex: number, p: THREE.Vector3) => (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation()
+    insertAt(afterIndex, [Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10, Math.round(p.z * 10) / 10])
   }
 
   // Click a segment to select it — opens the curve/thickness/depth panel for
@@ -190,17 +244,17 @@ export function Free3DSketch() {
     setSelSeg(s => (s === i ? null : i))
   }
 
-  // Delete/Backspace removes the currently selected vertex.
+  // Delete/Backspace removes every currently selected vertex.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (pick == null) return
+      if (!selected.length) return
       const t = e.target as HTMLElement
       if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return
-      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removePt(pick); setPick(null) }
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removePts(selected) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [pick, removePt])
+  }, [selected, removePts])
 
   // Number of edges: consecutive points, plus a closing edge back to the
   // start once the loop is closed.
@@ -342,11 +396,28 @@ export function Free3DSketch() {
         </mesh>
       )}
 
-      {/* Placed vertices — press and drag to move anywhere in 3D, right-click
-          to delete. Small and see-through so they mark a spot without hiding
-          the object forming underneath. */}
+      {/* Midpoint markers — only interactive in the Add tool: click one to
+          split that edge, inserting a new vertex right there (ArcGIS-style
+          "insert vertex" on a selected line). Dim/hollow so they read as a
+          lighter-weight affordance than a real vertex. */}
+      {tool === 'add' && segments.map((s, i) => (
+        <mesh key={'mid' + i} position={s.mid} onClick={midClick(i, s.mid)} renderOrder={9}>
+          <sphereGeometry args={[0.38, 12, 10]} />
+          <meshBasicMaterial color="#7FC8FF" toneMapped={false} depthTest={false} transparent opacity={0.55} wireframe />
+        </mesh>
+      ))}
+
+      {/* Placed vertices — in the Select tool, click (shift-click to add to
+          the selection) and drag to move; grabbing any member of a
+          multi-selection moves the whole group. Right-click always deletes,
+          in any tool, as a fast shortcut. Selected vertices fill solid green
+          (ArcGIS's selected-vertex convention); the actively dragged one
+          brightens further; the path's start stays blue so direction reads
+          at a glance. */}
       {points.map((p, i) => {
-        const active = i === pick && dragging
+        const isSelected = selected.includes(i)
+        const isDragging = dragging && isSelected
+        const color = isDragging ? '#E7C989' : isSelected ? '#7FFFB0' : i === 0 ? '#7FC8FF' : '#C6A265'
         return (
           <mesh
             key={i}
@@ -357,13 +428,14 @@ export function Free3DSketch() {
             onContextMenu={del(i)}
             renderOrder={10}
           >
-            <sphereGeometry args={[active ? 0.6 : 0.5, 14, 12]} />
+            <sphereGeometry args={[isDragging ? 0.6 : isSelected ? 0.55 : 0.5, 14, 12]} />
             <meshBasicMaterial
-              color={active ? '#E7C989' : i === 0 ? '#7FC8FF' : '#C6A265'}
+              color={color}
               toneMapped={false}
               depthTest={false}
               transparent
-              opacity={active ? 0.75 : 0.55}
+              opacity={isDragging ? 0.8 : isSelected ? 0.7 : 0.55}
+              wireframe={!isSelected && !isDragging}
             />
           </mesh>
         )

@@ -38,8 +38,10 @@ import { supplierPOText } from '../lib/supplierPO'
 import type { PaveMode } from '../lib/pave'
 import type { RailAlong } from '../lib/construction'
 import { stoneSchedule, stoneScheduleText } from '../lib/stoneSchedule'
+import { askAssistant, type AiRoute } from '../lib/aiAssistant'
 import { designQuality, designSpecText, type DesignQuality } from '../lib/designQuality'
 import { DESIGN_TEMPLATES } from '../lib/designTemplates'
+import { askCommands } from '../lib/aiCommands'
 import { MACROS } from '../lib/commandMacros'
 import { describePiece } from '../lib/describePiece'
 import { overhangReport, symmetryScore, type OverhangReport } from '../lib/castCheck'
@@ -47,6 +49,7 @@ import { alloyCostTable } from '../lib/alloyCost'
 import { laborBreakdown, formatMinutes } from '../lib/laborTime'
 import { FINDINGS } from '../lib/findings'
 import { sculptBom, sculptBomText } from '../lib/sculptBom'
+import { askBenchAdvisor } from '../lib/benchAdvisor'
 import { findShank, sizingReport, ringSizeOptions, euForSize } from '../lib/ringSizing'
 import { measurements } from '../lib/measure'
 import { castingPlan } from '../lib/casting'
@@ -340,8 +343,12 @@ export function ModelerPanel() {
   const [pierce, setPierce] = useState<{ count: number; mode: 'row' | 'ring'; span: number; dia: number; axis: 'x' | 'y' | 'z' }>({ count: 6, mode: 'ring', span: 4, dia: 1, axis: 'y' })
   const [signet, setSignet] = useState({ width: 10, length: 12, thickness: 1.5 })
   const [wire, setWire] = useState(1)
+  const [aiText, setAiText] = useState('')
+  const [aiAsm, setAiAsm] = useState<{ busy: boolean; err: string | null; routes: AiRoute[]; assumptions: string[] }>({ busy: false, err: null, routes: [], assumptions: [] })
   const [aiReplace, setAiReplace] = useState(true)
   const [aiQuality, setAiQuality] = useState<DesignQuality | null>(null)
+  const [finText, setFinText] = useState('')
+  const [finBusy, setFinBusy] = useState(false)
   const [stonePick, setStonePick] = useState<{ stoneId: string; shapeId: string; carat: number; hue: number; custom: boolean }>({ stoneId: 'dia', shapeId: 'rd', carat: 0.5, hue: 200, custom: false })
   const [findingPick, setFindingPick] = useState('jump')
   const [sizeTarget, setSizeTarget] = useState<number | null>(null)
@@ -356,6 +363,9 @@ export function ModelerPanel() {
   const [waxResin, setWaxResin] = useState(false)
   const [cmpA, setCmpA] = useState('')
   const [cmpB, setCmpB] = useState('')
+  const [benchQ, setBenchQ] = useState('')
+  const [benchA, setBenchA] = useState<{ text: string; ai: boolean } | null>(null)
+  const [benchBusy, setBenchBusy] = useState(false)
   const [domeH, setDomeH] = useState(1.5)
   const [symAxis, setSymAxis] = useState<'x' | 'y' | 'z'>('x')
   const [over, setOver] = useState<OverhangReport | null>(null)
@@ -592,6 +602,27 @@ export function ModelerPanel() {
     navigator.clipboard?.writeText(txt).then(() => flash('Stone schedule copied.'), () => flash('Could not copy.'))
   }
   const runQa = () => setAiQuality(designQuality(useModeler.getState().objects, alloyId))
+  const runAiAssemble = async () => {
+    const q = aiText.trim()
+    if (!q || aiAsm.busy) return
+    setAiAsm({ busy: true, err: null, routes: [], assumptions: [] })
+    try {
+      const res = await askAssistant([{ role: 'user', content: q }], null, { forceRoutes: true })
+      if (res.disabled) { setAiAsm({ busy: false, err: 'AI is off — add AI_API_KEY on the backend.', routes: [], assumptions: [] }); return }
+      if (res.routes.length) { setAiAsm({ busy: false, err: null, routes: res.routes, assumptions: res.assumptions }); return }
+      if (res.design) { const n = assembleDesign(res.design, aiReplace); flash(n ? `Assembled ${n} editable parts.` : 'Nothing to assemble from that.'); if (n) runQa() }
+      else flash(res.reply || 'No buildable design in that request.')
+      setAiAsm({ busy: false, err: null, routes: [], assumptions: res.assumptions })
+    } catch { setAiAsm({ busy: false, err: 'AI request failed — try again.', routes: [], assumptions: [] }) }
+  }
+  const buildAiRoute = (i: number) => {
+    const r = aiAsm.routes[i]
+    if (!r) return
+    const n = assembleDesign(r.design, aiReplace)
+    flash(n ? `Built “${r.label}” — ${n} editable parts.` : 'Nothing to assemble.')
+    setAiAsm(a => ({ ...a, routes: [] }))
+    if (n) runQa()
+  }
   const buildTemplate = (id: string) => {
     const t = DESIGN_TEMPLATES.find(x => x.id === id)
     if (!t) return
@@ -613,6 +644,32 @@ export function ModelerPanel() {
     if (!objects.length) { flash('Nothing to spec yet.'); return }
     const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
     textToPdf(shopName, 'Design Specification', designSpecText(objects, alloyId, alloy.name), `${slug}-design-spec.pdf`)
+  }
+  const runFinish = async () => {
+    const q = finText.trim()
+    if (!q || finBusy) return
+    if (!objects.length) { flash('Build or assemble a piece first, then finish it with AI.'); return }
+    setFinBusy(true)
+    try {
+      const res = await askCommands(q)
+      if (res.disabled) { flash('AI is off — add AI_API_KEY on the backend.'); setFinBusy(false); return }
+      if (!res.commands.length) { flash(res.reply || 'Nothing actionable in that.'); setFinBusy(false); return }
+      const { applied, skipped } = runModelerCommands(res.commands)
+      flash(applied.length ? `Applied ${applied.join(', ')}${skipped.length ? ` · skipped ${skipped.join(', ')}` : ''}.` : `Couldn't apply those — ${skipped.join(', ')}.`)
+      if (applied.length) { setFinText(''); runQa() }
+    } catch { flash('AI command failed — try again.') }
+    setFinBusy(false)
+  }
+  const askBench = async () => {
+    const q = benchQ.trim()
+    if (!q || benchBusy) return
+    if (!objects.length) { flash('Add a part first — the advisor answers from the piece on the bench.'); return }
+    setBenchBusy(true)
+    try {
+      const res = await askBenchAdvisor(q, objects, alloyId)
+      setBenchA({ text: res.text, ai: res.ai })
+    } catch { setBenchA({ text: 'Couldn’t reach the advisor — try again.', ai: false }) }
+    setBenchBusy(false)
   }
   const runMacro = (id: string) => {
     const m = MACROS.find(x => x.id === id)
@@ -809,20 +866,30 @@ export function ModelerPanel() {
         </div>
       )}
       <div className="panel-block">
-        <h4>Bring in your piece</h4>
-        <div className="opts" style={{ marginTop: 4 }}>
-          <button className="opt" onClick={bringInDesign} title="Import the piece from the AI / Design studio as editable parts">Bring in AI-studio piece →</button>
+        <h4>Build with AI ✦</h4>
+        <textarea className="ai-asm-in" rows={2} value={aiText} onChange={e => setAiText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void runAiAssemble() } }}
+          placeholder="Describe a piece — e.g. 6-prong round solitaire, 1.5 ct, white gold, size 6.5" disabled={aiAsm.busy} />
+        <div className="opts c2" style={{ marginTop: 6 }}>
+          <button className="primary" onClick={() => void runAiAssemble()} disabled={aiAsm.busy || !aiText.trim()}>{aiAsm.busy ? 'Designing…' : 'Assemble parts ✦'}</button>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={aiReplace} onChange={e => setAiReplace(e.target.checked)} /> Start fresh</label>
         </div>
-        <p className="disc">Carries whatever you built on the AI / Design tab onto the bench. Switching to Sculpt with an empty bench does this automatically. All AI generation happens on the AI tab — Sculpt is for hand-editing the result.</p>
-
-        <h4 style={{ marginTop: 16 }}>Or start from a template</h4>
-        <div className="opts c2">
-          {DESIGN_TEMPLATES.map(t => <button key={t.id} className="opt tpl" title={t.blurb} onClick={() => buildTemplate(t.id)}>{t.name}</button>)}
-        </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', marginTop: 8 }}>
-          <input type="checkbox" checked={aiReplace} onChange={e => setAiReplace(e.target.checked)} /> Start fresh (replaces what's on the bench)
-        </label>
-
+        {aiAsm.err && <p className="disc" style={{ color: 'var(--warn)' }}>{aiAsm.err}</p>}
+        {aiAsm.assumptions.length > 0 && (
+          <div className="ai-chips" style={{ marginTop: 8 }}>{aiAsm.assumptions.map((a, i) => <span key={i} className="ai-chip" title="An assumption the AI made">≈ {a}</span>)}</div>
+        )}
+        {aiAsm.routes.length > 0 && (
+          <div className="ai-asm-routes">
+            <p className="disc" style={{ marginTop: 10 }}>Pick a build route — it assembles as editable parts:</p>
+            {aiAsm.routes.map((r, i) => (
+              <div key={i} className="ai-asm-route">
+                <div><b>{i + 1}. {r.label}</b>{r.note && <span className="ai-asm-note"> — {r.note}</span>}</div>
+                {r.matched.length > 0 && <div className="ai-chips">{r.matched.map((c, j) => <span key={j} className="ai-chip">{c}</span>)}</div>}
+                <button className="opt" style={{ width: '100%', marginTop: 5 }} onClick={() => buildAiRoute(i)}>Build this in modeler</button>
+              </div>
+            ))}
+          </div>
+        )}
         {aiQuality && (
           <div className="dfm" style={{ marginTop: 10 }}>
             <p className={`dfm-line ${aiQuality.level === 'clean' ? 'pass' : aiQuality.level === 'review' ? 'warn' : 'fail'}`}>
@@ -831,6 +898,37 @@ export function ModelerPanel() {
             </p>
           </div>
         )}
+        <p className="disc">The AI turns your description into real shank / stone / setting parts you can then refine with every tool below.</p>
+
+        <div className="opts" style={{ marginTop: 10 }}>
+          <button className="opt" onClick={bringInDesign} title="Import the piece from the AI / Design studio as editable parts">Bring in AI-studio piece →</button>
+        </div>
+        <p className="disc">Carries whatever you built on the AI / Design tab onto the bench. Switching to Sculpt with an empty bench does this automatically.</p>
+
+        <h4 style={{ marginTop: 16 }}>Or start from a template</h4>
+        <div className="opts c2">
+          {DESIGN_TEMPLATES.map(t => <button key={t.id} className="opt tpl" title={t.blurb} onClick={() => buildTemplate(t.id)}>{t.name}</button>)}
+        </div>
+
+        <h4 style={{ marginTop: 18 }}>Finish with AI ✦</h4>
+        <textarea className="ai-asm-in" rows={2} value={finText} onChange={e => setFinText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void runFinish() } }}
+          placeholder="Tell it what to do to the piece — e.g. hammer the band, add a halo, flush-set the stone, then get it ready to print" disabled={finBusy} />
+        <button className="primary" style={{ width: '100%', marginTop: 6 }} onClick={() => void runFinish()} disabled={finBusy || !finText.trim()}>{finBusy ? 'Working…' : 'Run on this piece ✦'}</button>
+        <p className="disc">Drives the finishing &amp; setting tools by voice — texture, dome, halo, flush-set, milgrain, pierce, symmetrise, auto-orient, mirror, array — in the order you say them.</p>
+
+        <h4 style={{ marginTop: 18 }}>Bench advisor ✦</h4>
+        <textarea className="ai-asm-in" rows={2} value={benchQ} onChange={e => setBenchQ(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void askBench() } }}
+          placeholder="Ask about this piece — e.g. what bur for this stone? will it cast? are the prongs enough? how heavy is it?" disabled={benchBusy} />
+        <button className="primary" style={{ width: '100%', marginTop: 6 }} onClick={() => void askBench()} disabled={benchBusy || !benchQ.trim()}>{benchBusy ? 'Thinking…' : 'Ask the bench advisor ✦'}</button>
+        {benchA && (
+          <div className="dfm" style={{ marginTop: 8 }}>
+            <p className="dfm-line pass" style={{ whiteSpace: 'pre-wrap' }}>{benchA.text}</p>
+            <p className="disc">{benchA.ai ? 'Answered by AI, grounded in this piece’s measured facts.' : 'Answered from this piece’s measured geometry (AI off or unreachable).'}</p>
+          </div>
+        )}
+        <p className="disc">Answers bench questions — setting burs, castability, prong security, weight, wall thickness — from the model’s real geometry and the same checks the print gate runs.</p>
 
         <div className="row" style={{ marginTop: 8 }}><label>Quick finishes</label></div>
         <div className="opts c2">

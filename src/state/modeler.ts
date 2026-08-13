@@ -249,10 +249,32 @@ interface ModelerStore {
   sketch3DSegs: Seg3DStyle[]
   setSketching3D: (on: boolean) => void
   add3DPoint: (p: [number, number, number]) => void
+  /** Split the edge right after point `afterIndex` by inserting a new point
+   *  there — the two resulting edges both inherit that edge's original style
+   *  (curve/thickness/depth), so the shape doesn't visually jump. Powers the
+   *  clickable midpoint markers (ArcGIS-style "insert a vertex here"). */
+  insert3DPointAt: (afterIndex: number, p: [number, number, number]) => void
   move3DPoint: (i: number, p: [number, number, number]) => void
   remove3DPoint: (i: number) => void
+  /** Remove several points at once (e.g. a multi-selection), in one state
+   *  update rather than N — order of `indices` doesn't matter. */
+  remove3DPoints: (indices: number[]) => void
   undo3DPoint: () => void
   clear3DPoints: () => void
+  /** Which vertex-editing tool is active in the Build-3D canvas: Select (click
+   *  to select/multi-select, drag to move), Add (click a midpoint marker to
+   *  insert a vertex there), or Delete (click a vertex to remove it) — mirrors
+   *  the explicit-tool-per-action pattern from ArcGIS's vertex editing. */
+  sketch3DTool: 'select' | 'add' | 'delete'
+  setSketch3DTool: (t: 'select' | 'add' | 'delete') => void
+  /** Currently selected vertex indices (Select tool) — drag any one of a
+   *  multi-selection and the whole group moves together. */
+  sketch3DSelected: number[]
+  setSketch3DSelected: (indices: number[]) => void
+  /** Snap-to-vertex while dragging, on by default — toggleable so a precise
+   *  manual placement isn't fought by the magnet effect. */
+  sketch3DSnapEnabled: boolean
+  toggleSketch3DSnap: () => void
   set3DWire: (mm: number) => void
   toggle3DClosed: () => void
   set3DClosed: (v: boolean) => void
@@ -372,6 +394,9 @@ export const useModeler = create<ModelerStore>((set, get) => {
   sketch3DClosed: false,
   sketch3DFill: true,
   sketch3DSegs: [],
+  sketch3DTool: 'select',
+  sketch3DSelected: [],
+  sketch3DSnapEnabled: true,
   past: [],
   future: [],
   importedSig: null,
@@ -816,18 +841,39 @@ export const useModeler = create<ModelerStore>((set, get) => {
   setSketching: (sketching, editId = null) => set({ sketching, sketchEditId: sketching ? editId : null }),
 
   // --- Free-form 3D building: no template, just placed points wired together ---
-  setSketching3D: on => set({ sketching3D: on, sketch3DPoints: [], sketch3DClosed: false, sketch3DFill: true, sketch3DSegs: [] }),
+  setSketching3D: on => set({
+    sketching3D: on, sketch3DPoints: [], sketch3DClosed: false, sketch3DFill: true, sketch3DSegs: [],
+    sketch3DTool: 'select', sketch3DSelected: [],
+  }),
   add3DPoint: p => set(s => ({
     sketch3DPoints: [...s.sketch3DPoints, p],
     sketch3DSegs: [...s.sketch3DSegs, { curved: false, thickness: s.sketch3DWire, depth: s.sketch3DWire }],
   })),
+  insert3DPointAt: (afterIndex, p) => set(s => {
+    const style = s.sketch3DSegs[afterIndex] ?? { curved: false, thickness: s.sketch3DWire, depth: s.sketch3DWire }
+    const points = [...s.sketch3DPoints.slice(0, afterIndex + 1), p, ...s.sketch3DPoints.slice(afterIndex + 1)]
+    const segs = [...s.sketch3DSegs.slice(0, afterIndex + 1), { ...style }, ...s.sketch3DSegs.slice(afterIndex + 1)]
+    return { sketch3DPoints: points, sketch3DSegs: segs, sketch3DSelected: [afterIndex + 1] }
+  }),
   move3DPoint: (i, p) => set(s => ({ sketch3DPoints: s.sketch3DPoints.map((q, j) => j === i ? p : q) })),
   remove3DPoint: i => set(s => ({
     sketch3DPoints: s.sketch3DPoints.filter((_, j) => j !== i),
     sketch3DSegs: s.sketch3DSegs.filter((_, j) => j !== i),
+    sketch3DSelected: s.sketch3DSelected.filter(j => j !== i).map(j => j > i ? j - 1 : j),
   })),
-  undo3DPoint: () => set(s => ({ sketch3DPoints: s.sketch3DPoints.slice(0, -1), sketch3DSegs: s.sketch3DSegs.slice(0, -1) })),
-  clear3DPoints: () => set({ sketch3DPoints: [], sketch3DSegs: [] }),
+  remove3DPoints: indices => set(s => {
+    const drop = new Set(indices)
+    return {
+      sketch3DPoints: s.sketch3DPoints.filter((_, j) => !drop.has(j)),
+      sketch3DSegs: s.sketch3DSegs.filter((_, j) => !drop.has(j)),
+      sketch3DSelected: [],
+    }
+  }),
+  setSketch3DTool: t => set({ sketch3DTool: t, sketch3DSelected: [] }),
+  setSketch3DSelected: indices => set({ sketch3DSelected: indices }),
+  toggleSketch3DSnap: () => set(s => ({ sketch3DSnapEnabled: !s.sketch3DSnapEnabled })),
+  undo3DPoint: () => set(s => ({ sketch3DPoints: s.sketch3DPoints.slice(0, -1), sketch3DSegs: s.sketch3DSegs.slice(0, -1), sketch3DSelected: [] })),
+  clear3DPoints: () => set({ sketch3DPoints: [], sketch3DSegs: [], sketch3DSelected: [] }),
   load3DTemplate: shape => set(s => {
     const R = 14
     const ring = (n: number, rot = 0): [number, number, number][] =>
@@ -848,6 +894,7 @@ export const useModeler = create<ModelerStore>((set, get) => {
       sketch3DSegs: pts.map(() => ({ curved: shape === 'circle', thickness: s.sketch3DWire, depth: s.sketch3DWire })),
       sketch3DClosed: true,
       sketch3DFill: true,
+      sketch3DSelected: [],
     }
   }),
   set3DWire: mm => set({ sketch3DWire: Math.max(0.2, mm) }),
@@ -883,10 +930,10 @@ export const useModeler = create<ModelerStore>((set, get) => {
         })
       }
     }
-    set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false, sketch3DFill: true, sketch3DSegs: [] })
+    set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false, sketch3DFill: true, sketch3DSegs: [], sketch3DTool: 'select', sketch3DSelected: [] })
     return id
   },
-  cancel3DSketch: () => set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false, sketch3DFill: true, sketch3DSegs: [] }),
+  cancel3DSketch: () => set({ sketching3D: false, sketch3DPoints: [], sketch3DClosed: false, sketch3DFill: true, sketch3DSegs: [], sketch3DTool: 'select', sketch3DSelected: [] }),
 
   /** Create a live, re-editable sketch object from a free-drawn profile. */
   addSketch: sketch => {
