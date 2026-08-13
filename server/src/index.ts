@@ -500,6 +500,27 @@ app.patch('/api/orders/:id/stage', requireAuth, (req, res) => {
   res.json({ updated: info.changes })
 })
 
+// No-login order-status lookup for the buyer — the same security model as the
+// existing ?review= design-approval link: the order's id is a crypto.randomUUID
+// (122 bits), unguessable and never enumerable, so knowing that one id is what
+// authorizes viewing it. Deliberately returns only what a buyer should see —
+// no pricing, no other customer's data, no other tenant's rows reachable
+// without their exact id.
+app.get('/api/public/orders/:id', (req, res) => {
+  const row = db.prepare(`
+    SELECT o.id, o.stage, o.created_at, d.name AS design_name, d.spec AS design_spec, t.name AS shop_name
+    FROM orders o
+    LEFT JOIN designs d ON d.id = o.design_id AND d.tenant_id = o.tenant_id
+    JOIN tenants t ON t.id = o.tenant_id
+    WHERE o.id = ?
+  `).get(req.params.id) as
+    { id: string; stage: string; created_at: string; design_name: string | null; design_spec: string | null; shop_name: string } | undefined
+  if (!row) return res.status(404).json({ error: 'order not found' })
+  let category: string | null = null
+  try { category = row.design_spec ? (JSON.parse(row.design_spec)?.category ?? null) : null } catch { /* malformed spec — omit category */ }
+  res.json({ id: row.id, stage: row.stage, created_at: row.created_at, shop_name: row.shop_name, design_name: row.design_name, category })
+})
+
 /* ---------------- subscription / access billing ---------------- */
 
 // Which Stripe price + checkout mode each plan uses. Price ids come from env so

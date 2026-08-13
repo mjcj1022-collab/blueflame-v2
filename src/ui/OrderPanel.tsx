@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useDesign } from '../state/design'
-import { reviewUrl } from '../lib/share'
+import { reviewUrl, orderTrackUrl } from '../lib/share'
 import { api, apiConfigured, type ServerOrder, type Customer } from '../lib/api'
 import { ORDER_STAGES, stageIndex, stageLabel, stageKey } from '../lib/orderStages'
 
@@ -46,6 +46,16 @@ function ServerOrders() {
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [copiedTrackId, setCopiedTrackId] = useState<string | null>(null)
+
+  /** A no-login order-status link for the buyer — hand it to them once the
+   *  piece is in production so they can check progress without emailing. */
+  const copyTrackLink = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(orderTrackUrl(id))
+      setCopiedTrackId(id); setTimeout(() => setCopiedTrackId(cur => (cur === id ? null : cur)), 2500)
+    } catch { /* clipboard blocked */ }
+  }
 
   const refresh = async () => {
     setLoading(true)
@@ -91,6 +101,9 @@ function ServerOrders() {
               <b>{o.design_name ?? 'Untitled'}</b>
               <span className="attr-kind">{o.is_sculpt ? 'sculpt' : 'design'}</span>
               <span className="order-stage">{stageLabel(o.stage)}</span>
+              <button className="mini" onClick={() => void copyTrackLink(o.id)} title="Copy a no-login link the buyer can use to check their order status">
+                {copiedTrackId === o.id ? 'Copied ✓' : 'Copy tracking link'}
+              </button>
             </div>
             {customers.length > 0 && (
               <label className="order-client">

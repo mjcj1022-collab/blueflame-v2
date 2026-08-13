@@ -17,6 +17,17 @@ const BASE = OFFLINE_BUILD ? undefined : (import.meta as unknown as { env?: Reco
 export const apiConfigured = (): boolean => !!BASE
 export const apiBase = (): string | undefined => BASE
 
+/** The public, no-login order-status payload — deliberately minimal (no
+ *  pricing, no customer info) since anyone with the link can view it. */
+export interface PublicOrderStatus {
+  id: string
+  stage: string
+  created_at: string
+  shop_name: string
+  design_name: string | null
+  category: string | null
+}
+
 /** An order row as the server returns it, joined with its design and customer. */
 export interface ServerOrder {
   id: string
@@ -154,6 +165,9 @@ export const api = {
   saveSculpt: (name: string, tags: string[], data: unknown) => req('/api/sculpts', { method: 'POST', body: JSON.stringify({ name, tags, data }) }) as Promise<{ id: string }>,
   deleteSculpt: (id: string) => req(`/api/sculpts/${id}`, { method: 'DELETE' }) as Promise<{ deleted: number }>,
   listOrders: () => req('/api/orders') as Promise<ServerOrder[]>,
+  // No-login lookup for a buyer's order-status link — never sends the auth
+  // token (there isn't one on this page), works purely off the order's id.
+  publicOrderStatus: (id: string) => req(`/api/public/orders/${id}`) as Promise<PublicOrderStatus>,
   createOrder: (design_id: string, customer_id?: string) => req('/api/orders', { method: 'POST', body: JSON.stringify({ design_id, customer_id }) }),
   advanceOrder: (id: string, stage: string) => req(`/api/orders/${id}/stage`, { method: 'PATCH', body: JSON.stringify({ stage }) }) as Promise<{ updated: number }>,
   setOrderCustomer: (id: string, customer_id: string | null) => req(`/api/orders/${id}/customer`, { method: 'PATCH', body: JSON.stringify({ customer_id }) }) as Promise<{ updated: number }>,

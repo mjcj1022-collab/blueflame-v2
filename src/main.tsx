@@ -4,8 +4,9 @@ import App from './App'
 import { Login } from './ui/Login'
 import { Landing } from './ui/Landing'
 import { ClientReview } from './ui/ClientReview'
+import { OrderTrack } from './ui/OrderTrack'
 import { useAuth } from './state/auth'
-import { reviewFromUrl } from './lib/share'
+import { reviewFromUrl, orderIdFromUrl } from './lib/share'
 import { captureRef } from './lib/referral'
 import { migrateLegacyStorage } from './lib/brandMigration'
 import './styles.css'
@@ -13,6 +14,7 @@ import './styles.css'
 migrateLegacyStorage()           // Blue Flame → Mandrel: carry over old localStorage keys once
 captureRef()                     // stash an affiliate ?ref= code before anything else
 const review = reviewFromUrl()   // a ?review= link opens the client screen, no login
+const orderId = orderIdFromUrl() // a ?order= link opens the buyer's order-status page, no login
 
 function Root() {
   const user = useAuth(s => s.user)
@@ -29,6 +31,7 @@ function Root() {
   useEffect(() => { void verifySession() }, [verifySession])
 
   if (review) return <ClientReview spec={review.spec} shop={review.shop} />
+  if (orderId) return <OrderTrack id={orderId} />
   if (user) return <App />   // App runs its own paywall gate (shows Pricing if unsubscribed)
   if (!entered) return <Landing onEnter={() => setEntered(true)} />
   // Not signed in: the New member / Existing member gate is always the first screen.

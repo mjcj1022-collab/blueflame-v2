@@ -524,6 +524,12 @@ table.cmp.variants td,table.cmp.variants th{white-space:nowrap}
 .review-row{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:11px 0;border-bottom:1px solid var(--rule)}
 .review-row span{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--slate)}
 .review-row b{font-size:13px;color:var(--graphite);text-align:right}
+
+/* no-login order-status page */
+.order-track{display:flex;justify-content:center;padding:48px 20px;min-height:calc(100vh - var(--mast-h))}
+.order-track-card{width:min(520px,100%);background:var(--paper) var(--grain);background-blend-mode:multiply;border:1px solid var(--rule);border-radius:12px;box-shadow:0 24px 60px rgba(20,26,36,.14);padding:28px 26px;height:fit-content}
+.order-track-pipeline{margin-top:18px;padding:14px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.order-track-pipeline .stage{cursor:default}
 .review-row.total b{font-size:18px;color:var(--karat)}
 .review-actions{border-top:1px solid var(--rule);padding:16px 22px;display:flex;flex-direction:column;gap:10px}
 .review-actions .primary{padding:13px;background:var(--karat);color:#FFFFFF;border:1px solid var(--karat);font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;cursor:pointer}

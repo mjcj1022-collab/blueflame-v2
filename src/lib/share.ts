@@ -47,3 +47,16 @@ export function reviewFromUrl(): { spec: DesignSpec; shop: string } | null {
   const spec = decodeSpec(token)
   return spec ? { spec, shop: params.get('shop') || 'Mandrel' } : null
 }
+
+/** A no-login, read-only order-status link for the buyer — just the order's
+ *  own id (a crypto.randomUUID, unguessable) in the URL; the status itself is
+ *  fetched live from the server so it always reflects the current stage. */
+export function orderTrackUrl(orderId: string): string {
+  const base = typeof location !== 'undefined' ? `${location.origin}${location.pathname}` : ''
+  return `${base}?order=${encodeURIComponent(orderId)}`
+}
+
+export function orderIdFromUrl(): string | null {
+  if (typeof location === 'undefined') return null
+  return new URLSearchParams(location.search).get('order')
+}
