@@ -6,14 +6,34 @@ import { registerAlloy, SETTINGS, type Alloy } from '../catalog'
 import { MARKET, setMarket as applyMarket, type Market } from '../lib/market'
 import type { WeightUnit } from '../lib/units'
 
+const SHOP_KEY = 'mandrel.shop.v1'
+type Shop = { name: string; hideCost: boolean; email: string; phone: string }
+function loadShop(): Shop {
+  const fb: Shop = { name: 'Mandrel', hideCost: false, email: '', phone: '' }
+  try {
+    const raw = localStorage.getItem(SHOP_KEY)
+    if (!raw) return fb
+    const p = JSON.parse(raw) as Partial<Shop>
+    return {
+      name: typeof p.name === 'string' && p.name.trim() ? p.name : fb.name,
+      hideCost: p.hideCost === true,
+      email: typeof p.email === 'string' ? p.email : '',
+      phone: typeof p.phone === 'string' ? p.phone : '',
+    }
+  } catch { return fb }
+}
+function saveShop(shop: Shop) {
+  try { localStorage.setItem(SHOP_KEY, JSON.stringify(shop)) } catch { /* private mode */ }
+}
+
 interface DesignStore {
   spec: DesignSpec
   unit: WeightUnit
   compareOpen: boolean
   market: Market
   setMarket: (patch: Partial<Market>) => void
-  shop: { name: string; hideCost: boolean }
-  setShop: (patch: Partial<{ name: string; hideCost: boolean }>) => void
+  shop: { name: string; hideCost: boolean; email: string; phone: string }
+  setShop: (patch: Partial<{ name: string; hideCost: boolean; email: string; phone: string }>) => void
   orderStage: number
   setOrderStage: (i: number) => void
   viewWire: boolean
@@ -118,8 +138,10 @@ export const useDesign = create<DesignStore>((rawSet, get) => {
   market: { ...MARKET },
   // Update the shared engine settings and clone spec so every price display refreshes.
   setMarket: patch => { applyMarket(patch); set(s => ({ market: { ...s.market, ...patch }, spec: { ...s.spec } })) },
-  shop: { name: 'Mandrel', hideCost: false },
-  setShop: patch => set(s => ({ shop: { ...s.shop, ...patch } })),
+  shop: loadShop(),
+  // Persisted so the shop name/contact info (used on quotes, appraisals, and
+  // the policies panel) survives a reload instead of resetting every session.
+  setShop: patch => set(s => { const shop = { ...s.shop, ...patch }; saveShop(shop); return { shop } }),
   orderStage: 0,
   setOrderStage: i => set({ orderStage: Math.max(0, Math.min(6, i)) }),
   viewWire: false,

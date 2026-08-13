@@ -217,6 +217,11 @@ export function QuotePanel() {
       <h4 style={{ marginTop: 18 }}>Shop</h4>
       <input className="lib-name" style={{ width: '100%' }} value={shop.name}
         onChange={e => setShop({ name: e.target.value })} onBlur={e => { if (!e.target.value.trim()) setShop({ name: 'Mandrel' }) }} placeholder="Shop name (white-label)" />
+      <input className="lib-name" style={{ width: '100%', marginTop: 6 }} type="email" value={shop.email}
+        onChange={e => setShop({ email: e.target.value })} placeholder="Contact email (shown to clients)" />
+      <input className="lib-name" style={{ width: '100%', marginTop: 6 }} type="tel" value={shop.phone}
+        onChange={e => setShop({ phone: e.target.value })} placeholder="Contact phone (optional)" />
+      <p className="disc" style={{ marginTop: 4 }}>Shown on the Info panel (ⓘ, top bar) so clients know how to reach you.</p>
       <label className="filter-row" style={{ marginTop: 10 }}>
         <input type="checkbox" checked={shop.hideCost} onChange={e => setShop({ hideCost: e.target.checked })} />
         Sales-associate mode<small>hide cost basis</small>
