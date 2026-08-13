@@ -8,6 +8,10 @@ import type { ProductCategory } from '../spec/types'
  *  - hiddenPanels: side panels the user has switched off.
  *  - paperTexture: the warm paper grain overlay on/off.
  *  - compact: tighter spacing throughout.
+ *  - autosaveEnabled: continuously save the live design + sculpt to this
+ *    browser (localStorage) as you work, so a refresh or crash doesn't lose
+ *    it. On by default — this is separate from, and doesn't affect, the
+ *    named "Save" button (manual project snapshots) or server-side data.
  * At least one category is always kept enabled. `dismissed` is session-only.
  */
 const KEY = 'mandrel.settings.v1'
@@ -30,10 +34,11 @@ interface Persisted {
   hiddenPanels: string[]
   paperTexture: boolean
   compact: boolean
+  autosaveEnabled: boolean
 }
 
 function load(): Persisted {
-  const fb: Persisted = { suggestToast: true, enabledCategories: [...ALL_CATEGORIES], hiddenPanels: [], paperTexture: true, compact: false }
+  const fb: Persisted = { suggestToast: true, enabledCategories: [...ALL_CATEGORIES], hiddenPanels: [], paperTexture: true, compact: false, autosaveEnabled: true }
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) return fb
@@ -45,6 +50,7 @@ function load(): Persisted {
       hiddenPanels: Array.isArray(p.hiddenPanels) ? p.hiddenPanels.filter((x): x is string => typeof x === 'string') : [],
       paperTexture: p.paperTexture !== false,
       compact: p.compact === true,
+      autosaveEnabled: p.autosaveEnabled !== false,
     }
   } catch { return fb }
 }
@@ -56,13 +62,14 @@ interface SettingsStore extends Persisted {
   togglePanel: (key: string) => void
   setPaperTexture: (on: boolean) => void
   setCompact: (on: boolean) => void
+  setAutosaveEnabled: (on: boolean) => void
   dismiss: (id: string) => void
 }
 
 export const useSettings = create<SettingsStore>((set, get) => {
   const persist = () => {
     const s = get()
-    try { localStorage.setItem(KEY, JSON.stringify({ suggestToast: s.suggestToast, enabledCategories: s.enabledCategories, hiddenPanels: s.hiddenPanels, paperTexture: s.paperTexture, compact: s.compact })) } catch { /* private mode */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ suggestToast: s.suggestToast, enabledCategories: s.enabledCategories, hiddenPanels: s.hiddenPanels, paperTexture: s.paperTexture, compact: s.compact, autosaveEnabled: s.autosaveEnabled })) } catch { /* private mode */ }
   }
   return {
     ...load(),
@@ -80,6 +87,7 @@ export const useSettings = create<SettingsStore>((set, get) => {
     },
     setPaperTexture: (on) => { set({ paperTexture: on }); persist() },
     setCompact: (on) => { set({ compact: on }); persist() },
+    setAutosaveEnabled: (on) => { set({ autosaveEnabled: on }); persist() },
     dismiss: (id) => set((s) => (s.dismissed.includes(id) ? s : { dismissed: [...s.dismissed, id] })),
   }
 })

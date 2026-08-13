@@ -135,6 +135,7 @@ export default function App() {
   const hiddenPanels = useSettings(s => s.hiddenPanels)
   const paperTexture = useSettings(s => s.paperTexture)
   const compact = useSettings(s => s.compact)
+  const autosaveEnabled = useSettings(s => s.autosaveEnabled)
   const show = (key: string) => !hiddenPanels.includes(key)
   const closeTour = () => { try { localStorage.setItem(TOUR_KEY, '1') } catch { /* private mode */ } setTourOpen(false) }
 
@@ -170,12 +171,15 @@ export default function App() {
     useModeler.getState().importFromDesign(useDesign.getState().spec, true)
   }, [mode])
 
-  // Autosave both workspaces (debounced) on every change.
+  // Autosave both workspaces (debounced) on every change — off entirely when
+  // the user has switched it off in Settings. Restoring previously-saved work
+  // on load (above) always happens regardless; this only gates new writes.
   useEffect(() => {
+    if (!autosaveEnabled) return
     const unsubD = useDesign.subscribe((st, prev) => { if (st.spec !== prev.spec) autosave.writeDesign(st.spec) })
     const unsubS = useModeler.subscribe((st, prev) => { if (st.objects !== prev.objects) autosave.writeSculpt(st.objects) })
     return () => { unsubD(); unsubS() }
-  }, [])
+  }, [autosaveEnabled])
 
   // Returning from Stripe checkout (?billing=success): the subscription lands via
   // webhook, which can lag a second or two. Poll a few times so a paying customer

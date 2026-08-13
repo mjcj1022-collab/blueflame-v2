@@ -33,6 +33,15 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             <Toggle on={s.suggestToast} onChange={s.setSuggestToast} label="Next-step suggestions" />
           </label>
 
+          {/* Autosave */}
+          <label className="settings-row">
+            <span>
+              <b>Autosave</b>
+              <small>Continuously saves your design + sculpt to this browser as you work, so a refresh or crash doesn't lose it. Separate from the 💾 Save button (named project snapshots).</small>
+            </span>
+            <Toggle on={s.autosaveEnabled} onChange={s.setAutosaveEnabled} label="Autosave" />
+          </label>
+
           {/* Pieces you build */}
           <div className="settings-section">
             <b>Pieces you build</b>
