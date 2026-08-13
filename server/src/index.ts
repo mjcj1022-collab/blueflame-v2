@@ -504,8 +504,8 @@ app.patch('/api/orders/:id/stage', requireAuth, (req, res) => {
 
 // Which Stripe price + checkout mode each plan uses. Price ids come from env so
 // the shop sets them in Render without a code change.
-const PLAN_PRICE: Record<string, { mode: 'subscription' | 'payment'; env: string }> = {
-  'studio-monthly': { mode: 'subscription', env: 'STRIPE_PRICE_MONTHLY' },
+const PLAN_PRICE: Record<string, { mode: 'subscription' | 'payment'; env: string; trialDaysEnv?: string }> = {
+  'studio-monthly': { mode: 'subscription', env: 'STRIPE_PRICE_MONTHLY', trialDaysEnv: 'STRIPE_TRIAL_DAYS' },
   'offline-lifetime': { mode: 'payment', env: 'STRIPE_PRICE_OFFLINE' },
 }
 
@@ -553,6 +553,14 @@ app.post('/api/billing/checkout', requireAuth, async (req, res) => {
     // more importantly — so the webhook can read it straight off the session
     // afterward to send the offline-download email to the right address.
     const buyer = db.prepare('SELECT email FROM users WHERE id = ?').get(me(req).id) as { email?: string } | undefined
+    // Only offer the free trial to a shop that has never checked out before —
+    // this doesn't stop someone from registering a brand-new email to get
+    // another trial (nothing short of requiring ID can fully stop that), but
+    // it does stop an existing shop from re-triggering one by canceling and
+    // re-subscribing. Stripe still requires a real, chargeable card up front
+    // even during the trial, which is the actual deterrent against casual abuse.
+    const neverCheckedOut = !(db.prepare('SELECT stripe_customer_id FROM tenants WHERE id = ?').get(me(req).tenant_id) as { stripe_customer_id?: string | null } | undefined)?.stripe_customer_id
+    const trialDays = plan.trialDaysEnv && neverCheckedOut ? Number(process.env[plan.trialDaysEnv]) : undefined
     const session = await createCheckoutSession({
       mode: plan.mode,
       priceId,
@@ -561,6 +569,7 @@ app.post('/api/billing/checkout', requireAuth, async (req, res) => {
       customerEmail: buyer?.email,
       successUrl: `${origin}/?billing=success`,
       cancelUrl: `${origin}/?billing=cancel`,
+      trialDays,
     })
     res.json({ url: session.url })
   } catch (e) {

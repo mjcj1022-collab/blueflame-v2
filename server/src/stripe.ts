@@ -27,6 +27,12 @@ export async function createCheckoutSession(opts: {
   customerEmail?: string
   successUrl: string
   cancelUrl: string
+  /** Free-trial length for subscription checkouts (ignored for one-time
+   *  payment mode). Stripe still collects a card up front by default — the
+   *  trial waives the charge, not the card requirement — which is the main
+   *  real deterrent against someone just spinning up new email addresses for
+   *  unlimited free access; see STRIPE_TRIAL_DAYS in index.ts for the caveat. */
+  trialDays?: number
 }): Promise<{ url: string | null }> {
   const key = process.env.STRIPE_SECRET_KEY
   if (!key) throw new Error('Stripe not configured — set STRIPE_SECRET_KEY')
@@ -34,13 +40,14 @@ export async function createCheckoutSession(opts: {
   const StripeMod = await import('stripe').catch(() => { throw new Error('Stripe not installed — run: npm i stripe') })
   const stripe = new StripeMod.default(key)
   const metadata = { tenant_id: opts.tenantId, plan_id: opts.planId }
+  const trialDays = opts.mode === 'subscription' && opts.trialDays && opts.trialDays > 0 ? Math.floor(opts.trialDays) : undefined
   const session = await stripe.checkout.sessions.create({
     mode: opts.mode,
     line_items: [{ price: opts.priceId, quantity: 1 }],
     customer_email: opts.customerEmail,
     client_reference_id: opts.tenantId,
     metadata,
-    ...(opts.mode === 'subscription' ? { subscription_data: { metadata } } : {}),
+    ...(opts.mode === 'subscription' ? { subscription_data: { metadata, ...(trialDays ? { trial_period_days: trialDays } : {}) } } : {}),
     success_url: opts.successUrl,
     cancel_url: opts.cancelUrl,
   })
