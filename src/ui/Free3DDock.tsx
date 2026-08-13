@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useModeler } from '../state/modeler'
+import { useHotkeys } from '../state/hotkeys'
 
 /**
  * Controls for the free-form 3D builder (paired with the in-scene
@@ -26,39 +27,53 @@ export function Free3DDock() {
   const removePts = useModeler(s => s.remove3DPoints)
   const snapEnabled = useModeler(s => s.sketch3DSnapEnabled)
   const toggleSnap = useModeler(s => s.toggleSketch3DSnap)
+  const key = useHotkeys(s => s.keyFor)
 
   // Escape cancels the build; Enter finishes it once there are enough points
-  // to sweep a solid (mirrors the Cancel/Done buttons below).
+  // to sweep a solid (mirrors the Cancel/Done buttons below). The vertex-tool
+  // and snap-toggle keys are reassignable (⌨ shortcuts modal) — read live off
+  // the store on every keypress rather than captured once, same pattern as
+  // the Sculpt bench toolbar.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
       if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return
-      if (e.key === 'Escape') { e.preventDefault(); cancel() }
-      else if (e.key === 'Enter' && points.length >= 2) { e.preventDefault(); finish() }
+      if (e.key === 'Escape') { e.preventDefault(); cancel(); return }
+      if (e.key === 'Enter' && points.length >= 2) { e.preventDefault(); finish(); return }
+      if (e.ctrlKey || e.metaKey || e.altKey || !points.length) return
+      const k = useHotkeys.getState().bindings
+      switch (e.key.toLowerCase()) {
+        case k['sketch3d.select']: setTool('select'); break
+        case k['sketch3d.add']: setTool('add'); break
+        case k['sketch3d.delete']: setTool('delete'); break
+        case k['sketch3d.snap']: toggleSnap(); break
+        default: return
+      }
+      e.preventDefault()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [cancel, finish, points.length])
+  }, [cancel, finish, points.length, setTool, toggleSnap])
 
   return (
     <div className="sketch-dock">
       <div className="sketch-dock-head">
         <b>Build in 3D</b>
-        <span>double-click the floor or back wall to place · Select to click/shift-click and drag vertices (grab any selected one to move the group) · Add to click a midpoint and split that line · Delete to click a vertex and remove it · click a line to curve it or resize it · right-click a point always deletes it</span>
+        <span>double-click the floor or back wall to place · Select ({key('sketch3d.select')}) to click/shift-click and drag vertices (grab any selected one to move the group) · Add ({key('sketch3d.add')}) to click a midpoint and split that line · Delete ({key('sketch3d.delete')}) to click a vertex and remove it · Snap ({key('sketch3d.snap')}) toggles snap-to-vertex · click a line to curve it or resize it · right-click a point always deletes it</span>
         <button className="sketch-x" onClick={cancel} title="Cancel" aria-label="Cancel">×</button>
       </div>
       <div className="sketch-dock-ctl">
         {points.length > 0 && (
           <div className="opts" role="group" aria-label="Vertex tool">
-            <button className="opt" aria-pressed={tool === 'select'} onClick={() => setTool('select')} title="Click (shift-click to multi-select) and drag vertices">Select</button>
-            <button className="opt" aria-pressed={tool === 'add'} onClick={() => setTool('add')} title="Click a line's midpoint to insert a new vertex there">Add vertex</button>
-            <button className="opt" aria-pressed={tool === 'delete'} onClick={() => setTool('delete')} title="Click a vertex to remove it">Delete vertex</button>
+            <button className="opt" aria-pressed={tool === 'select'} onClick={() => setTool('select')} title={`Click (shift-click to multi-select) and drag vertices  ·  key ${key('sketch3d.select')}`}>Select</button>
+            <button className="opt" aria-pressed={tool === 'add'} onClick={() => setTool('add')} title={`Click a line's midpoint to insert a new vertex there  ·  key ${key('sketch3d.add')}`}>Add vertex</button>
+            <button className="opt" aria-pressed={tool === 'delete'} onClick={() => setTool('delete')} title={`Click a vertex to remove it  ·  key ${key('sketch3d.delete')}`}>Delete vertex</button>
           </div>
         )}
         {points.length > 0 && (
-          <label className="sk-check">
+          <label className="sk-check" title={`key ${key('sketch3d.snap')}`}>
             <input type="checkbox" checked={snapEnabled} onChange={toggleSnap} />Snap to vertex
-            <small style={{ textTransform: 'none', letterSpacing: 0 }}>dragging a single vertex near another snaps onto it — off for exact manual placement</small>
+            <small style={{ textTransform: 'none', letterSpacing: 0 }}>dragging a single vertex near another snaps onto it — off for exact manual placement  ·  key {key('sketch3d.snap')}</small>
           </label>
         )}
         {selected.length > 0 && (

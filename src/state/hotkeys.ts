@@ -12,6 +12,7 @@ export type HotkeyAction =
   | 'sculpt.addBox' | 'sculpt.addSphere' | 'sculpt.addGem'
   | 'sculpt.gizmoTranslate' | 'sculpt.gizmoRotate' | 'sculpt.gizmoScale'
   | 'design.move' | 'design.select' | 'design.edit' | 'design.add' | 'design.remove'
+  | 'sketch3d.select' | 'sketch3d.add' | 'sketch3d.delete' | 'sketch3d.snap'
 
 interface HotkeyDef { action: HotkeyAction; label: string; group: string; defaultKey: string }
 
@@ -36,6 +37,10 @@ export const HOTKEY_DEFS: HotkeyDef[] = [
   { action: 'design.edit', label: 'Edit vertices (drag)', group: 'Design & AI · vertex tools', defaultKey: '3' },
   { action: 'design.add', label: 'Add a vertex', group: 'Design & AI · vertex tools', defaultKey: '4' },
   { action: 'design.remove', label: 'Remove a vertex', group: 'Design & AI · vertex tools', defaultKey: '5' },
+  { action: 'sketch3d.select', label: 'Select tool (click/shift-click, drag)', group: 'Build 3D · vertex tools', defaultKey: 'q' },
+  { action: 'sketch3d.add', label: 'Add-vertex tool (click a midpoint)', group: 'Build 3D · vertex tools', defaultKey: 'w' },
+  { action: 'sketch3d.delete', label: 'Delete-vertex tool (click a vertex)', group: 'Build 3D · vertex tools', defaultKey: 'e' },
+  { action: 'sketch3d.snap', label: 'Toggle snap-to-vertex', group: 'Build 3D · vertex tools', defaultKey: 'x' },
 ]
 
 const DEF_BY_ACTION = new Map(HOTKEY_DEFS.map(d => [d.action, d]))
